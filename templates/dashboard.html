@@ -9,34 +9,47 @@
     <div class="text-sm text-gray-500">Today: {{ today|date:"F j, Y" }}</div>
   </div>
   
-  <!-- Stats Cards -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Appointments Card -->
     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-      <h3 class="text-gray-500 text-sm font-medium">Today's Appointments</h3>
-      <p class="text-3xl font-bold text-blue-900">{{ stats.today_appointments }}</p>
-      <p class="text-green-600 text-sm mt-2">↑ {{ stats.week_appointments }} this week</p>
+        <h3 class="text-gray-500 text-sm font-medium">Today's Appointments</h3>
+        <p class="text-3xl font-bold text-blue-900">{{ stats.today_appointments }}</p>
+        <div class="flex justify-between mt-2">
+            <span class="text-green-600 text-sm">↑ {{ stats.completed_appointments_today }} completed</span>
+            <span class="text-blue-600 text-sm">{{ stats.week_appointments }} this week</span>
+        </div>
     </div>
     
+    <!-- Patients Card -->
     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-      <h3 class="text-gray-500 text-sm font-medium">Total Patients</h3>
-      <p class="text-3xl font-bold text-blue-900">{{ stats.total_patients }}</p>
-      {% if stats.total_patients > 0 %}
-      <p class="text-green-600 text-sm mt-2">↑ {{ stats.total_patients|add:"-100" }} this year</p>
-      {% endif %}
+        <h3 class="text-gray-500 text-sm font-medium">Total Patients</h3>
+        <p class="text-3xl font-bold text-blue-900">{{ stats.total_patients }}</p>
+        <div class="flex justify-between mt-2">
+            <span class="text-green-600 text-sm">↑ {{ stats.new_patients_this_week }} new</span>
+            <span class="text-green-600 text-sm">↑ {{ stats.new_patients_this_year }} YTD</span>
+        </div>
     </div>
     
+    <!-- Prescriptions Card -->
     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-      <h3 class="text-gray-500 text-sm font-medium">Active Prescriptions</h3>
-      <p class="text-3xl font-bold text-blue-900">{{ stats.pending_prescriptions }}</p>
-      <p class="text-red-600 text-sm mt-2">↓ {{ stats.pending_prescriptions|add:"-5" }} from last week</p>
+        <h3 class="text-gray-500 text-sm font-medium">Active Prescriptions</h3>
+        <p class="text-3xl font-bold text-blue-900">{{ stats.pending_prescriptions }}</p>
+        <div class="flex justify-between mt-2">
+            <span class="text-green-600 text-sm">↑ {{ stats.new_prescriptions_this_week }} new</span>
+            <span class="text-gray-500 text-sm">this week</span>
+        </div>
     </div>
     
+    <!-- Financial Card -->
     <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
-      <h3 class="text-gray-500 text-sm font-medium">Pending Bills</h3>
-      <p class="text-3xl font-bold text-blue-900">{{ stats.pending_bills }}</p>
-      <p class="text-yellow-600 text-sm mt-2">${{ stats.pending_bills|add:"1000" }} total</p>
+        <h3 class="text-gray-500 text-sm font-medium">Pending Bills</h3>
+        <p class="text-3xl font-bold text-blue-900">{{ stats.pending_bills }}</p>
+        <div class="flex justify-between mt-2">
+            <span class="text-yellow-600 text-sm">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
+            <span class="text-red-600 text-sm">₦{{ stats.outstanding_balance|floatformat:2 }} due</span>
+        </div>
     </div>
-  </div>
+</div>
   
   <!-- Main Content Area -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -96,7 +109,7 @@
 
         
         {% if request.user.role == 'ADMIN' %}
-        <a href="#" class="block w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium py-3 px-4 rounded-lg transition text-center">
+        <a href="{% url 'DurielMedicApp:generate_report' %}" class="block w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium py-3 px-4 rounded-lg transition text-center">
           <i class="fas fa-chart-pie mr-2"></i>Generate Report
         </a>
         {% endif %}

@@ -86,7 +86,7 @@
               Staff Management
             </a> {% endcomment %}
             
-            <a href="#" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group">
+            <a href="{% url 'DurielMedicApp:generate_report' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'report' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
               <i class="fas fa-chart-line mr-3"></i>
               Reports
             </a>
@@ -183,6 +183,7 @@
                 <div>
                   <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" id="user-menu">
                     <span class="sr-only">Open user menu</span>
+                    <h3>ONE LIFE CLINIC</h3>
                     <img class="h-8 w-8" src="{% static 'images/company-logo.png' %}" alt="Company Logo">
                 </button>
                 </div>

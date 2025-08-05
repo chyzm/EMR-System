@@ -24,6 +24,7 @@ from django.utils import timezone
 from datetime import date
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models.functions import Coalesce
 
 
 
@@ -111,27 +112,108 @@ def edit_user_role(request, user_id):
 # Dashboard View
 from django.utils import timezone
 
+# @login_required
+# @user_passes_test(staff_check, login_url='login')
+# def dashboard(request):
+#     today = date.today()
+#     start_week = today - timedelta(days=today.weekday())
+#     end_week = start_week + timedelta(days=6)
+    
+#     stats = {
+#         'total_patients': Patient.objects.count(),
+#         'today_appointments': Appointment.objects.filter(date=today).count(),
+#         'week_appointments': Appointment.objects.filter(date__range=[start_week, end_week]).count(),
+#         'pending_prescriptions': Prescription.objects.filter(is_active=True).count(),
+#         'pending_bills': Billing.objects.filter(status='PENDING').count(),
+#     }
+
+#     user_appointments = Appointment.objects.filter(
+#         start_time__gte=timezone.now() - timedelta(hours=24)
+#     ).order_by('-start_time')[:5]
+
+#     recent_patients = Patient.objects.order_by('-created_at')[:5]
+#     notifications = Notification.objects.filter(user=request.user, is_read=False).order_by('-created_at')[:5]
+    
+#     context = {
+#         'stats': stats,
+#         'user_appointments': user_appointments,
+#         'recent_patients': recent_patients,
+#         'notifications': notifications,
+#         'today': today,
+#     }
+    
+#     return render(request, 'dashboard.html', context)
+
+
+from django.db.models import Value, Sum, Count, DecimalField
+from django.db.models.functions import Coalesce
+
 @login_required
 @user_passes_test(staff_check, login_url='login')
 def dashboard(request):
     today = date.today()
     start_week = today - timedelta(days=today.weekday())
     end_week = start_week + timedelta(days=6)
+    start_year = date(today.year, 1, 1)
+    
+    # Calculate financial statistics with proper output fields
+    financial_stats = Billing.objects.filter(status='PENDING').aggregate(
+    total_count=Count('id'),
+    total_amount=Coalesce(
+        Sum('amount', output_field=DecimalField()),
+        Value(0, output_field=DecimalField())
+    ),
+    total_paid=Coalesce(
+        Sum('paid_amount', output_field=DecimalField()),
+        Value(0, output_field=DecimalField())
+    )
+)
     
     stats = {
+        # Patient statistics
         'total_patients': Patient.objects.count(),
+        'new_patients_this_week': Patient.objects.filter(
+            created_at__date__range=[start_week, today]
+        ).count(),
+        'new_patients_this_year': Patient.objects.filter(
+            created_at__date__gte=start_year
+        ).count(),
+        
+        # Appointment statistics
         'today_appointments': Appointment.objects.filter(date=today).count(),
-        'week_appointments': Appointment.objects.filter(date__range=[start_week, end_week]).count(),
+        'completed_appointments_today': Appointment.objects.filter(
+            date=today, status='COMPLETED'
+        ).count(),
+        'week_appointments': Appointment.objects.filter(
+            date__range=[start_week, end_week]
+        ).count(),
+        
+        # Prescription statistics
         'pending_prescriptions': Prescription.objects.filter(is_active=True).count(),
-        'pending_bills': Billing.objects.filter(status='PENDING').count(),
+        'new_prescriptions_this_week': Prescription.objects.filter(
+            date_prescribed__range=[start_week, today]
+        ).count(),
+        
+        # Financial statistics
+        'pending_bills': financial_stats['total_count'],
+        'total_pending_amount': financial_stats['total_amount'],
+        'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
     }
 
+    # Get today's appointments for the current user
     user_appointments = Appointment.objects.filter(
-        start_time__gte=timezone.now() - timedelta(hours=24)
-    ).order_by('-start_time')[:5]
+        date=today,
+        provider=request.user
+    ).order_by('start_time')[:5]
 
+    # Get recent patients
     recent_patients = Patient.objects.order_by('-created_at')[:5]
-    notifications = Notification.objects.filter(user=request.user, is_read=False).order_by('-created_at')[:5]
+    
+    # Get unread notifications
+    notifications = Notification.objects.filter(
+        user=request.user,
+        is_read=False
+    ).order_by('-created_at')[:5]
     
     context = {
         'stats': stats,
@@ -933,6 +1015,161 @@ def clear_notifications(request):
 #     notification.is_read = True
 #     notification.save()
 #     return redirect(notification.link or 'DurielMedicApp:dashboard')
+
+
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.utils import timezone
+from django.utils.timezone import make_aware
+from datetime import datetime, timedelta, time
+from django.db.models import Count, Sum
+from django.http import HttpResponse
+import csv
+
+from .models import Appointment, Patient, Billing  # adjust if needed
+from .utils import admin_check  # or define your own admin_check function
+
+
+@login_required
+@user_passes_test(admin_check, login_url='login')
+def generate_report(request):
+    # Default date range: last 30 days
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=30)
+
+    if request.method == 'POST':
+        start_date_str = request.POST.get('start_date')
+        end_date_str = request.POST.get('end_date')
+        report_type = request.POST.get('report_type')
+
+        if start_date_str and end_date_str:
+            start_date = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
+            end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+
+        # Route to correct report
+        if report_type == 'appointments':
+            return generate_appointment_report(start_date, end_date)
+        elif report_type == 'patients':
+            return generate_patient_report(start_date, end_date)
+        elif report_type == 'financial':
+            return generate_financial_report(start_date, end_date)
+
+    # Dashboard Summary Stats
+    appointment_stats = Appointment.objects.filter(
+        date__range=[start_date.date(), end_date.date()]
+    ).values('status').annotate(count=Count('id'))
+
+    patient_stats = Patient.objects.filter(
+        created_at__range=[start_date, end_date]
+    ).aggregate(total=Count('patient_id'))
+
+    financial_stats = Billing.objects.filter(
+        service_date__range=[start_date.date(), end_date.date()]
+    ).aggregate(
+        total_amount=Sum('amount'),
+        total_paid=Sum('paid_amount')
+    )
+
+    context = {
+        'start_date': start_date.date(),
+        'end_date': end_date.date(),
+        'appointment_stats': appointment_stats,
+        'patient_stats': patient_stats,
+        'financial_stats': financial_stats,
+    }
+
+    return render(request, 'reports/generate_report.html', context)
+
+
+def generate_appointment_report(start_date, end_date):
+    appointments = Appointment.objects.filter(
+        date__range=[start_date.date(), end_date.date()]
+    ).select_related('patient', 'provider').order_by('date', 'start_time')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="appointments_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Time', 'Patient', 'Provider', 'Status', 'Reason'])
+
+    for appt in appointments:
+        writer.writerow([
+            appt.date,
+            f"{appt.start_time} - {appt.end_time}",
+            appt.patient.full_name,
+            appt.provider.get_full_name(),
+            appt.get_status_display(),
+            appt.reason
+        ])
+
+    return response
+
+
+def generate_patient_report(start_date, end_date):
+    patients = Patient.objects.filter(
+        created_at__range=[start_date, end_date]
+    ).order_by('created_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="patients_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Patient ID', 'Name', 'Gender', 'Date of Birth', 'Contact', 'Registered On'])
+
+    for patient in patients:
+        writer.writerow([
+            patient.patient_id,
+            patient.full_name,
+            patient.get_gender_display(),
+            patient.date_of_birth,
+            patient.contact,
+            patient.created_at.strftime('%Y-%m-%d %H:%M')
+        ])
+
+    return response
+
+
+def generate_financial_report(start_date, end_date):
+    try:
+        bills = Billing.objects.filter(
+            service_date__range=[start_date.date(), end_date.date()]
+        ).select_related('patient').order_by('service_date')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename="financial_report_'
+            f'{start_date.date()}_to_{end_date.date()}.csv"'
+        )
+
+        writer = csv.writer(response)
+        writer.writerow(['Bill Date', 'Patient', 'Amount', 'Paid', 'Balance', 'Status', 'Description'])
+
+        for bill in bills:
+            amount = bill.amount or 0
+            paid = bill.paid_amount or 0
+            balance = amount - paid
+
+            writer.writerow([
+                bill.service_date.strftime('%Y-%m-%d') if bill.service_date else '',
+                bill.patient.full_name if bill.patient else 'Unknown Patient',
+                amount,
+                paid,
+                balance,
+                bill.get_status_display() if bill.status else '',
+                bill.description or ''
+            ])
+
+        return response
+
+    except Exception as e:
+        print(f"Error generating financial report: {str(e)}")
+        return HttpResponse(
+            "An error occurred while generating the report. Please try again later.",
+            content_type='text/plain',
+            status=500
+        )
+
+
 
 
 def logout_view(request):

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-blue-900">Welcome, {% if request.user.is_active %} {{ user.title }} {% endif %}{{ request.user.get_full_name }}</h1>
+    <div class="text-sm text-gray-500">Today: {{ today|date:"F j, Y" }}</div>
+  </div>
+  
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+      <h3 class="text-gray-500 text-sm font-medium">Today's Appointments</h3>
+      <p class="text-3xl font-bold text-blue-900">{{ stats.today_appointments }}</p>
+      <p class="text-green-600 text-sm mt-2">↑ {{ stats.week_appointments }} this week</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+      <h3 class="text-gray-500 text-sm font-medium">Total Patients</h3>
+      <p class="text-3xl font-bold text-blue-900">{{ stats.total_patients }}</p>
+      {% if stats.total_patients > 0 %}
+      <p class="text-green-600 text-sm mt-2">↑ {{ stats.total_patients|add:"-100" }} this year</p>
+      {% endif %}
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
+      <h3 class="text-gray-500 text-sm font-medium">Active Prescriptions</h3>
+      <p class="text-3xl font-bold text-blue-900">{{ stats.pending_prescriptions }}</p>
+      <p class="text-red-600 text-sm mt-2">↓ {{ stats.pending_prescriptions|add:"-5" }} from last week</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
+      <h3 class="text-gray-500 text-sm font-medium">Pending Bills</h3>
+      <p class="text-3xl font-bold text-blue-900">{{ stats.pending_bills }}</p>
+      <p class="text-yellow-600 text-sm mt-2">${{ stats.pending_bills|add:"1000" }} total</p>
+    </div>
+  </div>
+  
+  <!-- Main Content Area -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Upcoming Appointments -->
+    <div class="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
+      <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold">Today's Appointments</h2>
+        <a href="{% url 'DurielMedicApp:appointment_list' %}" class="text-sm hover:underline">View All</a>
+      </div>
+      <div class="divide-y">
+        {% for appointment in user_appointments %}
+        <div class="p-4 hover:bg-blue-50 transition cursor-pointer">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="font-medium">{{ appointment.patient.full_name }}</h3>
+              <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
+            </div>
+            <div class="text-right">
+              <p class="font-medium">{{ appointment.start_time|time:"h:i A" }}</p>
+              <p class="text-sm text-gray-600">{{ appointment.clinic.name }}</p>
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="p-4 text-center text-gray-500">
+          No appointments scheduled for today
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="bg-blue-900 text-white px-6 py-3">
+        <h2 class="text-xl font-semibold">Quick Actions</h2>
+      </div>
+      <div class="p-4 space-y-4">
+        {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+        <a href="{% url 'DurielMedicApp:add_patient' %}" class="block w-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-medium py-3 px-4 rounded-lg transition text-center">
+          <i class="fas fa-user-plus mr-2"></i>Add New Patient
+        </a>
+        {% endif %}
+        
+        {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+        <a href="{% url 'DurielMedicApp:add_appointment' %}" class="block w-full bg-green-100 hover:bg-green-200 text-green-800 font-medium py-3 px-4 rounded-lg transition text-center">
+          <i class="fas fa-calendar-plus mr-2"></i>Schedule Appointment
+        </a>
+        {% endif %}
+        
+        {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
+            {% for patient in patients %}
+                <a href="{% url 'add_prescription' patient.id %}" class="block w-full bg-purple-100 hover:bg-purple-200 text-purple-800 font-medium py-3 px-4 rounded-lg transition text-center">
+                    <i class="fas fa-prescription mr-2"></i>Write Prescription
+                </a>
+            {% endfor %}
+        {% endif %}
+
+        
+        {% if request.user.role == 'ADMIN' %}
+        <a href="#" class="block w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium py-3 px-4 rounded-lg transition text-center">
+          <i class="fas fa-chart-pie mr-2"></i>Generate Report
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Patients -->
+  <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+      <h2 class="text-xl font-semibold">Recent Patients</h2>
+      <a href="{% url 'DurielMedicApp:patient_list' %}" class="text-sm hover:underline">View All</a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for patient in recent_patients %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-medium">
+                  {{ patient.full_name|slice:":2"|upper }}
+                </div>
+                <div class="ml-4">
+                  <div class="text-sm font-medium text-gray-900">{{ patient.full_name }}</div>
+                  <div class="text-sm text-gray-500">ID: {{ patient.patient_id }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              {% with last_appointment=patient.appointments.first %}
+              {% if last_appointment %}
+              <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
+              <div class="text-sm text-gray-500">{{ last_appointment.reason|truncatechars:20 }}</div>
+              {% else %}
+              <div class="text-sm text-gray-500">No visits yet</div>
+              {% endif %}
+              {% endwith %}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                Active
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <a href="{% url 'DurielMedicApp:patient_detail' patient.pk %}" class="text-blue-600 hover:text-blue-900 mr-3">View</a>
+              {% comment %} <a href="#" class="text-green-600 hover:text-green-900">Chart</a> {% endcomment %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Unread Notifications -->
+  {% if notifications %}
+  <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+      <h2 class="text-xl font-semibold">Notifications</h2>
+      <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="text-sm hover:underline">Mark All Read</a>
+    </div>
+    <div class="divide-y">
+      {% for notification in notifications %}
+      <div class="p-4 hover:bg-blue-50 transition cursor-pointer" onclick="window.location='{% url 'DurielMedicApp:mark_notification_read' notification.pk %}'">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-sm {% if not notification.is_read %}font-semibold{% endif %}">{{ notification.message }}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-gray-500">{{ notification.created_at|timesince }} ago</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

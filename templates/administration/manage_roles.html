@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Create New User -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Create New User</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                {% for field in new_user_form %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <p class="text-red-500 text-sm mt-1">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                <button type="submit" name="create_user" class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+                    Create User
+                </button>
+            </form>
+        </div>
+
+<!-- Manage User Roles -->
+<div class="bg-white shadow rounded-lg p-6">
+  <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Manage User Roles</h2>
+
+  {% if users %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gray-50 text-gray-700">
+          <tr>
+            <th class="px-4 py-2 text-left font-medium">Full Name</th>
+            <th class="px-4 py-2 text-left font-medium">Email</th>
+            <th class="px-4 py-2 text-left font-medium">Role</th>
+            <th class="px-4 py-2 text-left font-medium">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for user in users %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2">{{user.title}} {{ user.first_name }} {{ user.last_name }}</td>
+            <td class="px-4 py-2">{{ user.email }}</td>
+            <td class="px-4 py-2 capitalize">{{ user.role }}</td>
+            <td class="px-4 py-2">
+              <a href="{% url 'DurielMedicApp:edit_user_role' user.id %}" class="text-blue-600 hover:underline">Edit Role</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-gray-500">No users found.</p>
+  {% endif %}
+</div>
+
+    </div>
+</div>
+
+{% endblock %}

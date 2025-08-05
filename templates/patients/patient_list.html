@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-xl font-semibold mb-4">Patient Records</h2>
+<table class="w-full bg-white shadow-md rounded-lg overflow-hidden">
+  <thead class="bg-blue-100">
+    <tr>
+      <th class="px-4 py-2 text-left">Name</th>
+      <th class="px-4 py-2 text-left">Patient ID</th>
+      <th class="px-4 py-2 text-left">Clinic</th>
+      <th class="px-4 py-2 text-left">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for patient in patients %}
+    <tr class="border-b hover:bg-gray-100">
+      <td class="px-4 py-2">{{ patient.full_name }}</td>
+      <td class="px-4 py-2">{{ patient.patient_id }}</td>
+      <td class="px-4 py-2">{{ patient.clinic.name }}</td>
+      <td class="px-4 py-2">
+        <a href="{% url 'DurielMedicApp:patient_detail' patient.patient_id %}" class="text-blue-600 hover:underline">View</a>
+        <a href="{% url 'DurielMedicApp:delete_patient' patient.pk %}" class="text-red-600 hover:underline">Delete</a>
+
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

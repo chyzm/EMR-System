@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="flex justify-between items-start mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold mb-2">
+                {% if from_consultation %}Schedule Follow-up after Consultation{% else %}Schedule Follow-up{% endif %}
+            </h2>
+            <p class="text-gray-600">For patient: {{ patient.full_name }}</p>
+        </div>
+        <div>
+            <a href="{% url 'DurielMedicApp:patient_detail' pk=patient.patient_id %}" 
+               class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-blue-900 text-white px-6 py-3">
+            <h3 class="text-xl font-semibold">Follow-up Details</h3>
+        </div>
+        <div class="p-6">
+            <form method="post">
+                {% csrf_token %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ field.errors|join:", " }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-6 flex justify-between">
+                    <div>
+                        {% if from_consultation %}
+                        <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+                           class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">
+                            Admit Patient Instead
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="submit" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                            {% if object %}Update{% else %}Create{% endif %} Follow Up
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="flex justify-between items-start mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold mb-2">Patient Details</h2>
+            <p class="text-gray-600">Patient ID: {{ patient.patient_id }}</p>
+        </div>
+        <div>
+            {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST' %}
+            <a href="{% url 'DurielMedicApp:edit_patient' patient.pk %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Edit Patient</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Patient Basic Information -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden mb-8">
+        <div class="bg-blue-900 text-white px-6 py-3">
+            <h3 class="text-xl font-semibold">Basic Information</h3>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-start space-x-4">
+                {% if patient.profile_picture %}
+                <img src="{{ patient.profile_picture.url }}" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover">
+                {% else %}
+                <div class="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                    <i class="fas fa-user text-3xl"></i>
+                </div>
+                {% endif %}
+                <div>
+                    <h4 class="text-xl font-semibold">{{ patient.full_name }}</h4>
+                    <p class="text-gray-600">{{ patient.get_gender_display }}</p>
+                    <p class="text-gray-600">DOB: {{ patient.date_of_birth|date:"F j, Y" }}</p>
+                    <p class="text-gray-600">Age: {{ patient.date_of_birth|timesince }}</p>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <p><strong>Blood Group:</strong> {{ patient.blood_group }}</p>
+                <p><strong>Allergies:</strong> {{ patient.allergies|default:"None recorded" }}</p>
+                <p><strong>Contact:</strong> {{ patient.contact }}</p>
+                <p><strong>Address:</strong> {{ patient.address }}</p>
+                <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact }} ({{ patient.emergency_contact_name|default:"No name provided" }})</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Medical Records Section -->
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold">Medical Records</h2>
+            {% if request.user.role in 'DOCTOR,NURSE' %}
+            <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
+            {% endif %}
+        </div>
+        <div class="divide-y">
+            {% for record in medical_records %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-medium">{{ record.title }}</h3>
+                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
+                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
+                        </p>
+                        {% if request.user.role in 'DOCTOR' %}
+                        <div class="mt-2">
+                            <a href="{% url 'DurielMedicApp:edit_medical_record' record.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="{% url 'DurielMedicApp:delete_medical_record' record.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No medical records found
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+   
+    <!-- Status Section -->
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-blue-900 text-white px-6 py-3">
+        <h2 class="text-xl font-semibold">Patient Status & Actions</h2>
+    </div>
+    <div class="p-6">
+        <div class="mb-4">
+            <p class="text-lg"><span class="font-semibold">Current Status:</span> 
+                <span class="px-2 py-1 rounded 
+                    {% if patient.status == 'REGISTERED' %}bg-gray-200 text-gray-800
+                    {% elif patient.status == 'VITALS_TAKEN' %}bg-blue-200 text-blue-800
+                    {% elif patient.status == 'IN_CONSULTATION' %}bg-yellow-200 text-yellow-800
+                    {% elif patient.status == 'ADMITTED' %}bg-orange-200 text-orange-800
+                    {% elif patient.status == 'FOLLOW_UP' %}bg-purple-200 text-purple-800
+                    {% elif patient.status == 'FOLLOW_UP_COMPLETE' %}bg-purple-200 text-purple-800
+                    {% elif patient.status == 'DISCHARGED' %}bg-green-200 text-green-800
+                    {% endif %}">
+                    {{ patient.get_status_display }}
+                </span>
+            </p>
+        </div>
+
+        <!-- Vitals Display (if available) -->
+        {% if vitals %}
+        <div class="mb-6 border-b pb-4">
+            <h3 class="font-semibold mb-2">Vitals Recorded</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600">Blood Pressure</p>
+                    <p class="font-medium">{{ vitals.blood_pressure }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Pulse</p>
+                    <p class="font-medium">{{ vitals.pulse }} bpm</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Temperature</p>
+                    <p class="font-medium">{{ vitals.temperature }}°C</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Weight</p>
+                    <p class="font-medium">{{ vitals.weight }} kg</p>
+                </div>
+                {% if vitals.notes %}
+                <div class="md:col-span-3">
+                    <p class="text-sm text-gray-600">Notes</p>
+                    <p class="font-medium">{{ vitals.notes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-2">
+            {% if request.user.is_authenticated %} 
+            {% if patient.status == 'REGISTERED' and request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+                <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Record Vitals</a>
+            {% endif %}
+            {% endif %} 
+            
+            {% if patient.status == 'VITALS_TAKEN' %}
+                {% if request.user.role == 'DOCTOR' %}
+                    <a href="{% url 'DurielMedicApp:begin_consultation' patient_id=patient.patient_id %}" 
+                       class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Begin Consultation</a>
+                {% endif %}
+                {% if request.user.role in 'NURSE,DOCTOR' %}
+                    <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+                       class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
+                {% endif %}
+            {% endif %}
+            
+            {% if patient.status == 'IN_CONSULTATION' and request.user.role == 'DOCTOR' %}
+                <a href="{% url 'DurielMedicApp:complete_consultation' patient_id=patient.patient_id %}" 
+                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Complete Consultation</a>
+            {% endif %}
+            
+            {% if patient.status == 'CONSULTATION_COMPLETE' and request.user.role == 'DOCTOR' %}
+                <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
+                <a href="{% url 'DurielMedicApp:discharge_patient' patient_id=patient.patient_id %}" 
+                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
+                <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+                   class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
+            {% endif %}
+
+            {% for follow_up in patient.follow_ups.all %}
+            {% if not follow_up.completed %}
+            <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
+            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+            Complete Follow-up
+            </a>
+            {% endif %}
+            {% endfor %}
+            
+            {% if patient.status == 'FOLLOW_UP' %}
+                {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+                    {% for follow_up in patient.follow_ups.all %}
+                        {% if not follow_up.completed %}
+                            <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
+                               class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Complete Follow-up</a>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+    <!-- Appointments Section -->
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold">Recent Appointments</h2>
+            <a href="{% url 'DurielMedicApp:appointment_list' %}?patient={{ patient.id }}" class="text-sm hover:underline">View All</a>
+        </div>
+        <div class="divide-y">
+            {% for appointment in appointments|slice:":5" %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="font-medium">{{ appointment.date|date:"F j, Y" }}</h3>
+                        <p class="text-sm text-gray-600">{{ appointment.reason }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm">{{ appointment.start_time|time:"h:i A" }} - {{ appointment.end_time|time:"h:i A" }}</p>
+                        <p class="text-xs text-gray-500">{{ appointment.get_status_display }}</p>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No appointments found
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Prescriptions Section -->
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold">Active Prescriptions</h2>
+            {% if request.user.role in 'ADMIN,DOCTOR' %}
+            <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a>
+            {% endif %}
+        </div>
+        <div class="divide-y">
+            {% for prescription in prescriptions %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-medium">{{ prescription.medication }}</h3>
+                        <p class="text-sm text-gray-600">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
+                        <p class="mt-2 text-gray-700">{{ prescription.instructions|default:"No special instructions" }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            Prescribed on {{ prescription.date_prescribed|date:"M j, Y" }}
+                        </p>
+                        {% if request.user.role in 'DOCTOR' %}
+                        <div class="mt-2">
+                            <a href="{% url 'DurielMedicApp:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.pk %}"
+                                class="text-yellow-600 hover:underline"
+                                onclick="return confirm('Are you sure you want to deactivate this prescription?');">
+                                Deactivate
+                              </a>
+
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No active prescriptions
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <h2 class="text-lg font-semibold mt-6">Deactivated Prescriptions</h2>
+<ul>
+  {% for prescription in deactivated_prescriptions %}
+    <li class="text-gray-500">
+      {{ prescription.medication }} - {{ prescription.dosage }} ({{ prescription.date_prescribed }})
+    </li>
+  {% empty %}
+    <li>No deactivated prescriptions.</li>
+  {% endfor %}
+</ul>
+
+</div>
+
+{% endblock %}

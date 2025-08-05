@@ -1,0 +1,940 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
+from django.urls import reverse_lazy
+from django.contrib import messages
+from django.db.models import Q, Count
+from datetime import date, timedelta
+from .models import CustomUser, Patient, Appointment, Prescription, MedicalRecord, Billing, Notification
+from .forms import (CustomUserCreationForm, PatientForm, AppointmentForm, 
+                   PrescriptionForm, MedicalRecordForm, BillingForm)
+from .decorators import role_required
+from django.http import JsonResponse
+# from .forms import RoleForm  
+# from .forms import RoleUpdateForm
+from .forms import UserCreationWithRoleForm, UserEditForm
+from django.contrib.auth import logout
+from .models import Clinic
+from django.views.decorators.http import require_POST
+from .forms import VitalsForm, AdmissionForm, FollowUpForm
+from django.urls import reverse, reverse_lazy  
+from .models import Admission, Notification, Patient
+from django.utils import timezone
+from datetime import date
+from django.core.mail import send_mail
+from django.conf import settings
+
+
+
+
+
+
+
+
+
+
+# Utility functions
+def staff_check(user):
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
+
+def admin_check(user):
+    return user.is_authenticated and user.role == 'ADMIN'
+
+def doctor_check(user):
+    return user.is_authenticated and user.role == 'DOCTOR'
+
+    
+def home_view(request):
+    if request.user.is_authenticated:
+        return redirect('DurielMedicApp:dashboard')
+    return redirect('login')
+
+
+
+
+@login_required
+def manage_user_roles(request):
+    users = CustomUser.objects.all()
+    # users = CustomUser.objects.exclude(id=request.user.id)  # Don't show the current user
+    new_user_form = UserCreationWithRoleForm()
+    new_user_form.fields['clinic'].queryset = Clinic.objects.all()
+    role_forms = {user.id: UserEditForm(instance=user) for user in users}
+
+    # Handle POST
+    if request.method == 'POST':
+        if 'create_user' in request.POST:
+            new_user_form = UserCreationWithRoleForm(request.POST)
+            if new_user_form.is_valid():
+                new_user_form.save()
+                return redirect('DurielMedicApp:manage_roles')
+        elif 'update_role' in request.POST:
+            user_id = request.POST.get('user_id')
+            user = get_object_or_404(CustomUser, id=user_id)
+            role_form = UserEditForm(request.POST, instance=user)
+            if role_form.is_valid():
+                role_form.save()
+                return redirect('DurielMedicApp:manage_roles')
+
+
+    return render(request, 'administration/manage_roles.html', {
+        'users': users,
+        'new_user_form': new_user_form,
+        'role_forms': role_forms,
+    })
+    
+
+@login_required
+def edit_user_role(request, user_id):
+    user = get_object_or_404(CustomUser, id=user_id)
+
+    if request.method == 'POST':
+        form = UserEditForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'User details updated successfully.')
+            return redirect('DurielMedicApp:manage_roles')
+    else:
+        form = UserEditForm(instance=user)
+        form.fields['clinic'].queryset = Clinic.objects.all()
+
+    return render(request, 'administration/edit_user_role.html', {
+        'form': form,
+        'user_obj': user,
+    })
+
+    
+
+
+
+
+# Dashboard View
+from django.utils import timezone
+
+@login_required
+@user_passes_test(staff_check, login_url='login')
+def dashboard(request):
+    today = date.today()
+    start_week = today - timedelta(days=today.weekday())
+    end_week = start_week + timedelta(days=6)
+    
+    stats = {
+        'total_patients': Patient.objects.count(),
+        'today_appointments': Appointment.objects.filter(date=today).count(),
+        'week_appointments': Appointment.objects.filter(date__range=[start_week, end_week]).count(),
+        'pending_prescriptions': Prescription.objects.filter(is_active=True).count(),
+        'pending_bills': Billing.objects.filter(status='PENDING').count(),
+    }
+
+    user_appointments = Appointment.objects.filter(
+        start_time__gte=timezone.now() - timedelta(hours=24)
+    ).order_by('-start_time')[:5]
+
+    recent_patients = Patient.objects.order_by('-created_at')[:5]
+    notifications = Notification.objects.filter(user=request.user, is_read=False).order_by('-created_at')[:5]
+    
+    context = {
+        'stats': stats,
+        'user_appointments': user_appointments,
+        'recent_patients': recent_patients,
+        'notifications': notifications,
+        'today': today,
+    }
+    
+    return render(request, 'dashboard.html', context)
+
+
+
+# Patient Views
+class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Patient
+    template_name = 'patients/patient_list.html'
+    context_object_name = 'patients'
+    paginate_by = 10
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search_query = self.request.GET.get('search', '')
+        
+        if search_query:
+            queryset = queryset.filter(
+                Q(full_name__icontains=search_query) |
+                Q(patient_id__icontains=search_query) |
+                Q(contact__icontains=search_query)
+            )
+        
+        return queryset.order_by('-created_at')
+
+# class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+#     model = Patient
+#     template_name = 'patients/patient_detail.html'
+#     context_object_name = 'patient'
+    
+#     def test_func(self):
+#         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+    
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         patient = self.get_object()
+#         context['medical_records'] = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+#         context['appointments'] = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+#         context['prescriptions'] = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
+#         context['deactivated_prescriptions'] = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
+#         context['bills'] = Billing.objects.filter(patient=patient).order_by('-service_date')
+#         return context
+
+
+
+class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    model = Patient
+    template_name = 'patients/patient_detail.html'
+    context_object_name = 'patient'
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        patient = self.get_object()
+        
+        # Get the latest vitals if available
+        appointment = patient.appointments.filter(status='SCHEDULED').first()
+        if appointment:
+            context['vitals'] = getattr(appointment, 'vitals', None)
+        
+        context['medical_records'] = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+        context['appointments'] = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+        context['prescriptions'] = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
+        context['deactivated_prescriptions'] = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
+        context['bills'] = Billing.objects.filter(patient=patient).order_by('-service_date')
+        return context
+    
+    
+
+class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Patient
+    form_class = PatientForm
+    template_name = 'patients/add_patient.html'
+    success_url = reverse_lazy('DurielMedicApp:patient_list')
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
+    
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        form.instance.clinic = self.request.user.clinic  # Assuming user has a clinic attribute
+        messages.success(self.request, 'Patient added successfully!')
+        return super().form_valid(form)
+    
+    
+    # @login_required
+    # def patient_detail(request, pk):
+    #     patient = get_object_or_404(Patient, patient_id=pk)
+    #     medical_records = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+    #     appointments = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+    #     prescriptions = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
+        
+    #     context = {
+    #         'patient': patient,
+    #         'medical_records': medical_records,
+    #         'appointments': appointments,
+    #         'prescriptions': prescriptions,
+    #     }
+        return render(request, 'patients/patient_detail.html', context)
+    
+
+class PatientDeleteView(DeleteView):
+    model = Patient
+    template_name = 'patients/confirm_delete.html'  # adjust template path as needed
+    success_url = reverse_lazy('DurielMedicApp:patient_list')  # redirect after deletion
+    
+    
+    
+
+
+@login_required
+@role_required('NURSE,DOCTOR')
+def record_vitals(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    appointment = patient.appointments.filter(status='SCHEDULED').first()
+    
+    if not appointment:
+        messages.error(request, "No active appointment found for this patient.")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    if request.method == 'POST':
+        form = VitalsForm(request.POST)
+        if form.is_valid():
+            vitals = form.save(commit=False)
+            vitals.appointment = appointment
+            vitals.save()
+            
+            # Update patient status
+            patient.status = 'VITALS_TAKEN'
+            patient.save()
+            
+            messages.success(request, "Vitals recorded successfully!")
+            return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    else:
+        form = VitalsForm(initial={'appointment': appointment})
+    
+    return render(request, 'vitals/record_vitals.html', {
+        'form': form,
+        'patient': patient,
+        'appointment': appointment
+    })
+    
+
+@login_required
+@role_required('DOCTOR')
+def begin_consultation(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    
+    if patient.status != 'VITALS_TAKEN':
+        messages.error(request, "Patient vitals must be taken before consultation")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    patient.status = 'IN_CONSULTATION'
+    patient.save()
+    
+    # Create a notification for the nurse if needed
+    Notification.objects.create(
+        user=request.user,
+        message=f"Consultation started for patient {patient.full_name}",
+        link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': patient_id}))
+    
+    messages.success(request, "Consultation started")
+    return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+    
+    
+@login_required
+@role_required('DOCTOR')
+def complete_consultation(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    
+    if patient.status != 'IN_CONSULTATION':
+        messages.error(request, "Patient must be in consultation first")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    patient.status = 'CONSULTATION_COMPLETE'
+    patient.save()
+    
+    messages.success(request, "Consultation completed successfully")
+    return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+
+
+
+@login_required
+@role_required('DOCTOR')
+def schedule_follow_up(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    
+    if patient.status not in ['IN_CONSULTATION', 'CONSULTATION_COMPLETE']:
+        messages.error(request, "Patient must complete consultation first")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    if request.method == 'POST':
+        form = FollowUpForm(request.POST)
+        if form.is_valid():
+            follow_up = form.save(commit=False)
+            follow_up.patient = patient
+            follow_up.created_by = request.user
+            follow_up.save()
+            
+            patient.status = 'FOLLOW_UP'
+            patient.save()
+            
+            messages.success(request, "Follow-up scheduled successfully!")
+            return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    else:
+        form = FollowUpForm()
+    
+    return render(request, 'follow_up/schedule_follow_up.html', {
+        'form': form,
+        'patient': patient,
+        'from_consultation': patient.status == 'IN_CONSULTATION'
+    })
+    
+    
+@login_required
+def complete_follow_up(request, pk):
+    follow_up = get_object_or_404(FollowUp, pk=pk)
+    patient = follow_up.patient  # Get the patient from the follow-up
+    
+    if not follow_up.completed:
+        follow_up.completed = True
+        follow_up.save()
+        
+        # Update patient status if this was their last pending follow-up
+        if not patient.follow_ups.filter(completed=False).exists():
+            patient.status = 'FOLLOW_UP_COMPLETE'
+            patient.save()
+        
+        messages.success(request, "Follow-up marked as complete.")
+    else:
+        messages.warning(request, "This follow-up was already completed.")
+    
+    return redirect('DurielMedicApp:patient_detail', pk=patient.pk)
+
+
+
+
+
+from django.views.generic import ListView, DetailView, UpdateView, CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from .models import FollowUp
+
+class FollowUpListView(LoginRequiredMixin, ListView):
+    model = FollowUp
+    template_name = 'follow_up/followup_list.html'
+    context_object_name = 'followups'
+    paginate_by = 10
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if not user.is_superuser:
+            role = getattr(user, 'role', None)
+
+            if role == 'DOCTOR':
+                queryset = queryset.filter(created_by=user)
+            elif role == 'NURSE':
+                # Change this logic based on your actual nurse-followup link
+                # For now, allow nurse to see all follow-ups
+                queryset = queryset  # or .none() if nurses should not see any
+
+        return queryset.order_by('scheduled_date', 'scheduled_time')
+
+
+class FollowUpCreateView(LoginRequiredMixin, CreateView):
+    model = FollowUp
+    template_name = 'follow_up/schedule_follow_up.html'
+    fields = ['patient', 'reason', 'scheduled_date', 'scheduled_time', 'notes']
+    
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        return super().form_valid(form)
+
+class FollowUpUpdateView(LoginRequiredMixin, UpdateView):
+    model = FollowUp
+    template_name = 'followup_form.html'
+    fields = ['reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
+
+    
+    
+
+@login_required
+@role_required('DOCTOR', 'NURSE')
+def admit_patient(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    
+    # Allow admission from multiple states
+    if patient.status not in ['VITALS_TAKEN', 'CONSULTATION_COMPLETE']:
+        messages.error(request, "Patient must have vitals taken or consultation completed first")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    if request.method == 'POST':
+        form = AdmissionForm(request.POST)
+        if form.is_valid():
+            admission = form.save(commit=False)
+            admission.patient = patient
+            admission.save()
+            
+            patient.status = 'ADMITTED'
+            patient.save()
+            
+            messages.success(request, "Patient admitted successfully!")
+            return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    else:
+        form = AdmissionForm(initial={'patient': patient})
+    
+    return render(request, 'admission/admit_patient.html', {
+        'form': form,
+        'patient': patient,
+        'from_consultation': patient.status == 'CONSULTATION_COMPLETE'
+    })
+    
+    
+    
+
+@login_required
+@role_required('DOCTOR')
+def mark_ready_for_doctor(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    
+    if patient.status != 'ADMITTED':
+        messages.error(request, "Patient must be admitted before seeing doctor")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    patient.status = 'SEEN_BY_DOCTOR'
+    patient.save()
+    
+    messages.success(request, "Patient is now with doctor")
+    return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+
+
+@login_required
+@role_required('DOCTOR', 'NURSE')
+def discharge_patient(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    admission = Admission.objects.filter(patient=patient, discharged=False).first()
+    
+    if not admission:
+        messages.error(request, "No active admission found for this patient")
+        return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+    admission.discharged = True
+    admission.save()
+    
+    # Reset patient status
+    patient.status = 'REGISTERED'
+    patient.save()
+    
+    messages.success(request, "Patient discharged successfully")
+    return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+
+
+
+@login_required
+def add_prescription(request, patient_id):
+    patient = get_object_or_404(Patient, patient_id=patient_id)
+
+    if request.method == 'POST':
+        medication = request.POST.get('medication')
+        dosage = request.POST.get('dosage')
+        instructions = request.POST.get('instructions')
+
+        # Validation (optional)
+        if not medication or not dosage:
+            messages.error(request, "Please fill in all required fields.")
+        else:
+            Prescription.objects.create(
+                patient=patient,
+                medication=medication,
+                dosage=dosage,
+                instructions=instructions,
+                prescribed_by=request.user  
+            )
+            messages.success(request, "Prescription saved successfully.")
+            return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
+        Notification.objects.create(
+            user=prescription.patient.created_by,
+            message=f"New prescription for {prescription.patient.full_name}",
+            link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': prescription.patient.pk})
+        )
+
+    return render(request, 'prescription/add_prescription.html', {'patient': patient})
+
+
+@login_required
+def edit_prescription(request, pk):
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if request.method == 'POST':
+        prescription.medication = request.POST.get('medication')
+        prescription.dosage = request.POST.get('dosage')
+        prescription.instructions = request.POST.get('instructions')
+        prescription.save()
+        return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
+
+    return render(request, 'prescription/edit_prescription.html', {'prescription': prescription, 'patient': patient})
+
+@login_required
+def prescription_list(request):
+    query = request.GET.get('q', '')
+    prescriptions = Prescription.objects.select_related('patient', 'prescribed_by')
+
+    if query:
+        prescriptions = prescriptions.filter(
+            Q(patient__first_name__icontains=query) |
+            Q(patient__last_name__icontains=query) |
+            Q(doctor__first_name__icontains=query) |
+            Q(doctor__last_name__icontains=query) |
+            Q(date_prescribed__icontains=query)
+        )
+
+    context = {
+        'prescriptions': prescriptions.order_by('-date_prescribed'),
+        'query': query,
+    }
+    return render(request, 'prescription/prescription_list.html', context)
+
+
+@login_required
+def deactivate_prescription(request, pk):
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if request.method == 'POST':
+        prescription.is_active = False
+        prescription.save()
+        return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
+
+    return render(request, 'prescription/deactivate_prescription.html', {
+        'prescription': prescription,
+        'patient': patient
+    })
+
+    
+
+class PatientUpdateView(UpdateView):
+    model = Patient
+    fields = ['full_name', 'date_of_birth', 'gender', 'contact', 'address']
+    template_name = 'patients/edit_patient.html'
+    success_url = reverse_lazy('DurielMedicApp:patient_list')
+
+
+# Appointment Views
+class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Appointment
+    template_name = 'appointments/appointment_list.html'
+    context_object_name = 'appointments'
+    paginate_by = 10
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and staff_check(self.request.user)
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Filter by date if provided
+        date_filter = self.request.GET.get('date', '')
+        if date_filter:
+            queryset = queryset.filter(date=date_filter)
+        
+        # For non-admin staff, only show their appointments or patients they created
+        if not self.request.user.role == 'ADMIN':
+            queryset = queryset.filter(
+                Q(provider=self.request.user) | 
+                Q(patient__created_by=self.request.user)
+            )
+        
+        return queryset.order_by('date', 'start_time')
+
+class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Appointment
+    form_class = AppointmentForm
+    template_name = 'appointments/appointment_form.html'
+    success_url = reverse_lazy('appointment_list')
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['initial'] = {'provider': self.request.user}
+        return kwargs
+    
+    def form_valid(self, form):
+        
+        form.instance.provider = self.request.user  # 👈 THIS is crucial
+        print("Saving appointment for:", form.cleaned_data.get('patient'))
+
+        appointment = form.save(commit=False)
+        appointment.save()
+
+        messages.success(self.request, 'Appointment scheduled successfully!')
+        return redirect(self.success_url)
+    
+    
+    
+
+
+
+@require_POST
+@login_required
+def mark_appointment_completed(request, pk):
+    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment.status = 'COMPLETED'
+    appointment.save()
+    messages.success(request, 'Appointment marked as completed.')
+    return redirect('DurielMedicApp:appointment_list')
+
+
+@require_POST
+@login_required
+def mark_appointment_cancelled(request, pk):
+    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment.status = 'CANCELLED'
+    appointment.save()
+    messages.warning(request, 'Appointment marked as cancelled.')
+    return redirect('DurielMedicApp:appointment_list')
+
+    
+
+
+
+# Staff Management Views
+@login_required
+@user_passes_test(admin_check, login_url='login')
+def staff_list(request):
+    staff = CustomUser.objects.filter(is_staff=True).exclude(role='ADMIN')
+    return render(request, 'staff/staff_list.html', {'staff': staff})
+
+class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = CustomUser
+    form_class = CustomUserCreationForm
+    template_name = 'staff/staff_form.html'
+    success_url = reverse_lazy('staff_list')
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and admin_check(self.request.user)
+    
+    def form_valid(self, form):
+        form.instance.is_staff = True
+        messages.success(self.request, 'Staff member added successfully!')
+        return super().form_valid(form)
+    
+    
+@login_required
+def patient_list(request):
+    patients = Patient.objects.all()
+    return render(request, 'patients/patient_list.html', {'patients': patients})
+
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def add_medical_record(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    if request.method == 'POST':
+        form = MedicalRecordForm(request.POST)
+        if form.is_valid():
+            record = form.save(commit=False)
+            record.patient = patient
+            record.created_by = request.user
+            record.save()
+            messages.success(request, 'Medical record added successfully!')
+            return redirect('DurielMedicApp:patient_detail', pk=patient.pk)
+    else:
+        form = MedicalRecordForm()
+    
+    return render(request, 'medical_records/add_medical_record.html', {
+        'form': form,
+        'patient': patient
+    })
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def edit_medical_record(request, record_id):
+    record = get_object_or_404(MedicalRecord, pk=record_id)
+    if request.method == 'POST':
+        form = MedicalRecordForm(request.POST, instance=record)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Medical record updated successfully!')
+            return redirect('DurielMedicApp:patient_detail', pk=record.patient.pk)
+    else:
+        form = MedicalRecordForm(instance=record)
+    
+    return render(request, 'medical_records/edit_medical_record.html', {
+        'form': form,
+        'record': record
+    })
+
+@login_required
+@role_required('ADMIN', 'DOCTOR')
+def delete_medical_record(request, record_id):
+    record = get_object_or_404(MedicalRecord, pk=record_id)
+    patient_id = record.patient.pk
+    record.delete()
+    messages.success(request, 'Medical record deleted successfully!')
+    return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+
+
+def patient_search_api(request):
+    query = request.GET.get('q', '')
+    results = Patient.objects.filter(full_name__icontains=query)
+    data = [{'id': p.id, 'name': p.full_name} for p in results]
+    return JsonResponse({'results': data})
+
+
+
+
+# Appointment List View
+# 1. List all appointments (for staff/admin)
+@login_required
+def appointment_list(request):
+    appointments = Appointment.objects.all().order_by('-date')
+    return render(request, 'appointments/appointment_list.html', {'appointments': appointments})
+
+
+# 2. Create new appointment
+@login_required
+def appointment_create(request):
+    if request.method == 'POST':
+        form = AppointmentForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Appointment scheduled successfully.')
+            return redirect('appointment_list')
+    else:
+        form = AppointmentForm()
+    
+    return render(request, 'appointments/appointment_form.html', {'form': form})
+
+
+# 3. Update appointment
+@login_required
+def appointment_update(request, pk):
+    appointment = get_object_or_404(Appointment, pk=pk)
+    
+    form = AppointmentForm(request.POST or None, instance=appointment)
+    if form.is_valid():
+        form.save()
+        messages.success(request, 'Appointment updated successfully.')
+        return redirect('DurielMedicApp:appointment_list')
+    
+    return render(request, 'appointments/appointment_form.html', {'form': form})
+
+
+# 4. Delete appointment
+@login_required
+def appointment_delete(request, pk):
+    appointment = get_object_or_404(Appointment, pk=pk)
+    
+    if request.method == 'POST':
+        appointment.delete()
+        messages.success(request, 'Appointment deleted successfully.')
+        return redirect('DurielMedicApp:appointment_list')
+    
+    return render(request, 'appointments/appointment_confirm_delete.html', {'appointment': appointment})
+
+
+# 5. Check appointment availability via API
+@login_required
+def check_appointment_availability(request):
+    provider_id = request.GET.get('provider')
+    date = request.GET.get('date')
+    start_time = request.GET.get('start_time')
+    end_time = request.GET.get('end_time')
+    
+    if not all([provider_id, date, start_time, end_time]):
+        return JsonResponse({'available': False, 'error': 'Missing required parameters'}, status=400)
+    
+    try:
+        overlapping = Appointment.objects.filter(
+            provider_id=provider_id,
+            date=date,
+            start_time__lt=end_time,
+            end_time__gt=start_time
+        )
+        available = not overlapping.exists()
+        return JsonResponse({'available': available})
+    except Exception as e:
+        return JsonResponse({'available': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def add_appointment(request):
+    if request.method == 'POST':
+        form = AppointmentForm(request.POST)
+        if form.is_valid():
+            appointment = form.save(commit=False)
+            appointment.provider = request.user
+
+            if request.user.clinic is None:
+                messages.error(request, "Your account is not assigned to a clinic. Please contact the admin.")
+                return redirect('DurielMedicApp:add_appointment')
+
+            appointment.clinic = request.user.clinic
+            appointment.status = 'SCHEDULED'
+            appointment.save()
+
+            # ✅ Move notification creation here
+            Notification.objects.create(
+                user=appointment.provider,
+                message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
+                link=reverse('DurielMedicApp:appointment_list', kwargs={'pk': appointment.pk})
+            )
+
+            messages.success(request, 'Appointment scheduled successfully!')
+            return redirect('DurielMedicApp:appointment_list')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = AppointmentForm(initial={'provider': request.user})
+
+    return render(request, 'appointments/add_appointment.html', {
+        'form': form,
+        'title': 'Add New Appointment',
+    })
+
+
+
+
+
+# Notification Views
+
+
+def check_birthdays():
+    today = date.today()
+    patients = Patient.objects.filter(
+        date_of_birth__month=today.month,
+        date_of_birth__day=today.day
+    )
+    
+    for patient in patients:
+        # Create notification for staff
+        Notification.objects.create(
+            user=patient.created_by,
+            message=f"Today is {patient.full_name}'s birthday!",
+            link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': patient.pk})
+        )
+        
+        # Send email if email exists
+        if patient.email:
+            send_mail(
+                'Happy Birthday!',
+                f'Dear {patient.full_name},\n\nHappy Birthday from DurielMedic+!',
+                settings.DEFAULT_FROM_EMAIL,
+                [patient.email],
+                fail_silently=True
+            )
+        
+        # Here you could add SMS functionality if you have an SMS service integrated
+        
+        
+        
+        
+# @require_POST
+# @login_required
+# def mark_notification_read(request):
+#     request.user.notifications.filter(is_read=False).update(is_read=True)
+#     return JsonResponse({'status': 'success'})
+
+
+from django.views.decorators.csrf import csrf_exempt
+
+@login_required
+@csrf_exempt
+def mark_notification_read(request):
+    Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({'status': 'success'})
+
+@login_required
+def clear_notifications(request):
+    request.user.notifications.all().delete()
+    messages.success(request, "Notifications cleared")
+    return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
+
+# @login_required
+# def mark_notification_read(request, pk):
+#     notification = get_object_or_404(Notification, pk=pk, user=request.user)
+#     notification.is_read = True
+#     notification.save()
+#     return redirect(notification.link or 'DurielMedicApp:dashboard')
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('login') 

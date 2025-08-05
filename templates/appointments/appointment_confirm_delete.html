@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-md mx-auto mt-10 bg-white p-6 rounded shadow">
+  <h2 class="text-xl font-bold text-red-600 mb-4">Delete Appointment</h2>
+  <p class="text-gray-800">Are you sure you want to delete the appointment for 
+    <strong>{{ appointment.patient.full_name }}</strong> on 
+    <strong>{{ appointment.date }}</strong> at 
+    <strong>{{ appointment.start_time }}</strong>?</p>
+
+  <form method="post" class="mt-6 flex justify-between">
+    {% csrf_token %}
+    <a href="{% url 'DurielMedicApp:appointment_list' %}" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</a>
+    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+  </form>
+</div>
+
+{% endblock %}

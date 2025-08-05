@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <h2 class="text-xl font-semibold mb-4">Edit Medical Record for {{ record.patient.full_name }}</h2>
+    <div class="bg-white p-6 rounded shadow-md">
+        <form method="post">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Update Record
+            </button>
+            <a href="{% url 'DurielMedicApp:patient_detail' record.patient.pk %}" class="ml-2 bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">
+                Cancel
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

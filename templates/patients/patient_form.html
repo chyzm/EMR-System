@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-xl font-semibold mb-4">Add New Patient</h2>
+<form method="post" enctype="multipart/form-data" class="bg-white p-6 rounded shadow-md">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Save</button>
+</form>
+{% endblock %}

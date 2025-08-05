@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Deactivate Prescription{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto bg-white shadow p-6 rounded">
+  <h2 class="text-xl text-yellow-700 font-bold mb-4">Deactivate Prescription</h2>
+  <p>Are you sure you want to deactivate this prescription for <strong>{{ patient.full_name }}</strong>?</p>
+  <ul class="mt-4 text-sm text-gray-600">
+    <li><strong>Medication:</strong> {{ prescription.medication }}</li>
+    <li><strong>Dosage:</strong> {{ prescription.dosage }}</li>
+    <li><strong>Instructions:</strong> {{ prescription.instructions }}</li>
+  </ul>
+
+  <form method="POST" class="mt-6">
+    {% csrf_token %}
+    <button type="submit" class="bg-yellow-600 text-white px-4 py-2 rounded">Yes, Deactivate</button>
+    <a href="{% url 'DurielMedicApp:patient_detail' patient.patient_id %}" class="ml-4 text-gray-600 underline">Cancel</a>
+  </form>
+</div>
+{% endblock %}

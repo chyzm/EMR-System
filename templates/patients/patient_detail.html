@@ -82,6 +82,61 @@
         </div>
     </div>
 
+    <!-- Add this after the medical records section -->
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold">Billing</h2>
+        <a href="{% url 'DurielMedicApp:create_bill_for_patient' patient.pk %}" class="text-sm hover:underline">Add Bill</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill #</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for bill in patient.bills.all %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ bill.service_date|date:"M d, Y" }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₦{{ bill.amount|floatformat:2 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₦{{ bill.paid_amount|floatformat:2 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            {% if bill.status == 'PAID' %}bg-green-100 text-green-800
+                            {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ bill.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900 mr-2">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        
+                        <a href="{% url 'DurielMedicApp:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </a>
+                       
+
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">No bills found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
    
     <!-- Status Section -->
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
@@ -138,12 +193,17 @@
 
         <!-- Action Buttons -->
         <div class="flex flex-wrap gap-2">
-            {% if request.user.is_authenticated %} 
-            {% if patient.status == 'REGISTERED' and request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+            {% if request.user.is_authenticated %}
+            {% if patient.status == 'REGISTERED' %}
+            {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
                 <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
-                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Record Vitals</a>
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                Record Vitals
+                </a>
             {% endif %}
-            {% endif %} 
+            {% endif %}
+            {% endif %}
+
             
             {% if patient.status == 'VITALS_TAKEN' %}
                 {% if request.user.role == 'DOCTOR' %}

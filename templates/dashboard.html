@@ -61,23 +61,23 @@
       </div>
       <div class="divide-y">
         {% for appointment in user_appointments %}
-        <div class="p-4 hover:bg-blue-50 transition cursor-pointer">
-          <div class="flex justify-between items-center">
-            <div>
-              <h3 class="font-medium">{{ appointment.patient.full_name }}</h3>
-              <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
-            </div>
-            <div class="text-right">
-              <p class="font-medium">{{ appointment.start_time|time:"h:i A" }}</p>
-              <p class="text-sm text-gray-600">{{ appointment.clinic.name }}</p>
-            </div>
+          <div class="p-4 hover:bg-blue-50 transition cursor-pointer">
+              <div class="flex justify-between items-center">
+                  <div>
+                      <h3 class="font-medium">{{ appointment.patient.full_name }}</h3>
+                      <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
+                  </div>
+                  <div class="text-right">
+                      <p class="font-medium">{{ appointment.start_time|time:"h:i A" }}</p>
+                      <p class="text-sm text-gray-600">{{ appointment.clinic.name }}</p>
+                  </div>
+              </div>
           </div>
-        </div>
-        {% empty %}
-        <div class="p-4 text-center text-gray-500">
-          No appointments scheduled for today
-        </div>
-        {% endfor %}
+          {% empty %}
+          <div class="p-4 text-center text-gray-500">
+              No appointments scheduled for today
+          </div>
+          {% endfor %}
       </div>
     </div>
     
@@ -105,6 +105,12 @@
                     <i class="fas fa-prescription mr-2"></i>Write Prescription
                 </a>
             {% endfor %}
+        {% endif %}
+
+        {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+        <a href="{% url 'DurielMedicApp:create_bill' %}" class="block w-full bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-medium py-3 px-4 rounded-lg transition text-center">
+            <i class="fas fa-file-invoice-dollar mr-2"></i>Create New Bill
+        </a>
         {% endif %}
 
         

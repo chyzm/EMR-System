@@ -95,4 +95,15 @@ urlpatterns = [
 
     # Reports
     path('reports/generate/', views.generate_report, name='generate_report'),
+    
+    # Billing URLs
+    path('billing/', views.billing_list, name='billing_list'),
+    path('billing/create/', views.create_bill, name='create_bill'),
+    path('billing/create/patient/<int:patient_id>/', views.create_bill, name='create_bill_for_patient'),
+    path('billing/create/appointment/<int:appointment_id>/', views.create_bill, name='create_bill_for_appointment'),
+    path('billing/<int:pk>/', views.view_bill, name='view_bill'),
+    path('billing/<int:pk>/edit/', views.edit_bill, name='edit_bill'),
+    path('billing/<int:pk>/payment/', views.record_payment, name='record_payment'),
+    path('billing/<int:pk>/receipt/', views.generate_receipt, name='generate_receipt'),
+    path('billing/<int:pk>/delete/', views.delete_bill, name='delete_bill'),
  ]

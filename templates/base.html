@@ -79,6 +79,13 @@
               Prescriptions
             </a>
             {% endif %}
+
+            {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+            <a href="{% url 'DurielMedicApp:billing_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'billing' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+                <i class="fas fa-money-bill-wave mr-3"></i>
+                Billing
+            </a>
+            {% endif %}
             
             {% if request.user.role == 'ADMIN' %}
             {% comment %} <a href="{% url 'DurielMedicApp:staff_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'staff' in request.resolver_match.url_name %}bg-blue-800{% endif %}">

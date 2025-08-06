@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Bill Detail{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <div class="bg-white shadow rounded-lg p-6">
+    <h1 class="text-2xl font-bold mb-4">Bill Detail</h1>
+
+    <p><strong>Patient:</strong> {{ bill.patient.full_name }}</p>
+    <p><strong>Amount:</strong> ₦{{ bill.amount }}</p>
+    <p><strong>Paid:</strong> ₦{{ bill.paid_amount }}</p>
+    <p><strong>Balance:</strong> ₦{{ bill.get_balance }}</p>
+    <p><strong>Status:</strong> {{ bill.get_status_display }}</p>
+    <p><strong>Description:</strong> {{ bill.description }}</p>
+    <p><strong>Service Date:</strong> {{ bill.service_date }}</p>
+    <p><strong>Due Date:</strong> {{ bill.due_date }}</p>
+
+    {% if bill.payments.exists %}
+    <div class="mt-6">
+      <h2 class="text-lg font-semibold mb-2">Payments Made</h2>
+      <ul class="space-y-2">
+        {% for payment in bill.payments.all %}
+          <li class="border p-3 rounded bg-gray-50">
+            <p><strong>Amount:</strong> ₦{{ payment.amount|floatformat:2 }}</p>
+            <p><strong>Method:</strong> {{ payment.get_payment_method_display }}</p>
+            <p><strong>Date:</strong> {{ payment.payment_date|date:"F j, Y, g:i a" }}</p>
+            {% if payment.transaction_reference %}
+              <p><strong>Reference:</strong> {{ payment.transaction_reference }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+      <p class="mt-4 text-gray-500">No payments recorded for this bill yet.</p>
+    {% endif %}
+
+    <div class="mt-6">
+      <a href="{% url 'DurielMedicApp:billing_list' %}" class="text-blue-600 hover:underline">← Back to Billing</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

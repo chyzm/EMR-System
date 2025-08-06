@@ -25,6 +25,7 @@ from datetime import date
 from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models.functions import Coalesce
+from .models import Payment, NotificationRead
 
 
 
@@ -158,16 +159,16 @@ def dashboard(request):
     
     # Calculate financial statistics with proper output fields
     financial_stats = Billing.objects.filter(status='PENDING').aggregate(
-    total_count=Count('id'),
-    total_amount=Coalesce(
-        Sum('amount', output_field=DecimalField()),
-        Value(0, output_field=DecimalField())
-    ),
-    total_paid=Coalesce(
-        Sum('paid_amount', output_field=DecimalField()),
-        Value(0, output_field=DecimalField())
+        total_count=Count('id'),
+        total_amount=Coalesce(
+            Sum('amount', output_field=DecimalField()),
+            Value(0, output_field=DecimalField())
+        ),
+        total_paid=Coalesce(
+            Sum('paid_amount', output_field=DecimalField()),
+            Value(0, output_field=DecimalField())
+        )
     )
-)
     
     stats = {
         # Patient statistics
@@ -198,22 +199,34 @@ def dashboard(request):
         'pending_bills': financial_stats['total_count'],
         'total_pending_amount': financial_stats['total_amount'],
         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
+        
+        'pending_bills': Billing.objects.filter(status='PENDING').count(),
+        'total_pending_amount': Billing.objects.filter(status='PENDING').aggregate(
+            total=Sum('amount', output_field=DecimalField())
+        )['total'] or 0,
+        'outstanding_balance': Billing.objects.aggregate(
+            total=Sum(F('amount') - F('paid_amount'), output_field=DecimalField())
+        )['total'] or 0,
     }
 
-    # Get today's appointments for the current user
+    # Get ALL today's appointments for all staff users
     user_appointments = Appointment.objects.filter(
-        date=today,
-        provider=request.user
-    ).order_by('start_time')[:5]
+        date=today
+    ).order_by('start_time')[:5]  # Show first 5 appointments of the day
 
     # Get recent patients
     recent_patients = Patient.objects.order_by('-created_at')[:5]
     
-    # Get unread notifications
+   
+
+    # Get notifications not yet read by this user
+    read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+
     notifications = Notification.objects.filter(
-        user=request.user,
-        is_read=False
-    ).order_by('-created_at')[:5]
+        Q(user=request.user, is_read=False) |
+        Q(user__isnull=True)  # global
+    ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
+
     
     context = {
         'stats': stats,
@@ -303,7 +316,7 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy('DurielMedicApp:patient_list')
     
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE']
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
@@ -337,38 +350,42 @@ class PatientDeleteView(DeleteView):
     
 
 
-@login_required
-@role_required('NURSE,DOCTOR')
+@login_required 
+@role_required('NURSE', 'DOCTOR')
 def record_vitals(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id)
-    appointment = patient.appointments.filter(status='SCHEDULED').first()
-    
+    appointment = patient.appointments.filter(status='SCHEDULED').order_by('-date', '-start_time').first()
+
     if not appointment:
         messages.error(request, "No active appointment found for this patient.")
         return redirect('DurielMedicApp:patient_detail', pk=patient_id)
-    
+
     if request.method == 'POST':
         form = VitalsForm(request.POST)
         if form.is_valid():
             vitals = form.save(commit=False)
             vitals.appointment = appointment
             vitals.save()
-            
+
             # Update patient status
             patient.status = 'VITALS_TAKEN'
             patient.save()
-            
+
             messages.success(request, "Vitals recorded successfully!")
             return redirect('DurielMedicApp:patient_detail', pk=patient_id)
     else:
         form = VitalsForm(initial={'appointment': appointment})
-    
+
     return render(request, 'vitals/record_vitals.html', {
         'form': form,
         'patient': patient,
         'appointment': appointment
     })
+
     
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
 
 @login_required
 @role_required('DOCTOR')
@@ -381,32 +398,80 @@ def begin_consultation(request, patient_id):
     
     patient.status = 'IN_CONSULTATION'
     patient.save()
-    
-    # Create a notification for the nurse if needed
-    Notification.objects.create(
-        user=request.user,
-        message=f"Consultation started for patient {patient.full_name}",
-        link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': patient_id}))
-    
+
+    # ✅ Send notification to all active users
+    User = get_user_model()
+    users = User.objects.filter(is_active=True)
+
+    for user in users:
+        Notification.objects.create(
+            user=user,
+            message=f"Consultation started for patient {patient.full_name}",
+            link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': patient_id})
+        )
+
     messages.success(request, "Consultation started")
     return redirect('DurielMedicApp:patient_detail', pk=patient_id)
 
+
     
     
+# @login_required
+# @role_required('DOCTOR')
+# def complete_consultation(request, patient_id):
+#     patient = get_object_or_404(Patient, pk=patient_id)
+    
+#     if patient.status != 'IN_CONSULTATION':
+#         messages.error(request, "Patient must be in consultation first")
+#         return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+    
+#     patient.status = 'CONSULTATION_COMPLETE'
+#     patient.save()
+    
+#     messages.success(request, "Consultation completed successfully")
+#     return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from datetime import date, timedelta
+
 @login_required
 @role_required('DOCTOR')
 def complete_consultation(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id)
-    
+
     if patient.status != 'IN_CONSULTATION':
         messages.error(request, "Patient must be in consultation first")
         return redirect('DurielMedicApp:patient_detail', pk=patient_id)
-    
+
     patient.status = 'CONSULTATION_COMPLETE'
     patient.save()
-    
-    messages.success(request, "Consultation completed successfully")
+
+    # ✅ Create the bill
+    bill = Billing.objects.create(
+        patient=patient,
+        amount=5000,  # Replace with dynamic value if needed
+        description=f"Consultation fee - {date.today()}",
+        service_date=date.today(),
+        due_date=date.today() + timedelta(days=14),
+        created_by=request.user
+    )
+
+    # ✅ Send notification to all active users
+    User = get_user_model()
+    users = User.objects.filter(is_active=True)
+
+    for user in users:
+        Notification.objects.create(
+            user=user,
+            message=f"New bill created for {patient.full_name} - ₦{bill.amount:,.2f}",
+            link=reverse('DurielMedicApp:view_bill', kwargs={'pk': bill.pk})
+        )
+
+    messages.success(request, "Consultation completed successfully. Consultation fee bill created.")
     return redirect('DurielMedicApp:patient_detail', pk=patient_id)
+
 
 
 
@@ -738,6 +803,13 @@ def mark_appointment_completed(request, pk):
     appointment = get_object_or_404(Appointment, pk=pk)
     appointment.status = 'COMPLETED'
     appointment.save()
+    
+    # Check if bill already exists
+    if not hasattr(appointment, 'bill'):
+        messages.info(request, 'Appointment marked as completed. Would you like to create a bill?')
+        
+        return redirect('DurielMedicApp:create_bill_for_appointment', appointment_id=appointment.pk)
+    
     messages.success(request, 'Appointment marked as completed.')
     return redirect('DurielMedicApp:appointment_list')
 
@@ -932,12 +1004,20 @@ def add_appointment(request):
             appointment.status = 'SCHEDULED'
             appointment.save()
 
-            # ✅ Move notification creation here
-            Notification.objects.create(
-                user=appointment.provider,
-                message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
-                link=reverse('DurielMedicApp:appointment_list', kwargs={'pk': appointment.pk})
-            )
+            # ✅ Reset patient status to REGISTERED for fresh visit
+            appointment.patient.status = 'REGISTERED'
+            appointment.patient.save()
+
+            # Notify all active users
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            staff_users = User.objects.filter(is_active=True)
+            for user in staff_users:
+                Notification.objects.create(
+                    user=user,
+                    message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
+                    link=reverse('DurielMedicApp:appointment_list')
+                )
 
             messages.success(request, 'Appointment scheduled successfully!')
             return redirect('DurielMedicApp:appointment_list')
@@ -1000,14 +1080,37 @@ from django.views.decorators.csrf import csrf_exempt
 @login_required
 @csrf_exempt
 def mark_notification_read(request):
+    # Mark personal notifications
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+
+    # Mark global notifications as read per user
+    unread_globals = Notification.objects.filter(user__isnull=True).exclude(
+        id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+    )
+    NotificationRead.objects.bulk_create([
+        NotificationRead(user=request.user, notification=n) for n in unread_globals
+    ], ignore_conflicts=True)
+
     return JsonResponse({'status': 'success'})
+
+
 
 @login_required
 def clear_notifications(request):
+    # Delete user-specific notifications
     request.user.notifications.all().delete()
+
+    # Mark global as read (don't delete them)
+    unread_globals = Notification.objects.filter(user__isnull=True).exclude(
+        id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+    )
+    NotificationRead.objects.bulk_create([
+        NotificationRead(user=request.user, notification=n) for n in unread_globals
+    ], ignore_conflicts=True)
+
     messages.success(request, "Notifications cleared")
     return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
+
 
 # @login_required
 # def mark_notification_read(request, pk):
@@ -1168,6 +1271,272 @@ def generate_financial_report(start_date, end_date):
             content_type='text/plain',
             status=500
         )
+        
+
+
+from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+from django.db import transaction
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def billing_list(request):
+    bills = Billing.objects.select_related('patient').order_by('-service_date')
+    
+    # Filtering options
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        bills = bills.filter(status=status_filter)
+    
+    patient_filter = request.GET.get('patient', '')
+    if patient_filter:
+        bills = bills.filter(patient__full_name__icontains=patient_filter)
+    
+    date_from = request.GET.get('date_from', '')
+    if date_from:
+        bills = bills.filter(service_date__gte=date_from)
+    
+    date_to = request.GET.get('date_to', '')
+    if date_to:
+        bills = bills.filter(service_date__lte=date_to)
+    
+    context = {
+        'bills': bills,
+        'total_amount': bills.aggregate(total=Sum('amount'))['total'] or 0,
+        'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
+        'status_filter': status_filter,
+        'patient_filter': patient_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+    }
+    return render(request, 'billing/billing_list.html', context)
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def create_bill(request, patient_id=None, appointment_id=None):
+    patient = None
+    appointment = None
+    
+    # Get patient and appointment objects
+    if appointment_id:
+        appointment = get_object_or_404(Appointment, pk=appointment_id)
+        patient = appointment.patient
+    
+    if patient_id and not patient:
+        patient = get_object_or_404(Patient, pk=patient_id)
+    
+    # Get patients with appointments for dropdown
+    patients_with_appointments = Patient.objects.filter(
+        appointments__isnull=False
+    ).distinct()
+    
+    if request.method == 'POST':
+        form = BillingForm(request.POST)
+        if form.is_valid():
+            bill = form.save(commit=False)
+            
+            # Ensure patient is set
+            if not bill.patient:
+                if patient:
+                    bill.patient = patient
+                else:
+                    form.add_error('patient', 'Patient is required')
+                    return render(request, 'billing/billing_form.html', {
+                        'form': form,
+                        'patient': patient,
+                        'appointment': appointment,
+                        'patients_with_appointments': patients_with_appointments,
+                        'title': 'Create New Bill'
+                    })
+            
+            # Set appointment if available
+            if appointment:
+                bill.appointment = appointment
+            
+            bill.created_by = request.user
+            
+            # Initialize paid_amount to 0 if not provided
+            if not bill.paid_amount:
+                bill.paid_amount = 0
+                
+            # Validate payment amount
+            if bill.paid_amount > bill.amount:
+                form.add_error('paid_amount', "Paid amount cannot be greater than total amount")
+                return render(request, 'billing/billing_form.html', {
+                    'form': form,
+                    'patient': patient,
+                    'appointment': appointment,
+                    'patients_with_appointments': patients_with_appointments,
+                    'title': 'Create New Bill'
+                })
+            
+            # Calculate status
+            if bill.paid_amount == bill.amount:
+                bill.status = 'PAID'
+            elif bill.paid_amount > 0:
+                bill.status = 'PARTIAL'
+            else:
+                bill.status = 'PENDING'
+            
+            try:
+                bill.save()
+                messages.success(request, "Bill created successfully!")
+                return redirect('DurielMedicApp:billing_list')
+            except Exception as e:
+                form.add_error(None, f"Error saving bill: {str(e)}")
+    else:
+        initial = {
+            'patient': patient.pk if patient else None,
+            'appointment': appointment.id if appointment else None,
+            'description': f"Consultation for {appointment.reason}" if appointment else "",
+            'service_date': date.today(),
+            'due_date': date.today() + timedelta(days=14)
+        }
+        form = BillingForm(initial=initial)
+    
+    return render(request, 'billing/billing_form.html', {
+        'form': form,
+        'patient': patient,
+        'appointment': appointment,
+        'patients_with_appointments': patients_with_appointments,
+        'title': 'Create New Bill'
+    })
+    
+    
+    
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE')
+def view_bill(request, pk):
+    bill = get_object_or_404(Billing, pk=pk)
+    return render(request, 'billing/bill_detail.html', {'bill': bill})
+
+
+
+
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def edit_bill(request, pk):
+    bill = get_object_or_404(Billing, pk=pk)
+    patients_with_appointments = Patient.objects.filter(
+        appointments__isnull=False
+    ).distinct()
+    
+    if request.method == 'POST':
+        form = BillingForm(request.POST, instance=bill)
+        if form.is_valid():
+            updated_bill = form.save(commit=False)
+            
+            # Recalculate status based on payment
+            if updated_bill.paid_amount > updated_bill.amount:
+                messages.error(request, "Paid amount cannot be greater than total amount")
+                return render(request, 'billing/billing_form.html', {
+                    'form': form, 
+                    'bill': bill,
+                    'patients_with_appointments': patients_with_appointments
+                })
+            
+            if updated_bill.paid_amount == updated_bill.amount:
+                updated_bill.status = 'PAID'
+            elif updated_bill.paid_amount > 0:
+                updated_bill.status = 'PARTIAL'
+            else:
+                updated_bill.status = 'PENDING'
+            
+            updated_bill.save()
+            
+            messages.success(request, "Bill updated successfully!")
+            return redirect('DurielMedicApp:view_bill', pk=bill.pk)
+    else:
+        form = BillingForm(instance=bill)
+    
+    return render(request, 'billing/billing_form.html', {
+        'form': form,
+        'bill': bill,
+        'patients_with_appointments': patients_with_appointments,
+        'title': 'Edit Bill'
+    })
+    
+    
+from decimal import Decimal
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def record_payment(request, pk):
+    bill = get_object_or_404(Billing, pk=pk)
+    
+    if request.method == 'POST':
+        payment_amount = Decimal(request.POST.get('payment_amount', '0'))
+        
+        if payment_amount <= 0:
+            messages.error(request, "Payment amount must be greater than zero")
+            return redirect('DurielMedicApp:view_bill', pk=bill.pk)
+        
+        if payment_amount > (bill.amount - bill.paid_amount):
+            messages.error(request, "Payment amount exceeds outstanding balance")
+            return redirect('DurielMedicApp:view_bill', pk=bill.pk)
+        
+        with transaction.atomic():
+            bill.paid_amount += payment_amount
+            
+            if bill.paid_amount == bill.amount:
+                bill.status = 'PAID'
+            else:
+                bill.status = 'PARTIAL'
+            
+            bill.save()
+            
+            # Create payment record
+            Payment.objects.create(
+                billing=bill,
+                amount=payment_amount,
+                received_by=request.user,
+                payment_method=request.POST.get('payment_method', 'CASH')
+            )
+            
+            messages.success(request, f"Payment of ₦{payment_amount:,.2f} recorded successfully!")
+        
+        return redirect('DurielMedicApp:view_bill', pk=bill.pk)
+    
+    return render(request, 'billing/record_payment.html', {'bill': bill})
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def generate_receipt(request, pk):
+    bill = get_object_or_404(Billing, pk=pk)
+    payments = bill.payments.all().order_by('-payment_date')
+
+    if payments.exists():
+        payment = payments.first()  # latest payment
+    else:
+        payment = None
+
+    context = {
+        'bill': bill,
+        'payment': payment,
+        'payments': payments,
+        'outstanding': bill.amount - bill.paid_amount,
+        'today': timezone.now().date()
+    }
+
+    return render(request, 'billing/receipt.html', context)
+
+
+@login_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def delete_bill(request, pk):
+    bill = get_object_or_404(Billing, pk=pk)
+    
+    if request.method == 'POST':
+        bill.delete()
+        messages.success(request, "Bill deleted successfully!")
+        return redirect('DurielMedicApp:billing_list')
+    
+    return render(request, 'billing/confirm_delete.html', {'bill': bill})
+
+
+        
+
+
 
 
 

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Record Payment{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <div class="bg-white shadow rounded-lg p-6">
+    <h1 class="text-2xl font-bold mb-4">Record Payment for {{ bill.patient.full_name }}</h1>
+
+    <p><strong>Bill ID:</strong> {{ bill.id }}</p>
+    <p><strong>Total Amount:</strong> ₦{{ bill.amount }}</p>
+    <p><strong>Paid:</strong> ₦{{ bill.paid_amount }}</p>
+    <p><strong>Balance:</strong> ₦{{ bill.get_balance }}</p>
+
+    <form method="post" class="mt-4">
+        {% csrf_token %}
+      
+        <!-- Payment Amount -->
+        <div class="mb-4">
+          <label for="payment_amount" class="block font-medium text-gray-700">Amount</label>
+          <input type="number" step="0.01" name="payment_amount" id="payment_amount"
+                 class="w-full px-3 py-2 border rounded"
+                 max="{{ bill.get_balance }}" min="0.01" required>
+        </div>
+      
+        <!-- Payment Method -->
+        <div class="mb-4">
+          <label for="payment_method" class="block font-medium text-gray-700">Payment Method</label>
+          <select name="payment_method" id="payment_method"
+                  class="w-full px-3 py-2 border rounded" required>
+            <option value="CASH">Cash</option>
+            <option value="CARD">Card</option>
+            <option value="BANK_TRANSFER">Bank Transfer</option>
+            <option value="MOBILE_MONEY">Mobile Money</option>
+            <option value="CHEQUE">Cheque</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+      
+        <button type="submit"
+                class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          Record Payment
+        </button>
+      </form>
+      
+
+    <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="inline-block mt-4 text-blue-600 hover:underline">
+      ← Back to Bill Details
+    </a>
+  </div>
+</div>
+{% endblock %}

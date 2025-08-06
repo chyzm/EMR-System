@@ -48,6 +48,11 @@ class CustomUser(AbstractUser):
             ("can_create_prescriptions", "Can create prescriptions"),
             ("can_view_reports", "Can view reports"),
             ("can_manage_staff", "Can manage staff"),
+            ("can_create_bills", "Can create bills"),
+            ("can_edit_bills", "Can edit bills"),
+            ("can_delete_bills", "Can delete bills"),
+            ("can_record_payments", "Can record payments"),
+            ("can_view_financial_reports", "Can view financial reports"),
         ]
 
 class Clinic(models.Model):
@@ -123,6 +128,20 @@ class Patient(models.Model):
 
     def __str__(self):
         return f"{self.full_name} (ID: {self.patient_id})"
+    
+    # def get_outstanding_balance(self):
+    #     from django.db.models import Sum, F
+    #     result = self.bills.aggregate(
+    #         total=Sum(F('amount') - F('paid_amount')))
+    #     return result['total'] or 0
+    
+    def get_outstanding_balance(self):
+        from django.db.models import Sum, F
+        result = self.bills.aggregate(total=Sum(F('amount') - F('paid_amount')))
+        return result['total']  # Remove the "or 0" to return None when no bills exist
+    
+    def has_billing_records(self):
+        return self.bills.exists()   # Assuming a reverse relation exists
 
 
 class MedicalRecord(models.Model):
@@ -259,8 +278,40 @@ class Billing(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    def get_balance(self):
+        return self.amount - self.paid_amount
+    
     def __str__(self):
-        return f"Bill #{self.id} - {self.patient.full_name} - {self.status}"
+        return f"Bill #{self.id} - {self.patient.full_name} - ₦{self.amount}"
+    
+    
+    
+    
+class Payment(models.Model):
+    PAYMENT_METHODS = (
+        ('CASH', 'Cash'),
+        ('CARD', 'Card'),
+        ('BANK_TRANSFER', 'Bank Transfer'),
+        ('MOBILE_MONEY', 'Mobile Money'),
+        ('CHEQUE', 'Cheque'),
+        ('OTHER', 'Other'),
+    )
+    
+    billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='CASH')
+    transaction_reference = models.CharField(max_length=100, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    
+    def __str__(self):
+        return f"Payment of ₦{self.amount} for Bill #{self.billing.id}"
+    
+    class Meta:
+        ordering = ['-payment_date']
+        
+        
 
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
@@ -274,3 +325,12 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"Notification for {self.user.username}"
+    
+    
+class NotificationRead(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    notification = models.ForeignKey('Notification', on_delete=models.CASCADE)
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'notification')

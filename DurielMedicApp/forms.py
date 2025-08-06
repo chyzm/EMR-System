@@ -266,57 +266,106 @@ class MedicalRecordForm(forms.ModelForm):
         
 
 
+# class BillingForm(forms.ModelForm):
+#     class Meta:
+#         model = Billing
+#         fields = [
+#             'patient',
+#             'appointment',
+#             'amount',
+#             'paid_amount',
+#             'status',
+#             'service_date',
+#             'due_date',
+#             'description',
+#         ]
+#         widgets = {
+#             'service_date': forms.DateInput(attrs={'type': 'date'}),
+#             'due_date': forms.DateInput(attrs={'type': 'date'}),
+#             'description': forms.Textarea(attrs={'rows': 3}),
+#         }
+#         labels = {
+#             'paid_amount': 'Amount Paid',
+#         }
+
+#     def clean(self):
+#         cleaned = super().clean()
+#         amount = cleaned.get('amount')
+#         paid_amount = cleaned.get('paid_amount')
+#         service_date = cleaned.get('service_date')
+#         due_date = cleaned.get('due_date')
+#         status = cleaned.get('status')
+
+#         # Amount validations
+#         if amount is not None and amount < 0:
+#             self.add_error('amount', 'Amount cannot be negative.')
+
+#         if paid_amount is not None:
+#             if paid_amount < 0:
+#                 self.add_error('paid_amount', 'Paid amount cannot be negative.')
+#             if amount is not None and paid_amount > amount:
+#                 self.add_error('paid_amount', 'Paid amount cannot exceed total amount.')
+
+#         # Date validation
+#         if service_date and due_date and due_date < service_date:
+#             self.add_error('due_date', 'Due date cannot be before the service date.')
+
+#         # Status consistency checks (optional but helpful)
+#         if amount is not None and paid_amount is not None and status:
+#             if paid_amount == 0 and status not in ('PENDING', 'CANCELLED'):
+#                 self.add_error('status', 'Use PENDING or CANCELLED when no payment has been made.')
+#             elif 0 < paid_amount < amount and status != 'PARTIAL':
+#                 self.add_error('status', 'Use PARTIAL for partially paid bills.')
+#             elif paid_amount == amount and status != 'PAID':
+#                 self.add_error('status', 'Use PAID when the bill is fully settled.')
+
+#         return cleaned
+
+
+
+from django import forms
+from .models import Billing, Payment
+
 class BillingForm(forms.ModelForm):
     class Meta:
         model = Billing
-        fields = [
-            'patient',
-            'appointment',
-            'amount',
-            'paid_amount',
-            'status',
-            'service_date',
-            'due_date',
-            'description',
-        ]
+        fields = ['patient', 'appointment', 'service_date', 'due_date', 'amount', 'paid_amount', 'description']
         widgets = {
             'service_date': forms.DateInput(attrs={'type': 'date'}),
             'due_date': forms.DateInput(attrs={'type': 'date'}),
             'description': forms.Textarea(attrs={'rows': 3}),
         }
-        labels = {
-            'paid_amount': 'Amount Paid',
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['patient'].required = True
+        self.fields['patient'].queryset = Patient.objects.all()
+        if not self.instance.pk:
+            self.initial['paid_amount'] = 0
+        
+        
+        
+class PaymentForm(forms.ModelForm):
+    class Meta:
+        model = Payment
+        fields = ['amount', 'payment_method', 'transaction_reference', 'notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 3}),
         }
-
-    def clean(self):
-        cleaned = super().clean()
-        amount = cleaned.get('amount')
-        paid_amount = cleaned.get('paid_amount')
-        service_date = cleaned.get('service_date')
-        due_date = cleaned.get('due_date')
-        status = cleaned.get('status')
-
-        # Amount validations
-        if amount is not None and amount < 0:
-            self.add_error('amount', 'Amount cannot be negative.')
-
-        if paid_amount is not None:
-            if paid_amount < 0:
-                self.add_error('paid_amount', 'Paid amount cannot be negative.')
-            if amount is not None and paid_amount > amount:
-                self.add_error('paid_amount', 'Paid amount cannot exceed total amount.')
-
-        # Date validation
-        if service_date and due_date and due_date < service_date:
-            self.add_error('due_date', 'Due date cannot be before the service date.')
-
-        # Status consistency checks (optional but helpful)
-        if amount is not None and paid_amount is not None and status:
-            if paid_amount == 0 and status not in ('PENDING', 'CANCELLED'):
-                self.add_error('status', 'Use PENDING or CANCELLED when no payment has been made.')
-            elif 0 < paid_amount < amount and status != 'PARTIAL':
-                self.add_error('status', 'Use PARTIAL for partially paid bills.')
-            elif paid_amount == amount and status != 'PAID':
-                self.add_error('status', 'Use PAID when the bill is fully settled.')
-
-        return cleaned
+    
+    def __init__(self, *args, **kwargs):
+        self.billing = kwargs.pop('billing', None)
+        super().__init__(*args, **kwargs)
+        
+        if self.billing:
+            self.fields['amount'].widget.attrs.update({
+                'max': self.billing.get_balance(),
+                'min': 0.01,
+                'step': '0.01'
+            })
+    
+    def clean_amount(self):
+        amount = self.cleaned_data.get('amount')
+        if self.billing and amount > self.billing.get_balance():
+            raise forms.ValidationError(f"Payment amount exceeds outstanding balance of ₦{self.billing.get_balance():.2f}")
+        return amount

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Receipt{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white shadow p-6 rounded">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Payment Receipt</h2>
+
+    <div class="space-y-3">
+        <p><strong>Receipt ID:</strong> {{ payment.id }}</p>
+        <p><strong>Bill:</strong> #{{ payment.billing.id }}</p>
+        <p><strong>Patient:</strong> {{ payment.billing.patient.full_name }}</p>
+        <p><strong>Amount Paid:</strong> ₦{{ payment.amount|floatformat:2 }}</p>
+        <p><strong>Payment Method:</strong> {{ payment.get_payment_method_display }}</p>
+        <p><strong>Date:</strong> {{ payment.payment_date|date:"F j, Y, g:i a" }}</p>
+        {% if payment.transaction_reference %}
+            <p><strong>Transaction Reference:</strong> {{ payment.transaction_reference }}</p>
+        {% endif %}
+    </div>
+
+    <div class="mt-6 text-center">
+        {% if bill.pk %}
+        <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="btn btn-primary">Back to Bill</a>
+        {% else %}
+        <p class="text-red-600">Bill reference not available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

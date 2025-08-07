@@ -1,0 +1,19 @@
+{% if messages %}
+<div class="fixed top-4 right-4 space-y-2 z-50">
+    {% for message in messages %}
+    <div class="relative px-6 py-4 pr-10 rounded shadow-lg text-white
+        {% if message.tags == 'success' %} bg-green-600
+        {% elif message.tags == 'error' %} bg-red-600
+        {% elif message.tags == 'warning' %} bg-yellow-600 text-black
+        {% else %} bg-blue-600
+        {% endif %}">
+        
+        <span class="mr-4">{{ message }}</span>
+        <button onclick="this.parentElement.style.display='none'" 
+                class="absolute top-3 right-3 text-xl hover:opacity-80 transition-opacity">
+            &times;
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

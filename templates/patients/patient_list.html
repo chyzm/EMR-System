@@ -18,8 +18,8 @@
       <td class="px-4 py-2">{{ patient.patient_id }}</td>
       <td class="px-4 py-2">{{ patient.clinic.name }}</td>
       <td class="px-4 py-2">
-        <a href="{% url 'DurielMedicApp:patient_detail' patient.patient_id %}" class="text-blue-600 hover:underline">View</a>
-        <a href="{% url 'DurielMedicApp:delete_patient' patient.pk %}" class="text-red-600 hover:underline">Delete</a>
+        <a href="{% url 'core:patient_detail' patient.patient_id %}" class="text-blue-600 hover:underline">View</a>
+        <a href="{% url 'core:delete_patient' patient.pk %}" class="text-red-600 hover:underline">Delete</a>
 
       </td>
       <td class="px-6 py-4 whitespace-nowrap">

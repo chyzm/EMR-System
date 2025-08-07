@@ -7,9 +7,10 @@
             <p class="text-gray-600">Patient ID: {{ patient.patient_id }}</p>
         </div>
         <div>
-            {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST' %}
-            <a href="{% url 'DurielMedicApp:edit_patient' patient.pk %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Edit Patient</a>
+            {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'RECEPTIONIST' %}
+            <a href="{% url 'core:edit_patient' patient.pk %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Edit Patient</a>
             {% endif %}
+        
         </div>
     </div>
 
@@ -86,7 +87,12 @@
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold">Billing</h2>
-        <a href="{% url 'DurielMedicApp:create_bill_for_patient' patient.pk %}" class="text-sm hover:underline">Add Bill</a>
+        {% if patient and patient.pk %}
+        <a href="{% url 'core:create_bill_for_patient' patient.pk %}" class="btn btn-primary">
+            Create Bill
+        </a>
+        {% endif %}
+
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
@@ -116,11 +122,11 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900 mr-2">
+                        <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900 mr-2">
                             <i class="fas fa-eye"></i>
                         </a>
                         
-                        <a href="{% url 'DurielMedicApp:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
+                        <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
                             <i class="fas fa-money-bill-wave"></i>
                         </a>
                        
@@ -221,14 +227,17 @@
                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Complete Consultation</a>
             {% endif %}
             
-            {% if patient.status == 'CONSULTATION_COMPLETE' and request.user.role == 'DOCTOR' %}
-                <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
-                   class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
-                <a href="{% url 'DurielMedicApp:discharge_patient' patient_id=patient.patient_id %}" 
-                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
-                <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
-                   class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
-            {% endif %}
+            {% if patient.status == 'CONSULTATION_COMPLETE' or patient.status == 'ADMITTED' and request.user.role == 'DOCTOR' %}
+    {% if patient.status == 'CONSULTATION_COMPLETE' %}
+        <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
+           class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
+        <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+           class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
+    {% endif %}
+    <a href="{% url 'DurielMedicApp:discharge_patient' patient_id=patient.patient_id %}" 
+       class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
+{% endif %}
+
 
             {% for follow_up in patient.follow_ups.all %}
             {% if not follow_up.completed %}
@@ -285,7 +294,7 @@
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold">Active Prescriptions</h2>
-            {% if request.user.role in 'ADMIN,DOCTOR' %}
+            {% if patient and request.user.role in 'ADMIN,DOCTOR' %}
             <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a>
             {% endif %}
         </div>

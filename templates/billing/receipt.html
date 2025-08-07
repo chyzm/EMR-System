@@ -3,27 +3,166 @@
 {% block title %}Payment Receipt{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto bg-white shadow p-6 rounded">
-    <h2 class="text-xl font-bold text-gray-800 mb-4">Payment Receipt</h2>
-
-    <div class="space-y-3">
-        <p><strong>Receipt ID:</strong> {{ payment.id }}</p>
-        <p><strong>Bill:</strong> #{{ payment.billing.id }}</p>
-        <p><strong>Patient:</strong> {{ payment.billing.patient.full_name }}</p>
-        <p><strong>Amount Paid:</strong> ₦{{ payment.amount|floatformat:2 }}</p>
-        <p><strong>Payment Method:</strong> {{ payment.get_payment_method_display }}</p>
-        <p><strong>Date:</strong> {{ payment.payment_date|date:"F j, Y, g:i a" }}</p>
-        {% if payment.transaction_reference %}
-            <p><strong>Transaction Reference:</strong> {{ payment.transaction_reference }}</p>
-        {% endif %}
+<div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
+    <!-- Header with clinic branding -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-800 px-8 py-6 text-white print:bg-blue-800">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">Payment Receipt</h1>
+                <p class="text-blue-100">Official Payment Confirmation</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button onclick="window.print()" class="hidden md:flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition duration-200 text-sm print:hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print Receipt
+                </button>
+                <div class="bg-white/20 p-3 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="mt-6 text-center">
-        {% if bill.pk %}
-        <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="btn btn-primary">Back to Bill</a>
-        {% else %}
-        <p class="text-red-600">Bill reference not available.</p>
-        {% endif %}
+    <!-- Receipt content -->
+    <div class="p-8 print:p-6">
+        <!-- Receipt metadata -->
+        <div class="flex justify-between items-start mb-8">
+            <div>
+                <p class="text-sm text-gray-500">Receipt No.</p>
+                <p class="text-lg font-semibold text-gray-800">#{{ payment.id }}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-gray-500">Issued On</p>
+                <p class="text-lg font-semibold text-gray-800">{{ payment.payment_date|date:"F j, Y" }}</p>
+            </div>
+        </div>
+
+        <!-- Patient and bill info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">PATIENT</h3>
+                <div class="flex items-center">
+                    <div class="bg-blue-100 text-blue-800 rounded-full h-10 w-10 flex items-center justify-center mr-3 print:border print:border-blue-200">
+                        {{ payment.billing.patient.full_name|slice:":1"|upper }}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-800">{{ payment.billing.patient.full_name }}</p>
+                        <p class="text-sm text-gray-500">ID: {{ payment.billing.patient.patient_id }}</p>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 mb-2">BILL DETAILS</h3>
+                <p class="font-medium text-gray-800">Bill #{{ payment.billing.id }}</p>
+                <p class="text-sm text-gray-500">{{ payment.billing.description|truncatechars:30 }}</p>
+            </div>
+        </div>
+
+        <!-- Payment details -->
+        <div class="border-t border-b border-gray-200 py-6 mb-6 print:border-gray-300">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-gray-500">Payment Amount</p>
+                    <p class="text-2xl font-bold text-blue-600">₦{{ payment.amount|floatformat:2 }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Payment Method</p>
+                    <p class="font-medium text-gray-800">{{ payment.get_payment_method_display }}</p>
+                </div>
+                {% if payment.transaction_reference %}
+                <div class="col-span-2">
+                    <p class="text-sm text-gray-500">Transaction Reference</p>
+                    <p class="font-mono text-gray-800 bg-gray-50 p-2 rounded print:bg-transparent print:border print:border-gray-200">{{ payment.transaction_reference }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Additional details -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-8 print:border print:border-gray-200">
+            <h3 class="text-sm font-medium text-gray-500 mb-2">PAYMENT DETAILS</h3>
+            <p class="text-sm text-gray-700">
+                Payment received on {{ payment.payment_date|date:"F j, Y, g:i a" }}. 
+                This receipt serves as confirmation of your payment.
+            </p>
+        </div>
+        
+        <!-- Processed By -->
+<div class="mb-8">
+    <h3 class="text-sm font-medium text-gray-500 mb-2">PROCESSED BY</h3>
+    {% if payment.received_by %}
+        <div class="flex items-center">
+            <div class="bg-green-100 text-green-800 rounded-full h-9 w-9 flex items-center justify-center mr-3 print:border print:border-green-200">
+                {{ payment.received_by.get_full_name|default:payment.received_by.username|slice:":1"|upper }}
+            </div>
+            <div>
+                <p class="font-medium text-gray-800">
+                    {{ payment.received_by.get_full_name|default:payment.received_by.username }}
+                </p>
+                <p class="text-sm text-gray-500">User ID: {{ payment.received_by.id }}</p>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-gray-500 italic">User information not available</p>
+    {% endif %}
+</div>
+
+        <!-- Actions -->
+        <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 print:hidden">
+            <div class="text-sm text-gray-500">
+                Thank you for your payment
+            </div>
+            <div class="flex space-x-3">
+                {% if bill.pk %}
+                <a href="{% url 'core:view_bill' bill.pk %}" 
+                   class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150">
+                    View Bill Details
+                </a>
+                {% else %}
+                <p class="text-red-600">Bill reference not available.</p>
+                {% endif %}
+                <button onclick="window.print()" class="md:hidden inline-flex items-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print
+                </button>
+            </div>
+        </div>
+
+        <!-- Print-only message -->
+        <div class="hidden print:block text-center text-xs text-gray-500 mt-8">
+            This is an official receipt. Please retain for your records.
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="bg-gray-50 px-8 py-4 text-center text-sm text-gray-500 border-t border-gray-200 print:border-t-2 print:border-gray-300">
+        <p>For any questions, please contact our billing department</p>
+        <p class="mt-1">© {% now "Y" %} One Life Clinic. All rights reserved.</p>
     </div>
 </div>
+
+<style>
+@media print {
+    @page {
+        size: auto;
+        margin: 10mm;
+    }
+    body {
+        background: white;
+        color: black;
+    }
+    .print\:bg-transparent {
+        background-color: transparent !important;
+    }
+    .print\:border {
+        border-width: 1px !important;
+    }
+}
+</style>
 {% endblock %}

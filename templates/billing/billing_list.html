@@ -7,7 +7,7 @@
 <div class="container mx-auto p-6">
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold text-blue-900">Billing Management</h1>
-        <a href="{% url 'DurielMedicApp:create_bill' %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        <a href="{% url 'core:create_bill' %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             <i class="fas fa-plus mr-2"></i>Create New Bill
         </a>
     </div>
@@ -44,7 +44,7 @@
                 <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
                     <i class="fas fa-filter mr-2"></i>Filter
                 </button>
-                <a href="{% url 'DurielMedicApp:billing_list' %}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">
+                <a href="{% url 'core:billing_list' %}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">
                     <i class="fas fa-sync-alt mr-2"></i>Reset
                 </a>
             </div>
@@ -117,16 +117,16 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div class="flex space-x-2">
-                            <a href="{% url 'DurielMedicApp:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900">
+                            <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900">
                                 <i class="fas fa-eye"></i>
                             </a>
-                            <a href="{% url 'DurielMedicApp:edit_bill' bill.pk %}" class="text-yellow-600 hover:text-yellow-900">
+                            <a href="{% url 'core:edit_bill' bill.pk %}" class="text-yellow-600 hover:text-yellow-900">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <a href="{% url 'DurielMedicApp:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
+                            <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
                                 <i class="fas fa-money-bill-wave"></i>
                             </a>
-                            <a href="{% url 'DurielMedicApp:generate_receipt' bill.pk %}" class="text-purple-600 hover:text-purple-900">
+                            <a href="{% url 'core:generate_receipt' bill.pk %}" class="text-purple-600 hover:text-purple-900">
                                 <i class="fas fa-receipt"></i>
                             </a>
                         </div>

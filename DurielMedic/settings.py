@@ -41,6 +41,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'DurielMedicApp',
+    'core',
+    'DurielEyeApp',
+    'DurielDentalApp',
     'crispy_forms',
     'crispy_tailwind',
 ]
@@ -82,7 +85,7 @@ WSGI_APPLICATION = 'DurielMedic.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'emr_db',
+        'NAME': 'duriel_medic',
         'USER': 'postgres',
         'PASSWORD': 'Legacy@90',
         'HOST': 'localhost',
@@ -92,10 +95,12 @@ DATABASES = {
 
 # LOGIN_REDIRECT_URL = '/DurielMedicApp/'  # or reverse('patient_list') if you're using named URLs
 LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/dashboard/'
+# LOGIN_REDIRECT_URL =  '/dashboard/'
+LOGIN_REDIRECT_URL = '/core/select-clinic/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-AUTH_USER_MODEL = 'DurielMedicApp.CustomUser'
+# AUTH_USER_MODEL = 'DurielMedicApp.CustomUser'
+AUTH_USER_MODEL = 'core.CustomUser'
 
 
 MEDIA_URL = '/media/'
@@ -106,9 +111,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
 CRISPY_TEMPLATE_PACK = "tailwind"
 
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+# LOGIN_URL = '/accounts/login/'
+# LOGIN_REDIRECT_URL = '/dashboard/'
+# LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 
 # Password validation

@@ -472,21 +472,21 @@ def create_follow_up(request, patient_id):
 # --------------------
 # Prescriptions
 # --------------------
-@login_required
-def create_prescription(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
-    if request.method == 'POST':
-        form = PrescriptionForm(request.POST)
-        if form.is_valid():
-            prescription = form.save(commit=False)
-            prescription.patient = patient
-            prescription.prescribed_by = request.user
-            prescription.save()
-            messages.success(request, "Prescription created successfully.")
-            return redirect('core:patient_detail', pk=patient_id)
-    else:
-        form = PrescriptionForm()
-    return render(request, 'DurielMedicApp/prescription_form.html', {'form': form, 'patient': patient})
+# @login_required
+# def create_prescription(request, patient_id):
+#     patient = get_object_or_404(Patient, pk=patient_id)
+#     if request.method == 'POST':
+#         form = PrescriptionForm(request.POST)
+#         if form.is_valid():
+#             prescription = form.save(commit=False)
+#             prescription.patient = patient
+#             prescription.prescribed_by = request.user
+#             prescription.save()
+#             messages.success(request, "Prescription created successfully.")
+#             return redirect('core:patient_detail', pk=patient_id)
+#     else:
+#         form = PrescriptionForm()
+#     return render(request, 'DurielMedicApp/prescription_form.html', {'form': form, 'patient': patient})
 
 
 # --------------------
@@ -814,14 +814,16 @@ def add_prescription(request, patient_id):
                 prescribed_by=request.user  
             )
             messages.success(request, "Prescription saved successfully.")
-            return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
+            return redirect('core:patient_detail', pk=patient.patient_id)
         Notification.objects.create(
             user=prescription.patient.created_by,
             message=f"New prescription for {prescription.patient.full_name}",
-            link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': prescription.patient.pk})
+            link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
         )
 
     return render(request, 'prescription/add_prescription.html', {'patient': patient})
+
+
 
 
 @login_required
@@ -841,14 +843,16 @@ def edit_prescription(request, pk):
 @login_required
 def prescription_list(request):
     query = request.GET.get('q', '')
+
+    # Fetch prescriptions with related patient and doctor, no values() or annotate()
     prescriptions = Prescription.objects.select_related('patient', 'prescribed_by')
 
     if query:
         prescriptions = prescriptions.filter(
-            Q(patient__first_name__icontains=query) |
-            Q(patient__last_name__icontains=query) |
-            Q(doctor__first_name__icontains=query) |
-            Q(doctor__last_name__icontains=query) |
+            Q(patient__full_name__icontains=query) |
+            Q(prescribed_by__first_name__icontains=query) |
+            Q(prescribed_by__last_name__icontains=query) |
+            Q(medication__icontains=query) |
             Q(date_prescribed__icontains=query)
         )
 
@@ -867,7 +871,7 @@ def deactivate_prescription(request, pk):
     if request.method == 'POST':
         prescription.is_active = False
         prescription.save()
-        return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
+        return redirect('core:patient_detail', pk=patient.patient_id)
 
     return render(request, 'prescription/deactivate_prescription.html', {
         'prescription': prescription,

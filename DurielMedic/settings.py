@@ -118,7 +118,7 @@ else:  # PythonAnywhere/MySQL
 # LOGIN_REDIRECT_URL = '/DurielMedicApp/'  # or reverse('patient_list') if you're using named URLs
 LOGIN_URL = '/accounts/login/'
 # LOGIN_REDIRECT_URL =  '/dashboard/'
-LOGIN_REDIRECT_URL = '/core/select-clinic/'
+LOGIN_REDIRECT_URL = '/select-clinic/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 # AUTH_USER_MODEL = 'DurielMedicApp.CustomUser'

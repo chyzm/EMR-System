@@ -4,6 +4,8 @@ from . import views
 from .views import (PatientListView, PatientDetailView, PatientCreateView,
                    StaffCreateView, PatientUpdateView, PatientDeleteView)
 from DurielMedicApp.views import select_clinic
+from django.shortcuts import redirect
+
 
 app_name = 'core'
 
@@ -12,6 +14,7 @@ urlpatterns = [
     path('select-clinic/', select_clinic, name='select_clinic'),
     
     # Authentication
+    path('', lambda request: redirect('login'), name='home_redirect'),
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', views.logout_view, name='logout'),
     

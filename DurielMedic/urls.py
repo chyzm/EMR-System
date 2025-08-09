@@ -12,14 +12,14 @@ urlpatterns = [
     path('accounts/', include('django.contrib.auth.urls')),
 
     # Core/shared functionality
-    path('core/', include('core.urls')),
+    path('', include('core.urls')),
 
     # Specialty clinics
     path('eye/', include('DurielEyeApp.urls')),
     path('dental/', include('DurielDentalApp.urls')),
 
     # General hospital app
-    path('', include('DurielMedicApp.urls')),
+    path('DurielMedicApp', include('DurielMedicApp.urls')),
 ]
 
 if settings.DEBUG:

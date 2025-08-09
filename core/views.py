@@ -46,6 +46,10 @@ def admin_check(user):
 #     return redirect('DurielMedicApp:dashboard')
 
 
+def home(request):
+    return render(request, 'core/login.html')
+
+
 # ---------- USER ROLE MANAGEMENT ----------
 @login_required
 def manage_user_roles(request):

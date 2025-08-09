@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from django.contrib.auth.forms import AuthenticationForm
+from datetime import date
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta(UserCreationForm.Meta):
@@ -122,6 +123,17 @@ class PatientForm(forms.ModelForm):
             'allergies': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
             'address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
         }
+        
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get('date_of_birth')
+
+        if dob is None:
+            raise ValidationError("Please enter a valid date for Date of Birth.")
+
+        if dob > date.today():
+            raise ValidationError("Date of Birth cannot be in the future.")
+
+        return dob
 
 class BillingForm(forms.ModelForm):
     class Meta:

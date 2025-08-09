@@ -101,6 +101,25 @@ def edit_user_role(request, user_id):
 
 # ---------- PATIENTS ----------
 
+# class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+#     model = Patient
+#     template_name = 'patients/patient_list.html'
+#     context_object_name = 'patients'
+#     paginate_by = 10
+
+#     def test_func(self):
+#         return self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+
+#     def get_queryset(self):
+#         queryset = super().get_queryset()
+#         search_query = self.request.GET.get('search', '')
+#         if search_query:
+#             queryset = queryset.filter(
+#                 full_name__icontains=search_query
+#             )
+#         return queryset.order_by('-created_at')
+
+
 class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Patient
     template_name = 'patients/patient_list.html'
@@ -112,13 +131,34 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        search_query = self.request.GET.get('search', '')
-        if search_query:
+        search_name = self.request.GET.get('search', '')
+        search_id = self.request.GET.get('patient_id', '')
+
+        if search_name and search_id:
+            # Search by both name and ID
             queryset = queryset.filter(
-                full_name__icontains=search_query
+                full_name__icontains=search_name,
+                patient_id__icontains=search_id
             )
+        elif search_name:
+            # Search by name only
+            queryset = queryset.filter(
+                full_name__icontains=search_name
+            )
+        elif search_id:
+            # Search by ID only
+            queryset = queryset.filter(
+                patient_id__icontains=search_id
+            )
+
         return queryset.order_by('-created_at')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('search', '')
+        return context
+    
+    
 
 class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Patient
@@ -136,11 +176,18 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         return super().form_valid(form)
 
 
+# class PatientUpdateView(UpdateView):
+#     model = Patient
+#     fields = ['full_name', 'date_of_birth', 'gender', 'contact', 'address']
+#     template_name = 'patients/edit_patient.html'
+#     success_url = reverse_lazy('core:patient_list')
+
 class PatientUpdateView(UpdateView):
     model = Patient
-    fields = ['full_name', 'date_of_birth', 'gender', 'contact', 'address']
+    form_class = PatientForm
     template_name = 'patients/edit_patient.html'
     success_url = reverse_lazy('core:patient_list')
+
 
 
 class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):

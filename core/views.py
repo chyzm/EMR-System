@@ -261,15 +261,49 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 
 # ---------- BILLING ----------
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'RECEPTIONIST')
+# def billing_list(request):
+#     bills = Billing.objects.select_related('patient').order_by('-service_date')
+#     context = {
+#         'bills': bills,
+#         'total_amount': bills.aggregate(total=Sum('amount'))['total'] or 0,
+#         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
+#     }
+#     return render(request, 'billing/billing_list.html', context)
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def billing_list(request):
     bills = Billing.objects.select_related('patient').order_by('-service_date')
+    
+    # Filtering options
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        bills = bills.filter(status=status_filter)
+    
+    patient_filter = request.GET.get('patient', '')
+    if patient_filter:
+        bills = bills.filter(patient__full_name__icontains=patient_filter)
+    
+    date_from = request.GET.get('date_from', '')
+    if date_from:
+        bills = bills.filter(service_date__gte=date_from)
+    
+    date_to = request.GET.get('date_to', '')
+    if date_to:
+        bills = bills.filter(service_date__lte=date_to)
+    
     context = {
         'bills': bills,
         'total_amount': bills.aggregate(total=Sum('amount'))['total'] or 0,
         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
+        'status_filter': status_filter,
+        'patient_filter': patient_filter,
+        'date_from': date_from,
+        'date_to': date_to,
     }
     return render(request, 'billing/billing_list.html', context)
 
@@ -458,23 +492,32 @@ def logout_view(request):
 
 
 
-@login_required
 def patient_search_api(request):
-    term = request.GET.get('q', '')
-    results = []
+    query = request.GET.get('q', '')
+    results = Patient.objects.filter(full_name__icontains=query)
+    data = [{'id': p.id, 'name': p.full_name} for p in results]
+    return JsonResponse({'results': data})
 
-    if term:
-        patients = Patient.objects.filter(full_name__icontains=term)[:10]
-        results = [
-            {
-                'id': p.id,
-                'full_name': p.full_name,
-                'patient_id': p.patient_id
-            }
-            for p in patients
-        ]
 
-    return JsonResponse(results, safe=False)
+
+
+# @login_required
+# def patient_search_api(request):
+#     term = request.GET.get('q', '')
+#     results = []
+
+#     if term:
+#         patients = Patient.objects.filter(full_name__icontains=term)[:10]
+#         results = [
+#             {
+#                 'id': p.id,
+#                 'full_name': p.full_name,
+#                 'patient_id': p.patient_id
+#             }
+#             for p in patients
+#         ]
+
+#     return JsonResponse(results, safe=False)
 
 
 @login_required

@@ -910,11 +910,11 @@ def delete_medical_record(request, record_id):
 
 
 
-def patient_search_api(request):
-    query = request.GET.get('q', '')
-    results = Patient.objects.filter(full_name__icontains=query)
-    data = [{'id': p.id, 'name': p.full_name} for p in results]
-    return JsonResponse({'results': data})
+# def patient_search_api(request):
+#     query = request.GET.get('q', '')
+#     results = Patient.objects.filter(full_name__icontains=query)
+#     data = [{'id': p.id, 'name': p.full_name} for p in results]
+#     return JsonResponse({'results': data})
 
 
 

@@ -8,6 +8,8 @@ from core.views import PatientDetailView
 app_name = 'DurielMedicApp'
 
 urlpatterns = [
+    
+    
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
 

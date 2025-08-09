@@ -1,7 +1,5 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
-# from .views import  CustomLoginView
-
 from . import views
 from .views import (PatientListView, PatientDetailView, PatientCreateView,
                    StaffCreateView, PatientUpdateView, PatientDeleteView)
@@ -15,8 +13,6 @@ urlpatterns = [
     
     # Authentication
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
-    # path('login/', LoginWithClinicView.as_view(template_name='registration/login.html'), name='login'),
-    #  path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
     
     # Role Management
@@ -36,6 +32,7 @@ urlpatterns = [
 
     # API endpoints
     path('api/patients/', views.patient_search_api, name='patient_search_api'),
+    
     
     # Password reset
     path('password-reset/', auth_views.PasswordResetView.as_view(template_name='registration/password_reset_form.html'), name='password_reset'),

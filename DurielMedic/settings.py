@@ -59,6 +59,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'DurielMedic.urls'
+# ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {

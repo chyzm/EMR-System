@@ -242,8 +242,13 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.is_staff = True
-        messages.success(self.request, 'Staff member added successfully!')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        clinics = form.cleaned_data.get('clinic')
+        if clinics:
+            self.object.clinic.set(clinics)
+        messages.add_message(self.request, messages.INFO, 'Staff member added successfully!')
+        return response
+
 
 
 # ---------- REPORTS ----------

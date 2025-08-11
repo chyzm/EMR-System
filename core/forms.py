@@ -7,10 +7,19 @@ from crispy_forms.layout import Layout, Submit, Row, Column
 from django.contrib.auth.forms import AuthenticationForm
 from datetime import date
 
+from django import forms
+
 class CustomUserCreationForm(UserCreationForm):
+    clinic = forms.ModelMultipleChoiceField(
+        queryset=Clinic.objects.all(),
+        widget=forms.CheckboxSelectMultiple,  # or SelectMultiple
+        required=False,
+    )
+
     class Meta(UserCreationForm.Meta):
         model = CustomUser
         fields = ('username', 'email', 'first_name', 'last_name', 'role', 'license_number', 'specialization', 'phone', 'clinic')
+
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -42,7 +51,12 @@ class CustomUserCreationForm(UserCreationForm):
         )
 
 class UserCreationWithRoleForm(UserCreationForm):
-    clinic = forms.ModelChoiceField(queryset=Clinic.objects.all(), required=True)
+    # clinic = forms.ModelChoiceField(queryset=Clinic.objects.all(), required=True)
+    clinic = forms.ModelMultipleChoiceField(
+        queryset=Clinic.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        required=True,
+    )
     
     class Meta:
         model = CustomUser
@@ -81,7 +95,12 @@ class UserCreationWithRoleForm(UserCreationForm):
         }
 
 class UserEditForm(forms.ModelForm):
-    clinic = forms.ModelChoiceField(queryset=Clinic.objects.all(), required=True)
+    # clinic = forms.ModelChoiceField(queryset=Clinic.objects.all(), required=True)
+    clinic = forms.ModelMultipleChoiceField(
+        queryset=Clinic.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        required=True,
+    )
     
     class Meta:
         model = CustomUser
@@ -99,9 +118,9 @@ class UserEditForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
             }),
-            'clinic': forms.Select(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
+            # 'clinic': forms.Select(attrs={
+            #     'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+            # }),
             'role': forms.Select(attrs={
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
             }),

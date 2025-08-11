@@ -592,3 +592,51 @@ def generate_receipt(request, pk):
     }
 
     return render(request, 'billing/receipt.html', context)
+
+
+import os
+import json
+import requests
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables
+
+AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+@csrf_exempt
+def ai_chat(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            prompt = data.get("prompt", "")
+
+            if not AI_API_KEY:
+                return JsonResponse({"answer": "Error: API key not set"}, status=500)
+
+            res = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful medical assistant for doctors."},
+                        {"role": "user", "content": prompt}
+                    ]
+                }
+            )
+
+            if res.status_code != 200:
+                return JsonResponse({"answer": f"API Error: {res.text}"}, status=500)
+
+            answer = res.json()["choices"][0]["message"]["content"]
+            return JsonResponse({"answer": answer})
+
+        except Exception as e:
+            return JsonResponse({"answer": f"Server error: {e}"}, status=500)
+
+    return JsonResponse({"error": "Invalid request"}, status=400)

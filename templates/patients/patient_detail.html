@@ -101,8 +101,6 @@
                 <div>
                     <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
                     <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
-                    <p class="text-sm text-gray-600">Frequency: {{ prescription.frequency }}</p>
-                    <p class="text-sm text-gray-600">Duration: {{ prescription.duration }}</p>
                     {% if prescription.instructions %}
                     <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
                     {% endif %}
@@ -113,12 +111,12 @@
                         {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
                     </p>
                     {% if request.user.role == 'DOCTOR' %}
-                    <div class="mt-2">
+                    {% comment %} <div class="mt-2">
                         <a href="{% url 'DurielMedicApp:edit_prescription' prescription.id %}"
                            class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
                         <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}"
                            class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                    </div>
+                    </div> {% endcomment %}
                     {% endif %}
                 </div>
             </div>
@@ -136,11 +134,14 @@
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold">Billing</h2>
+        {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST"  %}
         {% if patient and patient.pk %}
         <a href="{% url 'core:create_bill_for_patient' patient.pk %}" class="btn btn-primary">
             Create Bill
         </a>
         {% endif %}
+        {% endif %}
+
 
     </div>
     <div class="overflow-x-auto">
@@ -393,5 +394,128 @@
 </ul>
 
 </div>
+
+<!-- Floating AI Chat Icon -->
+<div id="ai-chat-icon" 
+class="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg cursor-pointer hover:bg-green-700 transition-all z-50">
+<i class="fas fa-robot"></i>
+</div>
+
+<!-- Chat Box (hidden initially) -->
+<div id="ai-chat-box" 
+     class="hidden fixed bottom-20 right-6 w-96 max-w-full bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+  
+  <!-- Header -->
+  <div class="flex justify-between items-center px-4 py-2 bg-sky-600 text-green-500 rounded-t-lg">
+    <span class="font-semibold">AI Assistant</span>
+    <button id="close-chat" class="text-lg">&times;</button>
+  </div>
+
+  <!-- Messages Area -->
+  <div id="chat-messages" class="p-4 h-64 overflow-y-auto space-y-3 bg-gray-50"></div>
+
+  <!-- Input Area -->
+  <div class="flex items-center p-3 border-t border-gray-200 bg-white">
+    <input id="chat-input" 
+           type="text" 
+           placeholder="Ask something..." 
+           class="flex-grow border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+    <button id="send-btn" class="ml-2 px-4 py-2 bg-sky-600 text-dark rounded-lg hover:bg-sky-700">Send</button>
+  </div>
+</div>
+
+<script>
+const icon = document.getElementById("ai-chat-icon");
+const box = document.getElementById("ai-chat-box");
+const closeBtn = document.getElementById("close-chat");
+const sendBtn = document.getElementById("send-btn");
+const input = document.getElementById("chat-input");
+const messages = document.getElementById("chat-messages");
+
+// Toggle chat visibility
+icon.addEventListener("click", () => box.classList.remove("hidden"));
+closeBtn.addEventListener("click", () => box.classList.add("hidden"));
+
+// Function to add a message bubble
+function addMessage(text, sender = "bot") {
+  const div = document.createElement("div");
+  div.className = sender === "me" ? "text-right" : "text-left";
+  
+  const bubble = document.createElement("div");
+  bubble.className = sender === "me"
+      ? "inline-block bg-sky-600 text-gray-800 px-3 py-2 rounded-lg max-w-[80%]"
+      : "inline-block bg-white text-gray-800 px-3 py-2 rounded-lg border border-gray-200 max-w-[80%]";
+  bubble.innerText = text;
+  
+  div.appendChild(bubble);
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// Send message and handle AI response
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Add doctor message
+  addMessage(text, "me");
+  input.value = "";
+
+  // Show temporary "Thinking..." message
+  const thinkingDiv = document.createElement("div");
+  thinkingDiv.className = "text-left";
+  const thinkingBubble = document.createElement("div");
+  thinkingBubble.className = "inline-block bg-gray-200 text-gray-600 px-3 py-2 rounded-lg max-w-[80%]";
+  thinkingBubble.innerText = "Thinking...";
+  thinkingDiv.appendChild(thinkingBubble);
+  messages.appendChild(thinkingDiv);
+  messages.scrollTop = messages.scrollHeight;
+
+  try {
+    const res = await fetch("/api/ai-chat/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ prompt: text })
+    });
+
+    const data = await res.json();
+
+    // Remove "Thinking..." bubble
+    thinkingDiv.remove();
+
+    // Add AI response
+    addMessage(data.answer || "No response", "bot");
+
+  } catch (err) {
+    thinkingDiv.remove();
+    addMessage("Error: Unable to fetch AI response", "bot");
+  }
+}
+
+// Get CSRF token for Django
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+sendBtn.addEventListener("click", sendMessage);
+input.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
+</script>
+
 
 {% endblock %}

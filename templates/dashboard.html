@@ -3,223 +3,418 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-6">
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold text-blue-900">Welcome, {% if request.user.is_active %} {{ user.title }} {% endif %}{{ request.user.get_full_name }}</h1>
-    <div class="text-sm text-gray-500">Today: {{ today|date:"F j, Y" }}</div>
-  </div>
-  
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Appointments Card -->
-    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-        <h3 class="text-gray-500 text-sm font-medium">Today's Appointments</h3>
-        <p class="text-3xl font-bold text-blue-900">{{ stats.today_appointments }}</p>
-        <div class="flex justify-between mt-2">
-            <span class="text-green-600 text-sm">↑ {{ stats.completed_appointments_today }} completed</span>
-            <span class="text-blue-600 text-sm">{{ stats.week_appointments }} this week</span>
-        </div>
-    </div>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .glass {
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    
+    .card-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    
+    .stat-card {
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        box-shadow: 20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff;
+    }
+    
+    .pulse-dot {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    
+    .floating {
+        animation: floating 3s ease-in-out infinite;
+    }
+    
+    @keyframes floating {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .slide-in {
+        animation: slideIn 0.8s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 1s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .progress-bar {
+        background: linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899);
+        background-size: 200% 100%;
+        animation: gradientShift 3s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    
+    .gradient-bg {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        min-height: 100vh;
+    }
+</style>
 
-      <!-- Your existing Patients Card -->
-      <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-        <h3 class="text-gray-500 text-sm font-medium">Total Patients</h3>
-        <p class="text-3xl font-bold text-blue-900">{{ stats.total_patients|default:"0" }}</p>
-        <div class="flex justify-between mt-2">
-            <span class="text-green-600 text-sm">↑ {{ stats.new_patients_this_week|default:"0" }} new</span>
-            <span class="text-green-600 text-sm">↑ {{ stats.new_patients_this_year|default:"0" }} YTD</span>
+<div class="gradient-bg -m-6">
+    <!-- Header -->
+     
+    <header class="bg-white shadow-lg border-b sticky top-auto">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-600 p-3 rounded-full floating">
+                        <i class="fas fa-heartbeat text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Welcome, {% if request.user.is_active %} {{ user.title }} {% endif %}{{ request.user.get_full_name }}</h1>
+                        <p class="text-gray-600 text-sm">Today: {{ today|date:"F j, Y" }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    {% if notifications %}
+                    <div class="relative">
+                        {% comment %} <button class="bg-gray-100 hover:bg-gray-200 p-3 rounded-full transition-all">
+                            <i class="fas fa-bell text-gray-700"></i>
+                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center pulse-dot">{{ notifications|length }}</span>
+                        </button> {% endcomment %}
+                    </div>
+                    {% endif %}
+                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                        {{ request.user.get_full_name|slice:":2"|upper }}
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    
-    <!-- Prescriptions Card -->
-    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-        <h3 class="text-gray-500 text-sm font-medium">Active Prescriptions</h3>
-        <p class="text-3xl font-bold text-blue-900">{{ stats.pending_prescriptions }}</p>
-        <div class="flex justify-between mt-2">
-            <span class="text-green-600 text-sm">↑ {{ stats.new_prescriptions_this_week }} new</span>
-            <span class="text-gray-500 text-sm">this week</span>
+    </header>
+
+    <div class="container mx-auto p-6 space-y-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 slide-in">
+            <!-- Appointments Card -->
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-3 rounded-xl">
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-green-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Today's Appointments</h3>
+                <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.today_appointments }}</p>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-green-600 flex items-center">
+                        <i class="fas fa-arrow-up text-xs mr-1"></i>{{ stats.completed_appointments_today }} completed
+                    </span>
+                    <span class="text-blue-600">{{ stats.week_appointments }} this week</span>
+                </div>
+                <div class="mt-4 bg-gray-200 rounded-full h-2">
+                    <div class="progress-bar h-2 rounded-full" style="width: {% widthratio stats.completed_appointments_today stats.today_appointments 100 %}%"></div>
+                </div>
+            </div>
+
+            <!-- Patients Card -->
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 p-3 rounded-xl">
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 12.094A5.973 5.973 0 004 15v1H1v-1a3 3 0 013.75-2.906z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-blue-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Total Patients</h3>
+                <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.total_patients|default:"0" }}</p>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-green-600 flex items-center">
+                        <i class="fas fa-arrow-up text-xs mr-1"></i>{{ stats.new_patients_this_week|default:"0" }} new
+                    </span>
+                    <span class="text-green-600">{{ stats.new_patients_this_year|default:"0" }} YTD</span>
+                </div>
+                <div class="mt-4 bg-gray-200 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full" style="width: 83%"></div>
+                </div>
+            </div>
+
+            <!-- Prescriptions Card -->
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 p-3 rounded-xl">
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M7 2a1 1 0 00-.707 1.707L7 4.414v3.758a1 1 0 01-.293.707l-4 4C.817 14.769 2.156 18 4.828 18h10.343c2.673 0 4.012-3.231 2.122-5.121l-4-4A1 1 0 0113 8.172V4.414l.707-.707A1 1 0 0013 2H7zm2 6.172V4h2v4.172a3 3 0 00.879 2.12l1.027 1.028a4 4 0 00-2.171.102l-.47.156a4 4 0 01-2.53 0l-.563-.187a1.993 1.993 0 00-.114-.035l1.063-1.063A3 3 0 009 8.172z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-yellow-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Active Prescriptions</h3>
+                <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_prescriptions }}</p>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-green-600 flex items-center">
+                        <i class="fas fa-arrow-up text-xs mr-1"></i>{{ stats.new_prescriptions_this_week }} new
+                    </span>
+                    <span class="text-gray-500">this week</span>
+                </div>
+                <div class="mt-4 bg-gray-200 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full" style="width: 45%"></div>
+                </div>
+            </div>
+
+            <!-- Financial Card -->
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 p-3 rounded-xl">
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-red-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Bills</h3>
+                <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_bills }}</p>
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-yellow-600">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
+                    <span class="text-red-600">₦{{ stats.outstanding_balance|floatformat:2 }} due</span>
+                </div>
+                <div class="mt-4 bg-gray-200 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-red-400 to-red-600 h-2 rounded-full" style="width: 36%"></div>
+                </div>
+            </div>
         </div>
-    </div>
-    
-    <!-- Financial Card -->
-    <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
-        <h3 class="text-gray-500 text-sm font-medium">Pending Bills</h3>
-        <p class="text-3xl font-bold text-blue-900">{{ stats.pending_bills }}</p>
-        <div class="flex justify-between mt-2">
-            <span class="text-yellow-600 text-sm">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
-            <span class="text-red-600 text-sm">₦{{ stats.outstanding_balance|floatformat:2 }} due</span>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in">
+            <!-- Today's Appointments -->
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-lg overflow-hidden border">
+                <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-white flex items-center">
+                        <i class="fas fa-calendar-day mr-2"></i>Today's Appointments
+                    </h2>
+                    <a href="{% url 'DurielMedicApp:appointment_list' %}" class="text-gray-300 hover:text-white text-sm flex items-center">
+                        View All <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                </div>
+                <div class="p-6 space-y-4">
+                    {% for appointment in user_appointments %}
+                    <div class="flex items-center p-4 bg-gray-50 border rounded-xl hover:shadow-md transition-all card-hover cursor-pointer">
+                        <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold mr-4">
+                            {{ appointment.patient.full_name|slice:":2"|upper }}
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-gray-900">{{ appointment.patient.full_name }}</h3>
+                            <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-semibold text-gray-900">{{ appointment.start_time|time:"h:i A" }}</p>
+                            <p class="text-sm text-gray-600">{{ appointment.clinic.name }}</p>
+                        </div>
+                        <div class="ml-4">
+                            <p class="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">{{ appointment.get_status_display }}</p>
+                          
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-8 text-center">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-calendar-times text-gray-400 text-xl"></i>
+                        </div>
+                        <p class="text-gray-500 font-medium">No appointments scheduled for today</p>
+                        <p class="text-sm text-gray-400 mt-1">Your schedule is clear!</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Pagination -->
+                {% if user_appointments.paginator.num_pages > 1 %}
+                <div class="px-6 py-3 border-t flex items-center justify-between bg-gray-50">
+                    <div class="text-sm text-gray-500">
+                        Showing page {{ user_appointments.number }} of {{ user_appointments.paginator.num_pages }}
+                    </div>
+                    <div class="flex space-x-2">
+                        {% if user_appointments.has_previous %}
+                            <a href="?page={{ user_appointments.previous_page_number }}" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-lg hover:bg-indigo-200 transition-colors">Previous</a>
+                        {% endif %}
+                        
+                        {% if user_appointments.has_next %}
+                            <a href="?page={{ user_appointments.next_page_number }}" class="px-4 py-2 bg-indigo-100 text-indigo-800 rounded-lg hover:bg-indigo-200 transition-colors">Next</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden border">
+                <div class="bg-gray-800 px-6 py-4">
+                    <h2 class="text-xl font-semibold text-white flex items-center">
+                        <i class="fas fa-bolt mr-2"></i>Quick Actions
+                    </h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+                    <a href="{% url 'core:add_patient' %}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                        <i class="fas fa-user-plus mr-2"></i>Add New Patient
+                    </a>
+                    {% endif %}
+                    
+                    {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+                    <a href="{% url 'DurielMedicApp:add_appointment' %}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                        <i class="fas fa-calendar-plus mr-2"></i>Schedule Appointment
+                    </a>
+                    {% endif %}
+                    
+                    {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
+                        {% for patient in patients %}
+                            <a href="{% url 'add_prescription' patient.id %}" class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                                <i class="fas fa-prescription mr-2"></i>Write Prescription
+                            </a>
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    <a href="{% url 'core:create_bill' %}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                        <i class="fas fa-file-invoice-dollar mr-2"></i>Create New Bill
+                    </a>
+                    {% endif %}
+                    
+                    {% if request.user.role == 'ADMIN' %}
+                    <a href="{% url 'DurielMedicApp:generate_report' %}" class="block w-full bg-yellow-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                        <i class="fas fa-chart-pie mr-2"></i>Generate Report
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
         </div>
-    </div>
-</div>
-  
-  <!-- Main Content Area -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Upcoming Appointments -->
-<div class="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
-  <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-    <h2 class="text-xl font-semibold">Today's Appointments</h2>
-    <a href="{% url 'DurielMedicApp:appointment_list' %}" class="text-sm hover:underline">View All</a>
-  </div>
-  <div class="divide-y">
-    {% for appointment in user_appointments %}
-      <div class="p-4 hover:bg-blue-50 transition cursor-pointer">
-          <div class="flex justify-between items-center">
-              <div>
-                  <h3 class="font-medium">{{ appointment.patient.full_name }}</h3>
-                  <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
-              </div>
-              <div class="text-right">
-                  <p class="font-medium">{{ appointment.start_time|time:"h:i A" }}</p>
-                  <p class="text-sm text-gray-600">{{ appointment.clinic.name }}</p>
-              </div>
-          </div>
-      </div>
-    {% empty %}
-      <div class="p-4 text-center text-gray-500">
-          No appointments scheduled for today
-      </div>
-    {% endfor %}
-  </div>
-  
-  <!-- Pagination -->
-  {% if user_appointments.paginator.num_pages > 1 %}
-  <div class="px-6 py-3 border-t flex items-center justify-between">
-    <div class="text-sm text-gray-500">
-      Showing page {{ user_appointments.number }} of {{ user_appointments.paginator.num_pages }}
-    </div>
-    <div class="flex space-x-2">
-      {% if user_appointments.has_previous %}
-        <a href="?page={{ user_appointments.previous_page_number }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">Previous</a>
-      {% endif %}
-      
-      {% if user_appointments.has_next %}
-        <a href="?page={{ user_appointments.next_page_number }}" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">Next</a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-</div>
-    
-    <!-- Quick Actions -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-      <div class="bg-blue-900 text-white px-6 py-3">
-        <h2 class="text-xl font-semibold">Quick Actions</h2>
-      </div>
-      <div class="p-4 space-y-4">
-        {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
-        <a href="{% url 'core:add_patient' %}" class="block w-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-medium py-3 px-4 rounded-lg transition text-center">
-          <i class="fas fa-user-plus mr-2"></i>Add New Patient
-        </a>
-        {% endif %}
-        
-        {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
-        <a href="{% url 'DurielMedicApp:add_appointment' %}" class="block w-full bg-green-100 hover:bg-green-200 text-green-800 font-medium py-3 px-4 rounded-lg transition text-center">
-          <i class="fas fa-calendar-plus mr-2"></i>Schedule Appointment
-        </a>
-        {% endif %}
-        
-        {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
-            {% for patient in patients %}
-                <a href="{% url 'add_prescription' patient.id %}" class="block w-full bg-purple-100 hover:bg-purple-200 text-purple-800 font-medium py-3 px-4 rounded-lg transition text-center">
-                    <i class="fas fa-prescription mr-2"></i>Write Prescription
+
+        <!-- Recent Patients -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
+            <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-white flex items-center">
+                    <i class="fas fa-users mr-2"></i>Recent Patients
+                </h2>
+                <a href="{% url 'core:patient_list' %}" class="text-gray-300 hover:text-white text-sm flex items-center">
+                    View All <i class="fas fa-arrow-right ml-1"></i>
                 </a>
-            {% endfor %}
-        {% endif %}
-
-        {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
-        <a href="{% url 'core:create_bill' %}" class="block w-full bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-medium py-3 px-4 rounded-lg transition text-center">
-            <i class="fas fa-file-invoice-dollar mr-2"></i>Create New Bill
-        </a>
-        {% endif %}
-
-        
-        {% if request.user.role == 'ADMIN' %}
-        <a href="{% url 'DurielMedicApp:generate_report' %}" class="block w-full bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium py-3 px-4 rounded-lg transition text-center">
-          <i class="fas fa-chart-pie mr-2"></i>Generate Report
-        </a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  
-  <!-- Recent Patients -->
-  <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-      <h2 class="text-xl font-semibold">Recent Patients</h2>
-      <a href="{% url 'core:patient_list' %}" class="text-sm hover:underline">View All</a>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          {% for patient in recent_patients %}
-          <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="flex items-center">
-                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-medium">
-                  {{ patient.full_name|slice:":2"|upper }}
+            </div>
+            <div class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="border-b border-gray-200">
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">Patient</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">Last Visit</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                                <th class="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for patient in recent_patients %}
+                            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                <td class="py-4 px-4">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold mr-3">
+                                            {{ patient.full_name|slice:":2"|upper }}
+                                        </div>
+                                        <div>
+                                            <div class="font-semibold text-gray-900">{{ patient.full_name }}</div>
+                                            <div class="text-sm text-gray-600">ID: {{ patient.patient_id }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-4">
+                                    {% with last_appointment=patient.appointments.first %}
+                                    {% if last_appointment %}
+                                    <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
+                                    <div class="text-sm text-gray-600">{{ last_appointment.reason|truncatechars:20 }}</div>
+                                    {% else %}
+                                    <div class="text-sm text-gray-600">No visits yet</div>
+                                    {% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td class="py-4 px-4">
+                                    <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Active</span>
+                                </td>
+                                <td class="py-4 px-4">
+                                    <a href="{% url 'core:patient_detail' patient.pk %}" class="text-blue-600 hover:text-blue-800 mr-3 transition-colors">View</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="ml-4">
-                  <div class="text-sm font-medium text-gray-900">{{ patient.full_name }}</div>
-                  <div class="text-sm text-gray-500">ID: {{ patient.patient_id }}</div>
-                </div>
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              {% with last_appointment=patient.appointments.first %}
-              {% if last_appointment %}
-              <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
-              <div class="text-sm text-gray-500">{{ last_appointment.reason|truncatechars:20 }}</div>
-              {% else %}
-              <div class="text-sm text-gray-500">No visits yet</div>
-              {% endif %}
-              {% endwith %}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                Active
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              <a href="{% url 'core:patient_detail' patient.pk %}" class="text-blue-600 hover:text-blue-900 mr-3">View</a>
-              {% comment %} <a href="#" class="text-green-600 hover:text-green-900">Chart</a> {% endcomment %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  
-  <!-- Unread Notifications -->
-  {% if notifications %}
-  <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-      <h2 class="text-xl font-semibold">Notifications</h2>
-      <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="text-sm hover:underline">Mark All Read</a>
-    </div>
-    <div class="divide-y">
-      {% for notification in notifications %}
-      <div class="p-4 hover:bg-blue-50 transition cursor-pointer" onclick="window.location='{% url 'DurielMedicApp:mark_notification_read' notification.pk %}'">
-        <div class="flex justify-between items-center">
-          <div>
-            <p class="text-sm {% if not notification.is_read %}font-semibold{% endif %}">{{ notification.message }}</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-gray-500">{{ notification.created_at|timesince }} ago</p>
-          </div>
+            </div>
         </div>
-      </div>
-      {% endfor %}
+
+        <!-- Notifications -->
+        {% if notifications %}
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
+            <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-white flex items-center">
+                    <i class="fas fa-bell mr-2"></i>Notifications
+                </h2>
+                <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="text-gray-300 hover:text-white text-sm">Mark All Read</a>
+            </div>
+            <div class="p-6 space-y-4">
+                {% for notification in notifications %}
+                <div class="flex items-center p-4 {% if not notification.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} rounded-xl border-l-4 border-blue-500 hover:shadow-md transition-all card-hover cursor-pointer" onclick="window.location='{% url 'DurielMedicApp:mark_notification_read' notification.pk %}'">
+                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-info text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="{% if not notification.is_read %}font-semibold text-gray-900{% else %}text-gray-800{% endif %}">{{ notification.message }}</p>
+                    </div>
+                    <span class="text-xs text-gray-600 font-medium">{{ notification.created_at|timesince }} ago</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
-  </div>
-  {% endif %}
 </div>
+
+<script>
+    // Add Font Awesome if not already loaded
+    if (!document.querySelector('link[href*="font-awesome"]')) {
+        const link = document.createElement('link');
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }
+</script>
+
 {% endblock %}

@@ -4,141 +4,199 @@
 {% block title %}Billing Management{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-6">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-blue-900">Billing Management</h1>
-        <a href="{% url 'core:create_bill' %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            <i class="fas fa-plus mr-2"></i>Create New Bill
-        </a>
-    </div>
+<style>
+    .stat-card {
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        box-shadow: 20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff;
+    }
+    
+    .card-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+</style>
 
-    <!-- Filters -->
-    <div class="bg-white rounded-lg shadow p-4 mb-6">
-        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                    <option value="">All Statuses</option>
-                    <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
-                    <option value="PARTIAL" {% if status_filter == 'PARTIAL' %}selected{% endif %}>Partial</option>
-                    <option value="PAID" {% if status_filter == 'PAID' %}selected{% endif %}>Paid</option>
-                </select>
+<div class="gradient-bg -m-6">
+    <div class="container mx-auto p-6 space-y-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center slide-in">
+            <div class="stat-card rounded-2xl p-6">
+                <h1 class="text-2xl font-bold text-gray-800">Billing Management</h1>
+                <p class="text-gray-600">Track and manage patient billing</p>
             </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Patient</label>
-                <input type="text" name="patient" value="{{ patient_filter }}" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Search patient...">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-            </div>
-            
-            <div class="md:col-span-4 flex justify-end space-x-2">
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                    <i class="fas fa-filter mr-2"></i>Filter
-                </button>
-                <a href="{% url 'core:billing_list' %}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">
-                    <i class="fas fa-sync-alt mr-2"></i>Reset
-                </a>
-            </div>
-        </form>
-    </div>
+            <a href="{% url 'core:create_bill' %}" 
+               class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all card-hover">
+               <i class="fas fa-plus mr-2"></i>Create New Bill
+            </a>
+        </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <h3 class="text-gray-500 text-sm font-medium">Total Billed</h3>
-            <p class="text-2xl font-bold">₦{{ total_amount|floatformat:2 }}</p>
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 card-hover fade-in">
+            <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
+                        <option value="PARTIAL" {% if status_filter == 'PARTIAL' %}selected{% endif %}>Partial</option>
+                        <option value="PAID" {% if status_filter == 'PAID' %}selected{% endif %}>Paid</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Patient</label>
+                    <input type="text" name="patient" value="{{ patient_filter }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" 
+                           placeholder="Search patient...">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                    <input type="date" name="date_from" value="{{ date_from }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                    <input type="date" name="date_to" value="{{ date_to }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div class="md:col-span-4 flex justify-end space-x-2">
+                    <button type="submit" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all">
+                        <i class="fas fa-filter mr-2"></i>Filter
+                    </button>
+                    <a href="{% url 'core:billing_list' %}" 
+                       class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition-all">
+                       <i class="fas fa-sync-alt mr-2"></i>Reset
+                    </a>
+                </div>
+            </form>
         </div>
-        
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <h3 class="text-gray-500 text-sm font-medium">Total Paid</h3>
-            <p class="text-2xl font-bold">₦{{ total_paid|floatformat:2 }}</p>
-        </div>
-        
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-            <h3 class="text-gray-500 text-sm font-medium">Outstanding</h3>
-            <p class="text-2xl font-bold">₦{{ total_amount|subtract:total_paid|floatformat:2 }}</p>
-        </div>
-    </div>
 
-    <!-- Bills Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill #</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for bill in bills %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-medium">
-                                {{ bill.patient.full_name|slice:":2"|upper }}
-                            </div>
-                            <div class="ml-4">
-                                <div class="text-sm font-medium text-gray-900">{{ bill.patient.full_name }}</div>
-                                <div class="text-sm text-gray-500">ID: {{ bill.patient.patient_id }}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {{ bill.service_date|date:"M d, Y" }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₦{{ bill.amount|floatformat:2 }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ₦{{ bill.paid_amount|floatformat:2 }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            {% if bill.status == 'PAID' %}bg-green-100 text-green-800
-                            {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-red-100 text-red-800{% endif %}">
-                            {{ bill.get_status_display }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div class="flex space-x-2">
-                            <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="{% url 'core:edit_bill' bill.pk %}" class="text-yellow-600 hover:text-yellow-900">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
-                                <i class="fas fa-money-bill-wave"></i>
-                            </a>
-                            <a href="{% url 'core:generate_receipt' bill.pk %}" class="text-purple-600 hover:text-purple-900">
-                                <i class="fas fa-receipt"></i>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">No bills found</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 slide-in">
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-3 rounded-xl">
+                        <i class="fas fa-file-invoice-dollar text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-blue-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Total Billed</h3>
+                <p class="text-3xl font-bold text-gray-800">₦{{ total_amount|floatformat:2 }}</p>
+            </div>
+            
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 p-3 rounded-xl">
+                        <i class="fas fa-money-bill-wave text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-green-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Total Paid</h3>
+                <p class="text-3xl font-bold text-gray-800">₦{{ total_paid|floatformat:2 }}</p>
+            </div>
+            
+            <div class="stat-card rounded-2xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="bg-gradient-to-r from-red-500 to-red-600 p-3 rounded-xl">
+                        <i class="fas fa-exclamation-triangle text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <div class="w-3 h-3 bg-red-400 rounded-full pulse-dot"></div>
+                    </div>
+                </div>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Outstanding</h3>
+                <p class="text-3xl font-bold text-gray-800">₦{{ total_amount|subtract:total_paid|floatformat:2 }}</p>
+            </div>
+        </div>
+
+        <!-- Bills Table -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border card-hover fade-in">
+            <div class="bg-gray-800 px-6 py-4">
+                <h2 class="text-xl font-semibold text-white">Billing Records</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for bill in bills %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-medium">
+                                        {{ bill.patient.full_name|slice:":2"|upper }}
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">{{ bill.patient.full_name }}</div>
+                                        <div class="text-sm text-gray-500">ID: {{ bill.patient.patient_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ bill.service_date|date:"M d, Y" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                ₦{{ bill.amount|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ₦{{ bill.paid_amount|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {% if bill.status == 'PAID' %}bg-green-100 text-green-800
+                                    {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    {{ bill.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <div class="flex space-x-2">
+                                    <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'core:edit_bill' bill.pk %}" class="text-yellow-600 hover:text-yellow-900">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
+                                        <i class="fas fa-money-bill-wave"></i>
+                                    </a>
+                                    <a href="{% url 'core:generate_receipt' bill.pk %}" class="text-purple-600 hover:text-purple-900">
+                                        <i class="fas fa-receipt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">No bills found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

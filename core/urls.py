@@ -55,4 +55,8 @@ urlpatterns = [
     path('billing/<int:pk>/payment/', views.record_payment, name='record_payment'),
     path('billing/<int:pk>/receipt/', views.generate_receipt, name='generate_receipt'),
     path('billing/<int:pk>/delete/', views.delete_bill, name='delete_bill'),
+    
+    
+    # AI assist
+    path("api/ai-chat/", views.ai_chat, name="ai_chat"),
 ]

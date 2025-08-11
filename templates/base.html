@@ -12,44 +12,134 @@
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .glass {
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    
+    .card-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    
+    .stat-card {
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        box-shadow: 20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff;
+    }
+    
+    .pulse-dot {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    
+    .floating {
+        animation: floating 3s ease-in-out infinite;
+    }
+    
+    @keyframes floating {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .slide-in {
+        animation: slideIn 0.8s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 1s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .progress-bar {
+        background: linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899);
+        background-size: 200% 100%;
+        animation: gradientShift 3s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    
+    .gradient-bg {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        min-height: 100vh;
+    }
+
     #notification-dropdown {
       min-width: 20rem;
       max-height: 80vh;
       overflow-y: auto;
-  }
+    }
   
-  .notification-item.unread {
+    .notification-item.unread {
       background-color: #f0f9ff;
       font-weight: 500;
-  }
+    }
+
+    /* Active link styling */
+    .nav-link.active {
+      background-color: rgba(37, 99, 235, 0.5) !important;
+      color: white !important;
+      font-weight: 600;
+    }
+
+    .nav-link.active i {
+      color: white !important;
+    }
   </style>
 
   {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="gradient-bg text-gray-800">
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <div class="hidden md:flex md:flex-shrink-0">
-      <div class="flex flex-col w-64 bg-blue-900 text-white">
+      <div class="flex flex-col w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white">
         <div class="flex items-center justify-center h-16 px-4 border-b border-blue-800">
           <h1 class="text-xl font-bold">DURIELMEDIC+</h1>
         </div>
         <div class="flex flex-col flex-grow px-4 py-4 overflow-y-auto">
           <nav class="flex-1 space-y-2">
             {% if request.session.clinic_type %}
-              <div class="text-sm text-white font-semibold">
+              <div class="text-sm text-white font-semibold bg-blue-800/50 p-2 rounded-lg">
                 Active Clinic: {{ request.session.clinic_type }}
               </div>
             {% endif %}
 
             <!-- Always show the Dashboard (unclickable if no clinic selected) -->
             {% if request.session.clinic_id %}
-              <a href="{% url 'DurielMedicApp:dashboard' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-800{% endif %}">
+              <a href="{% url 'DurielMedicApp:dashboard' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                 <i class="fas fa-tachometer-alt mr-3"></i>
                 Dashboard
               </a>
             {% else %}
-              <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600 cursor-not-allowed opacity-60">
+              <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
                 <i class="fas fa-tachometer-alt mr-3"></i>
                 Dashboard
               </div>
@@ -58,53 +148,61 @@
             <!-- Other sidebar items only if clinic selected -->
             {% if request.session.clinic_id %}
               {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
-              <a href="{% url 'core:manage_roles' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group">
+              <a href="{% url 'core:manage_roles' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'manage_roles' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-tools mr-3"></i>
                 Administration
               </a>
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST' %}
-              <a href="{% url 'core:patient_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'patient' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+              <a href="{% url 'core:patient_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-users mr-3"></i>
                 Patients
               </a>
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST, NURSE' %}
-              <a href="{% url 'DurielMedicApp:appointment_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'appointment' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+              <a href="{% url 'DurielMedicApp:appointment_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
                 Appointments
               </a>
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST' %}
-              <a href="{% url 'DurielMedicApp:followup_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'followup' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+              <a href="{% url 'DurielMedicApp:followup_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-clock-rotate-left mr-3"></i>
                 Follow Ups
               </a>
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR' %}
-              <a href="{% url 'DurielMedicApp:prescription_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group">
+              <a href="{% url 'DurielMedicApp:prescription_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>
                 Prescriptions
               </a>
               {% endif %}
           
               {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
-              <a href="{% url 'core:billing_list' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'billing' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+              <a href="{% url 'core:billing_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-money-bill-wave mr-3"></i>
                 Billing
               </a>
               {% endif %}
           
               {% if request.user.role == 'ADMIN' %}
-              <a href="{% url 'DurielMedicApp:generate_report' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group {% if 'report' in request.resolver_match.url_name %}bg-blue-800{% endif %}">
+              <a href="{% url 'DurielMedicApp:generate_report' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-chart-line mr-3"></i>
                 Reports
               </a>
-              <a href="#" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group">
+              <a href="#" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-cog mr-3"></i>
                 Settings
               </a>
@@ -115,13 +213,6 @@
         </div>
         <div class="p-4 border-t border-blue-800">
           <div class="flex items-center">
-            {% comment %} <div class="flex-shrink-0">
-                {% if user.profile_picture %}
-                    <img class="h-8 w-8 rounded-full" src="{{ user.profile_picture.url }}" alt="Profile Picture">
-                {% else %}
-                    <img class="h-8 w-8 rounded-full" src="{% static 'images/default-profile.png' %}" alt="Default Profile Picture">
-                {% endif %}
-            </div> {% endcomment %}
             <div class="ml-3">
               <p class="text-sm font-medium">{{ request.user.get_full_name }}</p>
               <p class="text-xs text-blue-200">{{ request.user.get_role_display }}</p>
@@ -134,14 +225,13 @@
     <!-- Main content -->
     <div class="flex flex-col flex-1 overflow-hidden">
       <!-- Top navigation -->
-      <header class="bg-white shadow-sm">
-        <div class="flex items-center justify-between px-4 py-3">
+      <header class="bg-white shadow-lg border-b sticky top-0 z-50">
+        <div class="flex items-center justify-between px-6 py-3">
           <div class="flex items-center md:hidden">
-            <button class="text-gray-500 focus:outline-none" onclick="toggleSidebar()">
-              <i class="fas fa-bars"></i>
+            <button class="text-gray-500 hover:text-gray-700 focus:outline-none transition-colors" onclick="toggleSidebar()">
+              <i class="fas fa-bars text-xl"></i>
             </button>
           </div>
-
 
           <div class="flex-1 flex justify-between items-center">
             <div class="flex-1 max-w-xs">
@@ -149,67 +239,67 @@
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <i class="fas fa-search text-gray-400"></i>
                 </div>
-                <input class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Search" type="search">
+                <input class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all" placeholder="Search" type="search">
               </div>
             </div>
 
-            <!-- Replace the existing notification button with this enhanced version -->
-            <div class="ml-4 flex items-center md:ml-6">
-              <!-- Notification Dropdown -->
-              {% if request.user.is_authenticated %}
+            <!-- Notification Dropdown -->
+            {% if request.user.is_authenticated %}
+              <div class="ml-4 flex items-center md:ml-6 space-x-4">
                 <div class="relative">
-                  <button onclick="toggleNotifications()" class="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative">
-                    <i class="fas fa-bell"></i>
+                  <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
+                    <i class="fas fa-bell text-lg"></i>
                     {% with unread=request.user|unread_notifications %}
                       {% if unread.exists %}
-                        <span class="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                        <span class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
                       {% endif %}
                     {% endwith %}
                   </button>
 
-                  <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 z-50">
-                    <div class="max-h-64 overflow-y-auto">
+                  <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
+                    <div class="max-h-96 overflow-y-auto">
                       {% for notification in request.user.notifications.all|slice:":5" %}
-                        <a href="{{ notification.link|default:'#' }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
-                          <div class="flex justify-between">
+                        <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
+                          <div class="flex justify-between items-center">
                             <span>{{ notification.message }}</span>
-                            <span class="text-xs text-gray-500">{{ notification.created_at|timesince }} ago</span>
+                            <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
                           </div>
                         </a>
                       {% empty %}
-                        <div class="px-4 py-2 text-sm text-gray-500">No notifications</div>
+                        <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
                       {% endfor %}
                     </div>
-                    <div class="border-t border-gray-100">
-                      <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-100">
+                    <div class="border-t border-gray-200">
+                      <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
                         Clear All Notifications
                       </a>
                     </div>
                   </div>
                 </div>
-              {% endif %}
-
-              
-        
-              
-              <!-- Profile dropdown -->
-              {% if request.user.is_authenticated %}
-              <div class="ml-3 relative">
-                <div>
-                  <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" id="user-menu">
-                    <span class="sr-only">Open user menu</span>
-                    <h3>ONE LIFE CLINIC</h3>
-                    <img class="h-8 w-8" src="{% static 'images/company-logo.png' %}" alt="Company Logo">
-                </button>
-                </div>
-                <!-- Dropdown menu -->
-                <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 hidden" role="menu" id="profile-menu">
-                  <a href="{% url 'password_reset' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Reset Password</a>
-                  <a href="{% url 'core:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Sign out</a>
+                
+                <!-- Profile dropdown -->
+                <div class="relative">
+                  <div>
+                    <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
+                      <span class="sr-only">Open user menu</span>
+                      <div class="flex items-center">
+                        <span class="mr-2 font-medium text-gray-700">ONE LIFE CLINIC</span>
+                        <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Company Logo">
+                      </div>
+                    </button>
+                  </div>
+                  <!-- Dropdown menu -->
+                  <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-lg shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 hidden slide-in" role="menu" id="profile-menu">
+                    <a href="{% url 'password_reset' %}" 
+                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'password_reset' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
+                       role="menuitem">Reset Password</a>
+                    <a href="{% url 'core:logout' %}" 
+                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'logout' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
+                       role="menuitem">Sign out</a>
+                  </div>
                 </div>
               </div>
-              {% endif %}
-            </div>
+            {% endif %}
           </div>
         </div>
       </header>
@@ -217,17 +307,18 @@
       <!-- Mobile sidebar -->
       <div class="md:hidden fixed inset-0 z-40 hidden" id="mobile-sidebar">
         <div class="fixed inset-0 bg-gray-600 bg-opacity-75" onclick="toggleSidebar()"></div>
-        <div class="relative flex flex-col w-64 bg-blue-900 text-white h-full">
+        <div class="relative flex flex-col w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white h-full">
           <div class="flex items-center justify-between h-16 px-4 border-b border-blue-800">
             <h1 class="text-xl font-bold">DURIELMEDIC+</h1>
-            <button class="text-white focus:outline-none" onclick="toggleSidebar()">
-              <i class="fas fa-times"></i>
+            <button class="text-white hover:text-blue-200 focus:outline-none transition-colors" onclick="toggleSidebar()">
+              <i class="fas fa-times text-xl"></i>
             </button>
           </div>
           <div class="flex flex-col flex-grow px-4 py-4 overflow-y-auto">
             <nav class="flex-1 space-y-2">
               <!-- Same navigation links as desktop sidebar -->
-              <a href="{% url 'DurielMedicApp:dashboard' %}" class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800 group">
+              <a href="{% url 'DurielMedicApp:dashboard' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                 <i class="fas fa-tachometer-alt mr-3"></i>
                 Dashboard
               </a>
@@ -238,15 +329,8 @@
       </div>
       
       <!-- Main content area -->
-      <main class="flex-1 overflow-y-auto p-4">
+      <main class="flex-1 overflow-y-auto p-6">
         {% include 'partials/messages.html' %}
-        {% comment %} {% if messages %}
-          {% for message in messages %}
-            <div class="mb-4 p-3 {% if message.tags == 'success' %}bg-green-100 border border-green-400 text-green-800{% elif message.tags == 'error' %}bg-red-100 border border-red-400 text-red-800{% else %}bg-blue-100 border border-blue-400 text-blue-800{% endif %} rounded">
-              {{ message }}
-            </div>
-          {% endfor %}
-        {% endif %} {% endcomment %}
         
         {% block content %}{% endblock %}
       </main>
@@ -276,39 +360,55 @@
       });
     }
 
-
-  
-      function toggleNotifications() {
-        const dropdown = document.getElementById('notification-dropdown');
-        dropdown.classList.toggle('hidden');
-      
-        if (!dropdown.classList.contains('hidden')) {
-          // Send request to mark all as read
-          fetch("{% url 'DurielMedicApp:mark_notification_read' 0 %}".replace('0', notificationId), {
-            method: 'POST',
-            headers: {
-              'X-CSRFToken': '{{ csrf_token }}',
-              'Content-Type': 'application/json'
-            }
-          }).then(response => {
-            if (response.ok) {
-              console.log('Notifications marked as read');
-            }
-          });
-        }
+    function toggleNotifications() {
+      const dropdown = document.getElementById('notification-dropdown');
+      dropdown.classList.toggle('hidden');
+    
+      if (!dropdown.classList.contains('hidden')) {
+        // Send request to mark all as read
+        fetch("{% url 'DurielMedicApp:mark_notification_read' 0 %}".replace('0', notificationId), {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+          }
+        }).then(response => {
+          if (response.ok) {
+            console.log('Notifications marked as read');
+          }
+        });
       }
+    }
+    
+    // Close dropdown if clicked outside
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById('notification-dropdown');
+      const bell = document.querySelector('[onclick="toggleNotifications()"]');
+    
+      if (bell && !bell.contains(event.target) && dropdown && !dropdown.contains(event.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+
+    // Highlight active links based on current URL
+    document.addEventListener('DOMContentLoaded', function() {
+      const currentPath = window.location.pathname;
+      const navLinks = document.querySelectorAll('.nav-link');
       
-      // Close dropdown if clicked outside
-      document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById('notification-dropdown');
-        const bell = document.querySelector('[onclick="toggleNotifications()"]');
-      
-        if (!bell.contains(event.target) && !dropdown.contains(event.target)) {
-          dropdown.classList.add('hidden');
+      navLinks.forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+          link.classList.add('active');
         }
       });
+    });
      
-      
+    // Add Font Awesome if not already loaded
+    if (!document.querySelector('link[href*="font-awesome"]')) {
+        const link = document.createElement('link');
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }
   </script>
   
   {% block extra_js %}{% endblock %}

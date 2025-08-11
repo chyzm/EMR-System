@@ -323,21 +323,27 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_authenticated and staff_check(self.request.user)
     
     def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Filter by date if provided
+    # Start with raw queryset, no default ordering
+        queryset = Appointment.objects.all()
+
+        # Optional filter by date
         date_filter = self.request.GET.get('date', '')
         if date_filter:
             queryset = queryset.filter(date=date_filter)
-        
-        # For non-admin staff, only show their appointments or patients they created
+
+        # Non-admin filter
         if not self.request.user.role == 'ADMIN':
             queryset = queryset.filter(
                 Q(provider=self.request.user) | 
                 Q(patient__created_by=self.request.user)
             )
-        
-        return queryset.order_by('date', 'start_time')
+            
+
+
+        # Explicit ordering: newest appointment first
+        return queryset.order_by('-date', '-start_time')
+        print(self.get_queryset().query)
+
 
 
 # @login_required
@@ -595,32 +601,7 @@ def mark_notification_read(request, pk):  # Make sure to include the pk paramete
 #     return JsonResponse({'status': 'success'})
 
 
-# Appointment Views
-class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    model = Appointment
-    template_name = 'appointments/appointment_list.html'
-    context_object_name = 'appointments'
-    paginate_by = 10
-    
-    def test_func(self):
-        return self.request.user.is_authenticated and staff_check(self.request.user)
-    
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Filter by date if provided
-        date_filter = self.request.GET.get('date', '')
-        if date_filter:
-            queryset = queryset.filter(date=date_filter)
-        
-        # For non-admin staff, only show their appointments or patients they created
-        if not self.request.user.role == 'ADMIN':
-            queryset = queryset.filter(
-                Q(provider=self.request.user) | 
-                Q(patient__created_by=self.request.user)
-            )
-        
-        return queryset.order_by('date', 'start_time')
+
 
 class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Appointment

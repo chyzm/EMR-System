@@ -10,7 +10,7 @@ from datetime import date
 class CustomUserCreationForm(UserCreationForm):
     class Meta(UserCreationForm.Meta):
         model = CustomUser
-        fields = ('username', 'email', 'first_name', 'last_name', 'role', 'license_number', 'specialization', 'phone')
+        fields = ('username', 'email', 'first_name', 'last_name', 'role', 'license_number', 'specialization', 'phone', 'clinic')
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

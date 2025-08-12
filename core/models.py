@@ -1,8 +1,10 @@
+from time import timezone as tz
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinLengthValidator
 from django.conf import settings
 from django.db.models import Sum
+from django.forms import ValidationError
 
 
 class Clinic(models.Model):
@@ -79,7 +81,7 @@ class Patient(models.Model):
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='REGISTERED')
     patient_id = models.PositiveIntegerField(primary_key=True, unique=True, editable=False)
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
-    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients', null=True, blank=True)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     full_name = models.CharField(max_length=200)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
@@ -105,15 +107,18 @@ class Patient(models.Model):
     #     super().save(*args, **kwargs)
     
     def save(self, *args, **kwargs):
-        if self.patient_id is None:
-            if self.clinic:
+            # Only generate patient_id for new records
+            if self.patient_id is None:
+                if not hasattr(self, 'clinic') or not self.clinic:
+                    raise ValueError("Patient must be assigned to a clinic before saving")
+                
                 last_patient = Patient.objects.filter(clinic=self.clinic).order_by('-patient_id').first()
-            else:
-                last_patient = Patient.objects.order_by('-patient_id').first()
+                self.patient_id = (last_patient.patient_id + 1) if last_patient else 100001
+            
+            if not self.created_at:
+                self.created_at = tz.now()  # Use the renamed import
 
-            self.patient_id = (last_patient.patient_id + 1) if last_patient else 100001
-
-        super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
         
         
     from django.db.models import Sum

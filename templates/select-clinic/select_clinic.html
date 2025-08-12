@@ -1,26 +1,37 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
-<div class="max-w-md mx-auto mt-10 p-6 bg-white shadow-md rounded">
-    <h2 class="text-xl font-bold mb-4">Select Clinic</h2>
-
-    <form method="post" action="{% url 'core:select_clinic' %}">
-        {% csrf_token %}
-
-        <label for="clinic_id" class="block mb-2 font-semibold">Choose Clinic</label>
-        <select id="clinic_id" name="clinic_id" class="w-full border rounded p-2" required>
-            <option value="">-- Select a Clinic --</option>
-            {% for c in clinics %}
-            <option value="{{ c.id }}">
-                {{ c.get_clinic_type_display }}
-            </option>
-            
-            {% endfor %}
-        </select>
-
-        <button type="submit" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-            Continue
-        </button>
-    </form>
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-blue-600 py-4 px-6">
+            <h2 class="text-white text-xl font-semibold">Select Clinic</h2>
+        </div>
+        <div class="p-6">
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="clinic_id">
+                        Select Clinic to Work In:
+                    </label>
+                    <select name="clinic_id" id="clinic_id" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- Select Clinic --</option>
+                        {% for clinic in clinics %}
+                            <option value="{{ clinic.id }}">
+                                {{ clinic.get_clinic_type_display }} - {{ clinic.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mt-6">
+                    <button type="submit" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                        Continue
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

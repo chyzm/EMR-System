@@ -22,3 +22,4 @@ def clinic_selected_required(view_func):
             return redirect('core:select_clinic')
         return view_func(request, *args, **kwargs)
     return _wrapped_view
+

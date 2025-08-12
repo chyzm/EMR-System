@@ -3,7 +3,7 @@ from django.contrib.auth import views as auth_views
 from . import views
 from .views import (PatientListView, PatientDetailView, PatientCreateView,
                    StaffCreateView, PatientUpdateView, PatientDeleteView)
-from DurielMedicApp.views import select_clinic
+from core.views import select_clinic
 from django.shortcuts import redirect
 
 
@@ -59,4 +59,8 @@ urlpatterns = [
     
     # AI assist
     path("api/ai-chat/", views.ai_chat, name="ai_chat"),
+    
+    
+    
+    path('select-clinic/', views.select_clinic, name='select_clinic'),
 ]

@@ -132,16 +132,44 @@ class UserEditForm(forms.ModelForm):
             }),
         }
 
+from django.utils import timezone
+
 class PatientForm(forms.ModelForm):
     class Meta:
         model = Patient
         fields = '__all__'
         exclude = ['created_by', 'clinic', 'patient_id']
         widgets = {
-            'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'allergies': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
-            'address': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'date_of_birth': forms.DateInput(attrs={'type': 'date'})
         }
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        
+        # Make fields optional if needed
+        self.fields['blood_group'].required = False
+        self.fields['allergies'].required = False
+        self.fields['emergency_contact_name'].required = False
+        self.fields['profile_picture'].required = False
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        if self.request:
+            instance.created_by = self.request.user
+            clinic_id = self.request.session.get('clinic_id')
+            if clinic_id:
+                instance.clinic_id = clinic_id
+            
+            # Set created_at if not set
+            if not instance.created_at:
+                instance.created_at = timezone.now()
+        
+        if commit:
+            instance.save()
+        
+        return instance
         
     def clean_date_of_birth(self):
         dob = self.cleaned_data.get('date_of_birth')

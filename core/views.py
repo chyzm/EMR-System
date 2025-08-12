@@ -49,6 +49,32 @@ def admin_check(user):
 def home(request):
     return render(request, 'core/login.html')
 
+# views.py (core or DurielMedicApp)
+
+@login_required
+def select_clinic(request):
+    user_clinics = request.user.clinic.all().order_by('clinic_type', 'name')
+    
+    if request.method == 'POST':
+        clinic_id = request.POST.get('clinic_id')
+        clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
+        if clinic:
+            request.session['clinic_id'] = clinic.id
+            request.session['clinic_type'] = clinic.clinic_type
+            request.session['clinic_name'] = clinic.name
+
+            if clinic.clinic_type == 'GENERAL':
+                return redirect('DurielMedicApp:dashboard')
+            elif clinic.clinic_type == 'EYE':
+                return redirect('eye_dashboard')
+            elif clinic.clinic_type == 'DENTAL':
+                return redirect('dental_dashboard')
+
+    return render(request, 'select-clinic/select_clinic.html', {
+        'clinics': user_clinics,
+        'clinic_types': dict(Clinic.CLINIC_TYPES)
+           })
+
 
 # ---------- USER ROLE MANAGEMENT ----------
 @login_required
@@ -101,23 +127,6 @@ def edit_user_role(request, user_id):
 
 # ---------- PATIENTS ----------
 
-# class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-#     model = Patient
-#     template_name = 'patients/patient_list.html'
-#     context_object_name = 'patients'
-#     paginate_by = 10
-
-#     def test_func(self):
-#         return self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
-
-#     def get_queryset(self):
-#         queryset = super().get_queryset()
-#         search_query = self.request.GET.get('search', '')
-#         if search_query:
-#             queryset = queryset.filter(
-#                 full_name__icontains=search_query
-#             )
-#         return queryset.order_by('-created_at')
 
 
 class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -169,12 +178,23 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def test_func(self):
         return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE']
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def form_valid(self, form):
+        # Ensure clinic is set before saving
+        if not form.instance.clinic_id:
+            clinic_id = self.request.session.get('clinic_id')
+            if not clinic_id:
+                messages.error(self.request, "No clinic selected. Please select a clinic first.")
+                return redirect('core:select_clinic')
+            form.instance.clinic_id = clinic_id
+        
         form.instance.created_by = self.request.user
-        form.instance.clinic = self.request.user.primary_clinic
         messages.success(self.request, 'Patient added successfully!')
         return super().form_valid(form)
-
 
 # class PatientUpdateView(UpdateView):
 #     model = Patient

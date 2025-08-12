@@ -56,25 +56,25 @@ def staff_check(user):
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
 
-@login_required
-def select_clinic(request):
-    user_clinics = request.user.clinic.all()  # returns Clinic objects
+# @login_required
+# def select_clinic(request):
+#     user_clinics = request.user.clinic.all()  # returns Clinic objects
     
-    if request.method == 'POST':
-        clinic_id = request.POST.get('clinic_id')
-        clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
-        if clinic:
-            request.session['clinic_id'] = clinic.id
-            request.session['clinic_type'] = clinic.clinic_type
+#     if request.method == 'POST':
+#         clinic_id = request.POST.get('clinic_id')
+#         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
+#         if clinic:
+#             request.session['clinic_id'] = clinic.id
+#             request.session['clinic_type'] = clinic.clinic_type
 
-            if clinic.clinic_type == 'GENERAL':
-                return redirect('DurielMedicApp:dashboard')
-            elif clinic.clinic_type == 'EYE':
-                return redirect('eye_dashboard')
-            elif clinic.clinic_type == 'DENTAL':
-                return redirect('dental_dashboard')
+#             if clinic.clinic_type == 'GENERAL':
+#                 return redirect('DurielMedicApp:dashboard')
+#             elif clinic.clinic_type == 'EYE':
+#                 return redirect('eye_dashboard')
+#             elif clinic.clinic_type == 'DENTAL':
+#                 return redirect('dental_dashboard')
 
-    return render(request, 'select-clinic/select_clinic.html', {'clinics': user_clinics})
+#     return render(request, 'select-clinic/select_clinic.html', {'clinics': user_clinics})
 
 
 
@@ -174,133 +174,7 @@ def dashboard(request):
 
 
 
-# @login_required
-# @user_passes_test(staff_check, login_url='login')
-# def dashboard(request):
-#     today = date.today()
-#     start_week = today - timedelta(days=today.weekday())
-#     end_week = start_week + timedelta(days=6)
-#     start_year = date(today.year, 1, 1)
-    
-#     # Get selected clinic(s) from session
-#     clinic_filter = request.session.get('clinic_id')
-#     print(f"Raw clinic_id from session: {clinic_filter}")
-    
-#     # Get user's clinics for other filtering (appointments, prescriptions, billing)
-#     user_clinics = list(request.user.clinic.values_list('id', flat=True))
-#     print(f"User's clinic IDs: {user_clinics}")
-    
-#     # IGNORE CLINIC ASSIGNMENT FOR PATIENTS - Show all patients
-#     patients = Patient.objects.all()
-#     print(f"Total patients (ignoring clinic filter): {patients.count()}")
-    
-#     # Set clinic_filter for other queries that still need clinic filtering
-#     if clinic_filter:
-#         clinic_filter = [int(clinic_filter)]
-#     elif user_clinics:
-#         clinic_filter = user_clinics
-#     else:
-#         clinic_filter = []
-    
-#     print(f"Clinic filter for other queries: {clinic_filter}")
-    
-#     # Financial stats
-#     if clinic_filter:
-#         financial_stats = Billing.objects.filter(clinic__in=clinic_filter, status='PENDING').aggregate(
-#             total_count=Count('id'),
-#             total_amount=Coalesce(
-#                 Sum('amount', output_field=DecimalField()),
-#                 Value(0, output_field=DecimalField())
-#             ),
-#             total_paid=Coalesce(
-#                 Sum('paid_amount', output_field=DecimalField()),
-#                 Value(0, output_field=DecimalField())
-#             )
-#         )
-#     else:
-#         # If no clinic filter, get all billing stats
-#         financial_stats = Billing.objects.filter(status='PENDING').aggregate(
-#             total_count=Count('id'),
-#             total_amount=Coalesce(
-#                 Sum('amount', output_field=DecimalField()),
-#                 Value(0, output_field=DecimalField())
-#             ),
-#             total_paid=Coalesce(
-#                 Sum('paid_amount', output_field=DecimalField()),
-#                 Value(0, output_field=DecimalField())
-#             )
-#         )
-    
-#     # Debug: Print values to check what's being calculated
-#     final_patient_count = patients.count()
-#     print(f"Final patient count (all patients): {final_patient_count}")
-#     print(f"Clinic filter for other queries: {clinic_filter}")
-    
-#     stats = {
-#         'total_patients': final_patient_count,
-#         'new_patients_this_week': patients.filter(
-#             created_at__date__range=[start_week, today]
-#         ).count(),
-#         'new_patients_this_year': patients.filter(
-#             created_at__date__gte=start_year
-#         ).count(),
-        
-#         # Appointments - still filtered by clinic
-#         'today_appointments': Appointment.objects.filter(clinic__in=clinic_filter, date=today).count() if clinic_filter else Appointment.objects.filter(date=today).count(),
-#         'completed_appointments_today': Appointment.objects.filter(
-#             clinic__in=clinic_filter, date=today, status='COMPLETED'
-#         ).count() if clinic_filter else Appointment.objects.filter(date=today, status='COMPLETED').count(),
-#         'week_appointments': Appointment.objects.filter(
-#             clinic__in=clinic_filter,
-#             date__range=[start_week, end_week]
-#         ).count() if clinic_filter else Appointment.objects.filter(date__range=[start_week, end_week]).count(),
-        
-#         # Prescriptions - show all prescriptions (ignore clinic filter)
-#         'pending_prescriptions': Prescription.objects.filter(is_active=True).count(),
-#         'new_prescriptions_this_week': Prescription.objects.filter(date_prescribed__range=[start_week, today]).count(),
-        
-#         # Billing - still filtered by clinic if available
-#         'pending_bills': financial_stats['total_count'],
-#         'total_pending_amount': financial_stats['total_amount'],
-#         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
-#     }
-    
-#     print(f"Stats total_patients value: {stats['total_patients']}")
-    
-#     # Change the ordering to show most recent appointments first
-#     user_appointments = Appointment.objects.filter(
-#         clinic__in=clinic_filter,
-#         date=today
-#     ).order_by('-start_time')[:5] if clinic_filter else Appointment.objects.filter(
-#         date=today
-#     ).order_by('-start_time')[:5]
-    
-#     # Paginate today's appointments (now ordered newest first)
-#     page = request.GET.get('page', 1)
-#     paginator = Paginator(user_appointments, 5)  # Show 5 appointments per page
-    
-#     try:
-#         user_appointments_page = paginator.page(page)
-#     except PageNotAnInteger:
-#         user_appointments_page = paginator.page(1)
-#     except EmptyPage:
-#         user_appointments_page = paginator.page(paginator.num_pages)
-        
-    
-#     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-#     notifications = Notification.objects.filter(
-#         Q(user=request.user, is_read=False) | Q(user__isnull=True)
-#     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
-    
-#     context = {
-#         'stats': stats,
-#         'user_appointments': user_appointments,
-#         'recent_patients': recent_patients,
-#         'notifications': notifications,
-#         'today': today,
-#     }
-    
-#     return render(request, 'dashboard.html', context)
+
 
 
 

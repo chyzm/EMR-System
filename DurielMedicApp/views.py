@@ -323,22 +323,21 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_authenticated and staff_check(self.request.user)
     
     def get_queryset(self):
-    # Start with raw queryset, no default ordering
         queryset = Appointment.objects.all()
 
-        # Optional filter by date
         date_filter = self.request.GET.get('date', '')
         if date_filter:
             queryset = queryset.filter(date=date_filter)
 
-        # Non-admin filter
-        if not self.request.user.role == 'ADMIN':
-            queryset = queryset.filter(
-                Q(provider=self.request.user) | 
-                Q(patient__created_by=self.request.user)
-            )
-            
+        user = self.request.user
+        # print(f"User role: {user.role}")
 
+        if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+            queryset = queryset.filter(
+                Q(provider=user) | 
+                Q(patient__created_by=user)
+            )
+          
 
         # Explicit ordering: newest appointment first
         return queryset.order_by('-date', '-start_time')
@@ -980,20 +979,20 @@ def add_appointment(request):
         form = AppointmentForm(request.POST)
         if form.is_valid():
             appointment = form.save(commit=False)
-            appointment.provider = request.user
 
-            if request.user.clinic is None:
-                messages.error(request, "Your account is not assigned to a clinic. Please contact the admin.")
+
+            # Assign clinic based on provider's clinics:
+            provider = appointment.provider
+            if not provider.clinic.exists():
+                messages.error(request, "Selected provider is not assigned to a clinic. Contact admin.")
                 return redirect('DurielMedicApp:add_appointment')
 
-            # appointment.clinic = request.user.clinic
-            appointment.clinic = request.user.clinic.first()
+            appointment.clinic = provider.clinic.first()
             appointment.status = 'SCHEDULED'
             appointment.save()
 
-            # ✅ Reset patient status to REGISTERED for fresh visit
-            appointment.patient.status = 'REGISTERED'
-            appointment.patient.save()
+  
+
 
             # Notify all active users
             from django.contrib.auth import get_user_model

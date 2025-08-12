@@ -16,7 +16,7 @@
 
     <!-- Patient Basic Information -->
     <div class="bg-white rounded-lg shadow-md overflow-hidden mb-8">
-        <div class="bg-blue-900 text-white px-6 py-3">
+        <div class="bg-gray-800 text-white px-6 py-3">
             <h3 class="text-xl font-semibold">Basic Information</h3>
         </div>
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -45,159 +45,10 @@
         </div>
     </div>
 
-    <!-- Medical Records Section -->
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold">Medical Records</h2>
-            {% if request.user.role in 'DOCTOR,NURSE' %}
-            <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
-            {% endif %}
-        </div>
-        <div class="divide-y">
-            {% for record in medical_records %}
-            <div class="p-4 hover:bg-gray-50">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="font-medium">{{ record.title }}</h3>
-                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
-                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
-                        </p>
-                        {% if request.user.role in 'DOCTOR' %}
-                        <div class="mt-2">
-                            <a href="{% url 'DurielMedicApp:edit_medical_record' record.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="{% url 'DurielMedicApp:delete_medical_record' record.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No medical records found
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- Prescriptions Section -->
+        <!-- Status Section -->
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-        <h2 class="text-xl font-semibold">Prescriptions</h2>
-        {% if request.user.role in 'DOCTOR,NURSE' %}
-        <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">
-            Add Prescription
-        </a>
-        {% endif %}
-    </div>
-
-    <div class="divide-y">
-        {% for prescription in prescriptions %}
-        <div class="p-4 hover:bg-gray-50">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
-                    <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
-                    {% if prescription.instructions %}
-                    <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
-                    {% endif %}
-                </div>
-
-                <div class="text-right">
-                    <p class="text-xs text-gray-500">
-                        {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
-                    </p>
-                    {% if request.user.role == 'DOCTOR' %}
-                    {% comment %} <div class="mt-2">
-                        <a href="{% url 'DurielMedicApp:edit_prescription' prescription.id %}"
-                           class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                        <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}"
-                           class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                    </div> {% endcomment %}
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% empty %}
-        <div class="p-4 text-center text-gray-500">
-            No prescriptions found
-        </div>
-        {% endfor %}
-    </div>
-</div>
-
-
-    <!-- Add this after the medical records section -->
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-        <h2 class="text-xl font-semibold">Billing</h2>
-        {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST"  %}
-        {% if patient and patient.pk %}
-        <a href="{% url 'core:create_bill_for_patient' patient.pk %}" class="btn btn-primary">
-            Create Bill
-        </a>
-        {% endif %}
-        {% endif %}
-
-
-    </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill #</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for bill in patient.bills.all %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ bill.service_date|date:"M d, Y" }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₦{{ bill.amount|floatformat:2 }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₦{{ bill.paid_amount|floatformat:2 }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            {% if bill.status == 'PAID' %}bg-green-100 text-green-800
-                            {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-red-100 text-red-800{% endif %}">
-                            {{ bill.get_status_display }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900 mr-2">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        
-                        <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
-                            <i class="fas fa-money-bill-wave"></i>
-                        </a>
-                       
-
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">No bills found</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-   
-    <!-- Status Section -->
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-blue-900 text-white px-6 py-3">
-        <h2 class="text-xl font-semibold">Patient Status & Actions</h2>
+    <div class="bg-gray-800 text-white px-6 py-3">
+        <h2 class="text-xl font-semibold"><i class="fas fa-tasks mr-2"></i>Clinical Actions </h2>
     </div>
     <div class="p-6">
         <div class="mb-4">
@@ -253,7 +104,7 @@
             {% if patient.status == 'REGISTERED' %}
             {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
                 <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
                 Record Vitals
                 </a>
             {% endif %}
@@ -312,10 +163,182 @@
     </div>
 </div>
 
+<!-- Medical Records Section -->
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Records</h2>
+        {% if request.user.role in 'DOCTOR,NURSE' %}
+        <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
+        {% endif %}
+    </div>
+    <div class="divide-y" id="medical-records-list">
+        {% for record in medical_records %}
+        <div class="p-4 hover:bg-gray-50 medical-record-item {% if forloop.counter > 3 %}hidden{% endif %}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium">{{ record.title }}</h3>
+                    <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
+                    <p class="mt-2 text-gray-700">{{ record.description }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">
+                        {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
+                    </p>
+                    {% if request.user.role in 'DOCTOR' %}
+                    <div class="mt-2">
+                        <a href="{% url 'DurielMedicApp:edit_medical_record' record.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                        <a href="{% url 'DurielMedicApp:delete_medical_record' record.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-4 text-center text-gray-500">
+            No medical records found
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if medical_records|length > 3 %}
+    <div class="px-6 py-3 text-center">
+        <button id="toggle-medical-records" class="text-blue-600 hover:underline text-sm font-semibold">
+            See More
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Prescription -->
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i> Prescriptions</h2>
+        {% if request.user.role in 'DOCTOR,NURSE' %}
+        <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">
+            Add Prescription
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="divide-y" id="prescriptions-list">
+        {% for prescription in prescriptions %}
+        <div class="p-4 hover:bg-gray-50 prescription-item {% if forloop.counter > 3 %}hidden{% endif %}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
+                    <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
+                    {% if prescription.instructions %}
+                    <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">
+                        {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
+                    </p>
+                    {% if request.user.role == 'DOCTOR' %}
+                    {# Uncomment if you want edit/delete #}
+                    {# <div class="mt-2">
+                        <a href="{% url 'DurielMedicApp:edit_prescription' prescription.id %}"
+                           class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                        <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}"
+                           class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                    </div> #}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-4 text-center text-gray-500">
+            No prescriptions found
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if prescriptions|length > 3 %}
+    <div class="px-6 py-3 text-center">
+        <button id="toggle-prescriptions" class="text-blue-600 hover:underline text-sm font-semibold">
+            See More
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+
+
+    <!-- Billing -->
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold"> <i class="fas fa-money-bill-wave mr-2"></i>Billing</h2>
+            {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST" %}
+                {% if patient and patient.pk %}
+                    <a href="{% url 'core:create_bill_for_patient' patient.pk %}" class="btn btn-primary">
+                        Create Bill
+                    </a>
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill #</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="billing-list">
+                    {% for bill in patient.bills.all %}
+                    <tr class="hover:bg-gray-50 billing-item {% if forloop.counter > 5 %}hidden{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ bill.service_date|date:"M d, Y" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₦{{ bill.amount|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₦{{ bill.paid_amount|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if bill.status == 'PAID' %}bg-green-100 text-green-800
+                                {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ bill.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <a href="{% url 'core:view_bill' bill.pk %}" class="text-blue-600 hover:text-blue-900 mr-2">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'core:record_payment' bill.pk %}" class="text-green-600 hover:text-green-900">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">No bills found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if patient.bills.count > 5 %}
+        <div class="px-6 py-3 text-center">
+            <button id="toggle-billing" class="text-blue-600 hover:underline text-sm font-semibold">
+                See More
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    
+
+   
+
+
     <!-- Appointments Section -->
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold">Recent Appointments</h2>
+        <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Recent Appointments</h2>
             <a href="{% url 'DurielMedicApp:appointment_list' %}?patient={{ patient.id }}" class="text-sm hover:underline">View All</a>
         </div>
         <div class="divide-y">
@@ -342,10 +365,10 @@
 
     <!-- Prescriptions Section -->
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div class="bg-blue-900 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold">Active Prescriptions</h2>
+        <div class="bg-red-800 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Active Prescriptions</h2>
             {% if patient and request.user.role in 'ADMIN,DOCTOR' %}
-            <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a>
+            {% comment %} <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a> {% endcomment %}
             {% endif %}
         </div>
         <div class="divide-y">
@@ -369,6 +392,8 @@
                                 onclick="return confirm('Are you sure you want to deactivate this prescription?');">
                                 Deactivate
                               </a>
+                            <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                              
 
                         </div>
                         {% endif %}
@@ -516,6 +541,65 @@ input.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
 });
 </script>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        function setupToggle(buttonId, itemClass, containerId) {
+            const toggleBtn = document.getElementById(buttonId);
+            if (!toggleBtn) return;
+    
+            let expanded = false;
+            toggleBtn.addEventListener('click', function () {
+                const hiddenItems = document.querySelectorAll('.' + itemClass + '.hidden');
+                if (!expanded) {
+                    hiddenItems.forEach(item => item.classList.remove('hidden'));
+                    toggleBtn.textContent = 'See Less';
+                } else {
+                    hiddenItems.forEach(item => item.classList.add('hidden'));
+                    toggleBtn.textContent = 'See More';
+                    document.getElementById(containerId).scrollIntoView({behavior: 'smooth'});
+                }
+                expanded = !expanded;
+            });
+        }
+    
+        setupToggle('toggle-medical-records', 'medical-record-item', 'medical-records-list');
+        setupToggle('toggle-prescriptions', 'prescription-item', 'prescriptions-list');
+        setupToggle('toggle-billing', 'billing-item', 'billing-list');
+    });
+    </script>
+    
+
+
+
+
+
+{% comment %} <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggleBtn = document.getElementById('toggle-medical-records');
+        if (!toggleBtn) return;
+    
+        let expanded = false;
+    
+        toggleBtn.addEventListener('click', function () {
+            const hiddenItems = document.querySelectorAll('.medical-record-item.hidden');
+    
+            if (!expanded) {
+                hiddenItems.forEach(item => item.classList.remove('hidden'));
+                toggleBtn.textContent = 'See Less';
+            } else {
+                hiddenItems.forEach(item => item.classList.add('hidden'));
+                toggleBtn.textContent = 'See More';
+                // Scroll to top of the medical records list so user isn't left mid-list
+                document.getElementById('medical-records-list').scrollIntoView({behavior: 'smooth'});
+            }
+    
+            expanded = !expanded;
+        });
+    });
+    </script> {% endcomment %}
+    
 
 
 {% endblock %}

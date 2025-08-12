@@ -111,6 +111,18 @@
     .nav-link.active i {
       color: white !important;
     }
+
+    /*scrolling message*/
+    @keyframes scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(calc(-100% + 50vw)); }
+    }
+    
+    .animate-scroll {
+      animation: scroll 35s linear infinite;
+      display: inline-block;
+      padding-right: 100%;
+    }
   </style>
 
   {% block extra_css %}{% endblock %}
@@ -233,15 +245,22 @@
             </button>
           </div>
 
-          <div class="flex-1 flex justify-between items-center">
-            <div class="flex-1 max-w-xs">
-              <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <i class="fas fa-search text-gray-400"></i>
+          
+
+            <div class="flex-1 flex justify-between items-center">
+                <!-- Scrolling message container with fixed max-width -->
+            <div class="flex-1 max-w-3xl mx-4 overflow-hidden">
+              <div class="relative h-10 flex items-center">
+                <div class="whitespace-nowrap overflow-hidden w-full">
+                  <div class="inline-block animate-scroll px-4 py-2 bg-gradient-to-r from-white to-white text-gray-900 rounded-full text-sm font-medium">
+                    <span class="mr-8">🚀 Duriel Tech Solutions: Revolutionizing Healthcare IT</span>
+                    <span class="mr-8">💡 EMR Systems | Web App Solutions | Website Development</span>
+                    <span class="mr-8">🔐 HIPAA-Compliant | 24/7 Support</span>
+                    <span>📞 Contact: info@durieltech.com | (+234) 703-1016-787</span>
+                  </div>
                 </div>
-                <input class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all" placeholder="Search" type="search">
               </div>
-            </div>
+            </div> 
 
             <!-- Notification Dropdown -->
             {% if request.user.is_authenticated %}

@@ -35,23 +35,16 @@
 
                     <!-- Provider Field -->
                     <div class="space-y-2">
-                        <label for="{{ form.provider.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        <label for="{{ form.provider.id_for_label }}" 
+                        class="block text-sm font-medium text-gray-700">
                             {{ form.provider.label }}
                         </label>
-                        <select id="{{ form.provider.id_for_label }}" name="{{ form.provider.name }}" 
-                                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                            <option value="">Select Provider</option>
-                            {% for provider in form.provider.field.queryset %}
-                                <option value="{{ provider.id }}" 
-                                        {% if form.provider.value == provider.id %}selected{% endif %}>
-                                    {% if provider.title %}{{ provider.title }} {% endif %}{{ provider.get_full_name }}
-                                </option>
-                            {% endfor %}
-                        </select>
+                        {{ form.provider }}
                         {% if form.provider.errors %}
                             <p class="mt-1 text-sm text-red-600">{{ form.provider.errors|join:", " }}</p>
                         {% endif %}
                     </div>
+                    
 
                     <!-- Date Field -->
                     <div class="space-y-2">

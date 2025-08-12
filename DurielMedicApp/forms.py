@@ -93,6 +93,18 @@ class AppointmentForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
         }
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name()}"
+        self.fields['provider'].widget.attrs.update({
+            'class': 'mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'
+        })
+        # Add empty label to force blank initial option
+        self.fields['provider'].empty_label = "--------"
+        # Remove any initial value so dropdown starts blank
+        self.initial['provider'] = None
+
+
     def clean(self):
         cleaned_data = super().clean()
         date = cleaned_data.get('date')
@@ -116,6 +128,7 @@ class AppointmentForm(forms.ModelForm):
             
             if overlapping.exists():
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
+
 
 class PrescriptionForm(forms.ModelForm):
     class Meta:

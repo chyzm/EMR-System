@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
 from django.utils import timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
 
 from core.models import Patient, Clinic, Billing
@@ -91,54 +91,43 @@ def dashboard(request):
     end_week = start_week + timedelta(days=6)
     start_year = date(today.year, 1, 1)
     
-    # Get selected clinic(s) from session
-    clinic_filter = request.session.get('clinic_id')
-    user_clinics = list(request.user.clinic.values_list('id', flat=True))
-    
-    # IGNORE CLINIC ASSIGNMENT FOR PATIENTS - Show all patients
+    # Get the clinic ID from the session or the user's primary clinic
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id and request.user.primary_clinic:
+        clinic_id = request.user.primary_clinic.id
+        request.session['clinic_id'] = clinic_id
+
+    # Filter all queries by the clinic ID
     patients = Patient.objects.all()
-    
-    # Set clinic_filter for other queries that still need clinic filtering
-    if clinic_filter:
-        clinic_filter = [int(clinic_filter)]
-    elif user_clinics:
-        clinic_filter = user_clinics
-    else:
-        clinic_filter = []
-    
+    if clinic_id:
+        patients = patients.filter(clinic_id=clinic_id)
+
     # Financial stats
-    if clinic_filter:
-        financial_stats = Billing.objects.filter(clinic__in=clinic_filter, status='PENDING').aggregate(
-            total_count=Count('id'),
-            total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
-            total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
-        )
-    else:
-        financial_stats = Billing.objects.filter(status='PENDING').aggregate(
-            total_count=Count('id'),
-            total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
-            total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
-        )
+    financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
+        total_count=Count('id'),
+        total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
+    )
     
     stats = {
         'total_patients': patients.count(),
         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
         'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
-        'today_appointments': Appointment.objects.filter(clinic__in=clinic_filter, date=today).count() if clinic_filter else Appointment.objects.filter(date=today).count(),
-        'completed_appointments_today': Appointment.objects.filter(clinic__in=clinic_filter, date=today, status='COMPLETED').count() if clinic_filter else Appointment.objects.filter(date=today, status='COMPLETED').count(),
-        'week_appointments': Appointment.objects.filter(clinic__in=clinic_filter, date__range=[start_week, end_week]).count() if clinic_filter else Appointment.objects.filter(date__range=[start_week, end_week]).count(),
-        'pending_prescriptions': Prescription.objects.filter(is_active=True).count(),
-        'new_prescriptions_this_week': Prescription.objects.filter(date_prescribed__range=[start_week, today]).count(),
+        'today_appointments': Appointment.objects.filter(clinic_id=clinic_id, date=today).count(),
+        'completed_appointments_today': Appointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
+        'week_appointments': Appointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
+        'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
+        'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
         'pending_bills': financial_stats['total_count'],
         'total_pending_amount': financial_stats['total_amount'],
         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
     }
     
-    # Get today's appointments (most recent first)
+    # Get today's appointments for the clinic
     user_appointments = Appointment.objects.filter(
-        clinic__in=clinic_filter,
+        clinic_id=clinic_id,
         date=today
-    ).order_by('-start_time') if clinic_filter else Appointment.objects.filter(date=today).order_by('-start_time')
+    ).order_by('-start_time')
     
     # Paginate appointments
     page = request.GET.get('page', 1)
@@ -151,8 +140,8 @@ def dashboard(request):
     except EmptyPage:
         user_appointments_page = paginator.page(paginator.num_pages)
     
-    # Get recent patients (last 5 registered)
-    recent_patients = Patient.objects.order_by('-created_at')[:5]
+    # Get recent patients for the clinic
+    recent_patients = patients.order_by('-created_at')[:5]
     
     # Get unread notifications
     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
@@ -163,7 +152,7 @@ def dashboard(request):
     context = {
         'stats': stats,
         'user_appointments': user_appointments_page,
-        'recent_patients': recent_patients,  # Now properly defined
+        'recent_patients': recent_patients,
         'notifications': notifications,
         'today': today,
     }
@@ -197,25 +186,22 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_authenticated and staff_check(self.request.user)
     
     def get_queryset(self):
+        clinic_id = self.request.session.get('clinic_id')
         queryset = Appointment.objects.all()
+
+        if clinic_id:
+            queryset = queryset.filter(clinic_id=clinic_id)
 
         date_filter = self.request.GET.get('date', '')
         if date_filter:
             queryset = queryset.filter(date=date_filter)
 
         user = self.request.user
-        # print(f"User role: {user.role}")
-
         if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
-            queryset = queryset.filter(
-                Q(provider=user) | 
-                Q(patient__created_by=user)
-            )
-          
+            queryset = queryset.filter(Q(provider=user) | Q(patient__created_by=user))
 
-        # Explicit ordering: newest appointment first
         return queryset.order_by('-date', '-start_time')
-        print(self.get_queryset().query)
+
 
 
 

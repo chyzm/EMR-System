@@ -8,7 +8,7 @@ from django.utils import timezone
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 import csv
 
 from .models import CustomUser, Patient, Billing, Clinic, Payment
@@ -139,28 +139,22 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
 
     def get_queryset(self):
+        clinic_id = self.request.session.get('clinic_id')
         queryset = super().get_queryset()
+
+        if clinic_id:
+            queryset = queryset.filter(clinic_id=clinic_id)
+
         search_name = self.request.GET.get('search', '')
         search_id = self.request.GET.get('patient_id', '')
 
-        if search_name and search_id:
-            # Search by both name and ID
-            queryset = queryset.filter(
-                full_name__icontains=search_name,
-                patient_id__icontains=search_id
-            )
-        elif search_name:
-            # Search by name only
-            queryset = queryset.filter(
-                full_name__icontains=search_name
-            )
-        elif search_id:
-            # Search by ID only
-            queryset = queryset.filter(
-                patient_id__icontains=search_id
-            )
+        if search_name:
+            queryset = queryset.filter(full_name__icontains=search_name)
+        if search_id:
+            queryset = queryset.filter(patient_id__icontains=search_id)
 
         return queryset.order_by('-created_at')
+
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -218,10 +212,19 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
     
+    
+    def get_object(self, queryset=None):
+        clinic_id = self.request.session.get('clinic_id')
+        patient = super().get_object(queryset)
+        if clinic_id and patient.clinic_id != clinic_id:
+            raise Http404("Patient not found.")
+        return patient
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         patient = self.get_object()
-        
+    
+
         # Get the latest vitals if available
         appointment = patient.appointments.filter(status='SCHEDULED').first()
         if appointment:
@@ -353,7 +356,12 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def billing_list(request):
-    bills = Billing.objects.select_related('patient').order_by('-service_date')
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
+    bills = Billing.objects.filter(clinic_id=clinic_id).select_related('patient').order_by('-service_date')
     
     # Filtering options
     status_filter = request.GET.get('status', '')
@@ -577,23 +585,6 @@ def patient_search_api(request):
 
 
 
-# @login_required
-# def patient_search_api(request):
-#     term = request.GET.get('q', '')
-#     results = []
-
-#     if term:
-#         patients = Patient.objects.filter(full_name__icontains=term)[:10]
-#         results = [
-#             {
-#                 'id': p.id,
-#                 'full_name': p.full_name,
-#                 'patient_id': p.patient_id
-#             }
-#             for p in patients
-#         ]
-
-#     return JsonResponse(results, safe=False)
 
 
 @login_required

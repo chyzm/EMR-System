@@ -682,10 +682,13 @@ def edit_prescription(request, pk):
 
 @login_required
 def prescription_list(request):
-    query = request.GET.get('q', '')
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
 
-    # Fetch prescriptions with related patient and doctor, no values() or annotate()
-    prescriptions = Prescription.objects.select_related('patient', 'prescribed_by')
+    query = request.GET.get('q', '')
+    prescriptions = Prescription.objects.filter(patient__clinic_id=clinic_id).select_related('patient', 'prescribed_by')
 
     if query:
         prescriptions = prescriptions.filter(

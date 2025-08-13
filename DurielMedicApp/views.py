@@ -1094,6 +1094,11 @@ def complete_follow_up(request, pk):
 @login_required
 @user_passes_test(admin_check, login_url='login')
 def generate_report(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
     # Default date range: last 30 days
     end_date = timezone.now()
     start_date = end_date - timedelta(days=30)
@@ -1109,22 +1114,25 @@ def generate_report(request):
 
         # Route to correct report
         if report_type == 'appointments':
-            return generate_appointment_report(start_date, end_date)
+            return generate_appointment_report(start_date, end_date, clinic_id)
         elif report_type == 'patients':
-            return generate_patient_report(start_date, end_date)
+            return generate_patient_report(start_date, end_date, clinic_id)
         elif report_type == 'financial':
-            return generate_financial_report(start_date, end_date)
+            return generate_financial_report(start_date, end_date, clinic_id)
 
     # Dashboard Summary Stats
     appointment_stats = Appointment.objects.filter(
+        clinic_id=clinic_id,
         date__range=[start_date.date(), end_date.date()]
     ).values('status').annotate(count=Count('id'))
 
     patient_stats = Patient.objects.filter(
+        clinic_id=clinic_id,
         created_at__range=[start_date, end_date]
     ).aggregate(total=Count('patient_id'))
 
     financial_stats = Billing.objects.filter(
+        clinic_id=clinic_id,
         service_date__range=[start_date.date(), end_date.date()]
     ).aggregate(
         total_amount=Sum('amount'),
@@ -1142,8 +1150,9 @@ def generate_report(request):
     return render(request, 'reports/generate_report.html', context)
 
 
-def generate_appointment_report(start_date, end_date):
+def generate_appointment_report(start_date, end_date, clinic_id):
     appointments = Appointment.objects.filter(
+        clinic_id=clinic_id,
         date__range=[start_date.date(), end_date.date()]
     ).select_related('patient', 'provider').order_by('date', 'start_time')
 
@@ -1166,8 +1175,9 @@ def generate_appointment_report(start_date, end_date):
     return response
 
 
-def generate_patient_report(start_date, end_date):
+def generate_patient_report(start_date, end_date, clinic_id):
     patients = Patient.objects.filter(
+        clinic_id=clinic_id,
         created_at__range=[start_date, end_date]
     ).order_by('created_at')
 
@@ -1190,11 +1200,20 @@ def generate_patient_report(start_date, end_date):
     return response
 
 
-def generate_financial_report(start_date, end_date):
+def generate_financial_report(start_date, end_date, clinic_id):
     try:
+        # Get all bills for the clinic within the date range
         bills = Billing.objects.filter(
+            clinic_id=clinic_id,
             service_date__range=[start_date.date(), end_date.date()]
         ).select_related('patient').order_by('service_date')
+
+        # Calculate totals for the report
+        totals = bills.aggregate(
+            total_billed=Sum('amount'),
+            total_paid=Sum('paid_amount'),
+        )
+        totals['outstanding'] = (totals['total_billed'] or 0) - (totals['total_paid'] or 0)
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = (
@@ -1203,8 +1222,11 @@ def generate_financial_report(start_date, end_date):
         )
 
         writer = csv.writer(response)
+        
+        # Write header row
         writer.writerow(['Bill Date', 'Patient', 'Amount', 'Paid', 'Balance', 'Status', 'Description'])
-
+        
+        # Write bill details
         for bill in bills:
             amount = bill.amount or 0
             paid = bill.paid_amount or 0
@@ -1219,6 +1241,14 @@ def generate_financial_report(start_date, end_date):
                 bill.get_status_display() if bill.status else '',
                 bill.description or ''
             ])
+        
+        # Write totals row
+        writer.writerow([])  # Empty row for separation
+        writer.writerow(['TOTALS', '', 
+                         totals['total_billed'] or 0, 
+                         totals['total_paid'] or 0, 
+                         totals['outstanding'], 
+                         '', ''])
 
         return response
 

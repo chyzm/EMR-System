@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Admin Dashboard</h1>
+
+<!-- Key Statistics Per Clinic -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% for stat in stats %}
+    <div class="bg-white shadow rounded p-4">
+        <h2 class="text-xl font-semibold">{{ stat.clinic.name }}</h2>
+        <ul class="mt-2">
+            <li>Patients: <strong>{{ stat.patients }}</strong></li>
+            <li>Appointments: <strong>{{ stat.appointments }}</strong></li>
+            <li>Staff: <strong>{{ stat.staff }}</strong></li>
+            <li>Total Bills: <strong>₦{{ stat.bills|floatformat:2 }}</strong></li>
+            <li>Prescriptions: <strong>{{ stat.prescriptions }}</strong></li>
+        </ul>
+        <a href="{% url 'core:edit_clinic' stat.clinic.id %}" class="btn btn-sm mt-2">Edit Clinic</a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- User Management -->
+<h2 class="text-xl font-semibold mt-8 mb-2">User Management</h2>
+<table class="table-auto w-full mb-4">
+    <thead>
+        <tr>
+            <th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.role }}</td>
+            <td>
+                {% if user.is_active %}Active{% else %}Inactive{% endif %}
+                {% if user.is_staff %} | Staff{% endif %}
+                {% if user.is_superuser %} | Superuser{% endif %}
+                {% if user.verified %} | Verified{% endif %}
+            </td>
+            <td>
+                {% if not user.is_active %}
+                <a href="{% url 'core:activate_user' user.id %}" class="btn btn-xs">Activate</a>
+                {% endif %}
+                {% if not user.is_staff %}
+                <a href="{% url 'core:set_staff' user.id %}" class="btn btn-xs">Set Staff</a>
+                {% endif %}
+                {% if not user.is_superuser %}
+                <a href="{% url 'core:set_superuser' user.id %}" class="btn btn-xs">Set Superuser</a>
+                {% endif %}
+                {% if not user.verified %}
+                <a href="{% url 'core:verify_user' user.id %}" class="btn btn-xs">Verify</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'core:add_clinic' %}" class="btn btn-primary mb-6">Add Clinic</a>
+{% endblock %}

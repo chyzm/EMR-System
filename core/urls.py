@@ -5,6 +5,7 @@ from .views import (PatientListView, PatientDetailView, PatientCreateView,
                    StaffCreateView, PatientUpdateView, PatientDeleteView)
 from core.views import select_clinic
 from django.shortcuts import redirect
+from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
 
 
 app_name = 'core'
@@ -64,4 +65,13 @@ urlpatterns = [
     
     
     path('select-clinic/', views.select_clinic, name='select_clinic'),
+    
+    
+    path('dashboard/', admin_dashboard, name='admin_dashboard'),
+    path('activate-user/<int:user_id>/', activate_user, name='activate_user'),
+    path('set-staff/<int:user_id>/', set_staff, name='set_staff'),
+    path('set-superuser/<int:user_id>/', set_superuser, name='set_superuser'),
+    path('verify-user/<int:user_id>/', verify_user, name='verify_user'),
+    path('add-clinic/', add_clinic, name='add_clinic'),
+    path('clinics/<int:pk>/edit/', ClinicUpdateView.as_view(), name='edit_clinic'),
 ]

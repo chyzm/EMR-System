@@ -224,3 +224,18 @@ class PaymentForm(forms.ModelForm):
         if self.billing and amount > self.billing.get_balance():
             raise forms.ValidationError(f"Payment amount exceeds outstanding balance of ₦{self.billing.get_balance():.2f}")
         return amount
+    
+    
+    
+
+
+from django import forms
+from .models import Clinic
+
+class ClinicForm(forms.ModelForm):
+    class Meta:
+        model = Clinic
+        fields = ['name', 'clinic_type', 'address']
+        
+        
+        

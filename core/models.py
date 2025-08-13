@@ -47,6 +47,7 @@ class CustomUser(AbstractUser):
     )
     
     role = models.CharField(max_length=15, choices=ROLES, default='DOCTOR')
+    verified = models.BooleanField(default=False)
     clinic = models.ManyToManyField(Clinic, related_name='staff')
     primary_clinic = models.ForeignKey(Clinic, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_staff')
     title = models.CharField(max_length=10, choices=TITLE_CHOICES, blank=True, null=True)

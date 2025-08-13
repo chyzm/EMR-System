@@ -661,3 +661,104 @@ def ai_chat(request):
             return JsonResponse({"answer": f"Server error: {e}"}, status=500)
 
     return JsonResponse({"error": "Invalid request"}, status=400)
+
+
+# Admin Dashboard and Management 
+
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.db.models import Count, Sum
+from .models import Patient, Clinic, CustomUser, Billing
+from DurielMedicApp.models import Appointment, Prescription, Notification
+from .forms import ClinicForm
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def admin_dashboard(request):
+    clinics = Clinic.objects.all()
+    stats = []
+    for clinic in clinics:
+        clinic_stats = {
+            'clinic': clinic,
+            'patients': Patient.objects.filter(clinic=clinic).count(),
+            'appointments': Appointment.objects.filter(clinic=clinic).count(),
+            'staff': CustomUser.objects.filter(clinic=clinic).count(),
+            'bills': Billing.objects.filter(clinic=clinic).aggregate(total=Sum('amount'))['total'] or 0,
+            'prescriptions': Prescription.objects.filter(patient__clinic=clinic).count(),
+        }
+        stats.append(clinic_stats)
+    users = CustomUser.objects.all()
+    context = {
+        'stats': stats,
+        'users': users,
+        'clinics': clinics,
+    }
+    return render(request, 'dashboard/admin_dashboard.html', context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def activate_user(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_active = True
+    user.save()
+    messages.success(request, f"{user.username} activated.")
+    return redirect('admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def set_staff(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_staff = True
+    user.save()
+    messages.success(request, f"{user.username} set as staff.")
+    return redirect('admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def set_superuser(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_superuser = True
+    user.save()
+    messages.success(request, f"{user.username} set as superuser.")
+    return redirect('admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def verify_user(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.verified = True  # Add this field to your CustomUser model
+    user.save()
+    messages.success(request, f"{user.username} verified.")
+    return redirect('core:admin_dashboard')
+
+
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def add_clinic(request):
+    if request.method == 'POST':
+        form = ClinicForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Clinic added.")
+            return redirect('admin_dashboard')
+    else:
+        form = ClinicForm()
+    return render(request, 'dashboard/add_clinic.html', {'form': form})
+
+
+from django.views.generic.edit import UpdateView
+from .models import Clinic
+from .forms import ClinicForm
+
+class ClinicUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Clinic
+    form_class = ClinicForm
+    template_name = 'dashboard/edit_clinic.html'
+    success_url = '/dashboard/'
+
+    def test_func(self):
+        return self.request.user.is_superuser or self.request.user.role == 'ADMIN'

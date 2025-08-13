@@ -135,6 +135,7 @@ class UserEditForm(forms.ModelForm):
 from django.utils import timezone
 
 class PatientForm(forms.ModelForm):
+    email = forms.EmailField(required=False)  # <-- Add this line
     class Meta:
         model = Patient
         fields = '__all__'

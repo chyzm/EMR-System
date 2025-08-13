@@ -43,6 +43,7 @@ from .utils import admin_check  # or define your own admin_check function
 from decimal import Decimal
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.mail import send_mail
 
 
 User = get_user_model()
@@ -91,12 +92,15 @@ def dashboard(request):
     start_week = today - timedelta(days=today.weekday())
     end_week = start_week + timedelta(days=6)
     start_year = date(today.year, 1, 1)
-    
+
     # Get the clinic ID from the session or the user's primary clinic
     clinic_id = request.session.get('clinic_id')
-    if not clinic_id and request.user.primary_clinic:
+    if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
         clinic_id = request.user.primary_clinic.id
         request.session['clinic_id'] = clinic_id
+
+    # --- Birthday notifications ---
+    check_birthdays(clinic_id)  # <-- Ensure this runs every dashboard load
 
     # Filter all queries by the clinic ID
     patients = Patient.objects.all()
@@ -109,7 +113,7 @@ def dashboard(request):
         total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
     )
-    
+
     stats = {
         'total_patients': patients.count(),
         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
@@ -123,46 +127,45 @@ def dashboard(request):
         'total_pending_amount': financial_stats['total_amount'],
         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
     }
-    
+
     # Get today's appointments for the clinic
     user_appointments = Appointment.objects.filter(
         clinic_id=clinic_id,
         date=today
     ).order_by('-start_time')
-    
+
     # Paginate appointments
     page = request.GET.get('page', 1)
     paginator = Paginator(user_appointments, 3)  # 3 appointments per page
-    
+
     try:
         user_appointments_page = paginator.page(page)
     except PageNotAnInteger:
         user_appointments_page = paginator.page(1)
     except EmptyPage:
         user_appointments_page = paginator.page(paginator.num_pages)
-    
+
     # Get recent patients for the clinic
     recent_patients = patients.order_by('-created_at')[:5]
-    
-    # Get unread notifications
+
+    # Get unread notifications (including birthday notifications)
     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
     notifications = Notification.objects.filter(
         (
-            Q(user=request.user, is_read=False, clinic_id=clinic_id) | 
+            Q(user=request.user, is_read=False, clinic_id=clinic_id) |
             Q(user__isnull=True, clinic_id=clinic_id)
         )
     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
-    
+
     context = {
         'stats': stats,
         'user_appointments': user_appointments_page,
         'recent_patients': recent_patients,
         'notifications': notifications,
         'today': today,
-        'clinic_id': request.session.get('clinic_id'),
+        'clinic_id': clinic_id,
     }
 
-    
     return render(request, 'dashboard.html', context)
 
 
@@ -635,20 +638,20 @@ def add_prescription(request, patient_id):
         if not medication or not dosage:
             messages.error(request, "Please fill in all required fields.")
         else:
-            Prescription.objects.create(
+            prescription = Prescription.objects.create(
                 patient=patient,
                 medication=medication,
                 dosage=dosage,
                 instructions=instructions,
                 prescribed_by=request.user  
             )
+            Notification.objects.create(
+                user=prescription.patient.created_by,
+                message=f"New prescription for {prescription.patient.full_name}",
+                link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
+            )
             messages.success(request, "Prescription saved successfully.")
             return redirect('core:patient_detail', pk=patient.patient_id)
-        Notification.objects.create(
-            user=prescription.patient.created_by,
-            message=f"New prescription for {prescription.patient.full_name}",
-            link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
-        )
 
     return render(request, 'prescription/add_prescription.html', {'patient': patient})
 
@@ -875,26 +878,43 @@ def add_appointment(request):
 # Notification Views
 
 
-def check_birthdays():
+from django.core.mail import send_mail
+
+def check_birthdays(clinic_id=None):
     today = date.today()
     patients = Patient.objects.filter(
         date_of_birth__month=today.month,
         date_of_birth__day=today.day
     )
-    
+    if clinic_id:
+        patients = patients.filter(clinic_id=clinic_id)
+
     for patient in patients:
-        # Create notification for staff
-        Notification.objects.create(
-            user=patient.created_by,
-            message=f"Today is {patient.full_name}'s birthday!",
-            link=reverse('DurielMedicApp:patient_detail', kwargs={'pk': patient.pk})
-        )
-        
-        # Send email if email exists
-        if patient.email:
+        staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
+        for user in staff_users:
+            # Check if a birthday notification for this patient and user exists today
+            from django.db.models import Q
+
+            already_exists = Notification.objects.filter(
+                user=user,
+                clinic_id=patient.clinic_id,
+                created_at__date=today
+            ).filter(
+                Q(message__icontains=patient.full_name) & Q(message__icontains="birthday")
+            ).exists()
+            if not already_exists:
+                Notification.objects.create(
+                    user=user,
+                    message=f"Today is {patient.full_name}'s birthday!",
+                    link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+                    clinic_id=patient.clinic_id
+                )
+        # Send email to patient if email exists
+        if hasattr(patient, 'email') and patient.email:
+            clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
             send_mail(
                 'Happy Birthday!',
-                f'Dear {patient.full_name},\n\nHappy Birthday from DurielMedic+!',
+                f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
                 settings.DEFAULT_FROM_EMAIL,
                 [patient.email],
                 fail_silently=True

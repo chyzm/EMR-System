@@ -83,6 +83,7 @@ class Patient(models.Model):
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     full_name = models.CharField(max_length=200)
+    email = models.EmailField(blank=True, null=True)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     blood_group = models.CharField(max_length=3, choices=BLOOD_GROUPS, blank=True, null=True)

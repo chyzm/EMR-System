@@ -24,8 +24,8 @@ urlpatterns = [
 
     # Patients
     path('patients/', PatientListView.as_view(), name='patient_list'),
-    path('patients/<str:pk>/', PatientDetailView.as_view(), name='patient_detail'),  # <-- changed
     path('patients/add/', PatientCreateView.as_view(), name='add_patient'),
+    path('patients/<str:pk>/', PatientDetailView.as_view(), name='patient_detail'),  # <-- changed
     path('patients/<str:pk>/edit/', PatientUpdateView.as_view(), name='edit_patient'),  # <-- changed
     path('patients/<str:pk>/delete/', PatientDeleteView.as_view(), name='delete_patient'),  # <-- changed
 

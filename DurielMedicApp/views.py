@@ -753,25 +753,25 @@ def delete_medical_record(request, record_id):
 
 # Appointment List View
 # 1. List all appointments (for staff/admin)
-@login_required
-def appointment_list(request):
-    appointments = Appointment.objects.all().order_by('-date')
-    return render(request, 'appointments/appointment_list.html', {'appointments': appointments})
+# @login_required
+# def appointment_list(request):
+#     appointments = Appointment.objects.all().order_by('-date')
+#     return render(request, 'appointments/appointment_list.html', {'appointments': appointments})
 
 
 # 2. Create new appointment
-@login_required
-def appointment_create(request):
-    if request.method == 'POST':
-        form = AppointmentForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Appointment scheduled successfully.')
-            return redirect('appointment_list')
-    else:
-        form = AppointmentForm()
+# @login_required
+# def appointment_create(request):
+#     if request.method == 'POST':
+#         form = AppointmentForm(request.POST)
+#         if form.is_valid():
+#             form.save()
+#             messages.success(request, 'Appointment scheduled successfully.')
+#             return redirect('appointment_list')
+#     else:
+#         form = AppointmentForm()
     
-    return render(request, 'appointments/appointment_form.html', {'form': form})
+#     return render(request, 'appointments/appointment_form.html', {'form': form})
 
 
 # 3. Update appointment
@@ -832,22 +832,22 @@ def add_appointment(request):
         messages.error(request, "No clinic selected. Please select a clinic first.")
         return redirect('core:select_clinic')
 
+    # Filter patients and providers by clinic
+    patients_qs = Patient.objects.filter(clinic_id=clinic_id)
+    providers_qs = User.objects.filter(clinic__id=clinic_id, is_active=True)
+
     if request.method == 'POST':
         form = AppointmentForm(request.POST)
-        # Filter patient and provider fields by clinic
-        form.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id)
-        form.fields['provider'].queryset = User.objects.filter(clinic__id=clinic_id, is_active=True)
+        form.fields['patient'].queryset = patients_qs
+        form.fields['provider'].queryset = providers_qs
+
         if form.is_valid():
             appointment = form.save(commit=False)
-            provider = appointment.provider
-            if not provider.clinic.exists():
-                messages.error(request, "Selected provider is not assigned to a clinic. Contact admin.")
-                return redirect('DurielMedicApp:add_appointment')
-            appointment.clinic = provider.clinic.first()
+            appointment.clinic_id = clinic_id  # Ensure correct clinic
             appointment.status = 'SCHEDULED'
             appointment.save()
-            # Notify all active users
-            staff_users = User.objects.filter(is_active=True)
+            # Notify all staff in this clinic
+            staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
             for user in staff_users:
                 Notification.objects.create(
                     user=user,
@@ -861,15 +861,13 @@ def add_appointment(request):
             messages.error(request, 'Please correct the errors below.')
     else:
         form = AppointmentForm(initial={'provider': request.user})
-        # Filter patient and provider fields by clinic
-        form.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id)
-        form.fields['provider'].queryset = User.objects.filter(clinic__id=clinic_id, is_active=True)
+        form.fields['patient'].queryset = patients_qs
+        form.fields['provider'].queryset = providers_qs
 
     return render(request, 'appointments/add_appointment.html', {
         'form': form,
         'title': 'Add New Appointment',
     })
-
 
 
 

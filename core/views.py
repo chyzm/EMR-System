@@ -392,35 +392,39 @@ def billing_list(request):
     return render(request, 'billing/billing_list.html', context)
 
 
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def create_bill(request, patient_id=None):
-    patient = get_object_or_404(Patient, pk=patient_id) if patient_id else None
-    patients_with_appointments = Patient.objects.all()
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected.")
+        return redirect('select_clinic')
+
+    # Only show patients from the current clinic
+    patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
 
     # Get selected patient from GET parameters
     selected_patient_id = request.GET.get('patient')
+    patient = None
     if selected_patient_id:
         try:
-            patient = Patient.objects.get(patient_id=selected_patient_id)  # Changed to patient_id
+            patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)  # Filter by clinic
         except Patient.DoesNotExist:
             pass
+    elif patient_id:
+        try:
+            patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)  # Filter by clinic
+        except Patient.DoesNotExist:
+            patient = None
 
     if request.method == 'POST':
         form = BillingForm(request.POST)
         if form.is_valid():
             bill = form.save(commit=False)
             bill.created_by = request.user
-            
-            clinic_id = request.session.get('clinic_id')
-            if not clinic_id:
-                messages.error(request, "No clinic selected.")
-                return redirect('select_clinic')
-
             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
-
-
             if not bill.paid_amount:
                 bill.paid_amount = 0
             if bill.paid_amount == bill.amount:
@@ -435,14 +439,14 @@ def create_bill(request, patient_id=None):
     else:
         form = BillingForm(initial={'service_date': date.today()})
         if patient:
-            form.initial['patient'] = patient.patient_id  # Changed to patient_id
+            form.initial['patient'] = patient.patient_id
 
     # Get appointment
     appointment_id = request.GET.get('appointment_id')
     if appointment_id:
-        appointment = Appointment.objects.filter(id=appointment_id).first()
+        appointment = Appointment.objects.filter(id=appointment_id, clinic_id=clinic_id).first()
     elif patient:
-        appointment = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time').first()
+        appointment = Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time').first()
     else:
         appointment = None
 
@@ -453,6 +457,7 @@ def create_bill(request, patient_id=None):
         'appointment': appointment,
         'selected_patient_id': selected_patient_id,
     })
+
 
 
 

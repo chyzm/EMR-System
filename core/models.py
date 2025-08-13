@@ -79,7 +79,7 @@ class Patient(models.Model):
     )
     
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='REGISTERED')
-    patient_id = models.PositiveIntegerField(primary_key=True, unique=True, editable=False)
+    patient_id = models.CharField(max_length=10, primary_key=True, unique=True, editable=False)
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     full_name = models.CharField(max_length=200)
@@ -107,18 +107,24 @@ class Patient(models.Model):
     #     super().save(*args, **kwargs)
     
     def save(self, *args, **kwargs):
-            # Only generate patient_id for new records
-            if self.patient_id is None:
-                if not hasattr(self, 'clinic') or not self.clinic:
-                    raise ValueError("Patient must be assigned to a clinic before saving")
-                
-                last_patient = Patient.objects.filter(clinic=self.clinic).order_by('-patient_id').first()
-                self.patient_id = (last_patient.patient_id + 1) if last_patient else 100001
-            
-            if not self.created_at:
-                self.created_at = tz.now()  # Use the renamed import
-
-            super().save(*args, **kwargs)
+        if not self.patient_id:
+            if not self.clinic:
+                raise ValueError("Patient must be assigned to a clinic before saving")
+            # Get clinic code (first 3 letters of clinic name, uppercase, no spaces)
+            clinic_code = ''.join(self.clinic.name.upper().split())[:3]
+            # Find last patient for this clinic
+            last_patient = Patient.objects.filter(
+                clinic=self.clinic,
+                patient_id__startswith=clinic_code
+            ).order_by('-created_at').first()
+            if last_patient and last_patient.patient_id[3:].isdigit():
+                next_number = int(last_patient.patient_id[3:]) + 1
+            else:
+                next_number = 1
+            self.patient_id = f"{clinic_code}{next_number:06d}"
+        if not self.created_at:
+            self.created_at = tz.now()
+        super().save(*args, **kwargs)
         
         
     from django.db.models import Sum

@@ -24,10 +24,10 @@ urlpatterns = [
 
     # Patients
     path('patients/', PatientListView.as_view(), name='patient_list'),
-    path('patients/<int:pk>/', PatientDetailView.as_view(), name='patient_detail'),
+    path('patients/<str:pk>/', PatientDetailView.as_view(), name='patient_detail'),  # <-- changed
     path('patients/add/', PatientCreateView.as_view(), name='add_patient'),
-    path('patients/<int:pk>/edit/', PatientUpdateView.as_view(), name='edit_patient'),
-    path('patients/<int:pk>/delete/', PatientDeleteView.as_view(), name='delete_patient'),
+    path('patients/<str:pk>/edit/', PatientUpdateView.as_view(), name='edit_patient'),  # <-- changed
+    path('patients/<str:pk>/delete/', PatientDeleteView.as_view(), name='delete_patient'),  # <-- changed
 
     # Staff Management
     path('staff/', views.staff_list, name='staff_list'),
@@ -48,7 +48,8 @@ urlpatterns = [
     # Billing
     path('billing/', views.billing_list, name='billing_list'),
     path('billing/create/', views.create_bill, name='create_bill'),
-    path('billing/create/patient/<int:patient_id>/', views.create_bill, name='create_bill_for_patient'),
+    # path('billing/create/patient/<int:patient_id>/', views.create_bill, name='create_bill_for_patient'),
+    path('billing/create/patient/<str:patient_id>/', views.create_bill, name='create_bill_for_patient'),
     path('billing/create/appointment/<int:appointment_id>/', views.create_bill, name='create_bill_for_appointment'),
     path('billing/<int:pk>/', views.view_bill, name='view_bill'),
     path('billing/<int:pk>/edit/', views.edit_bill, name='edit_bill'),

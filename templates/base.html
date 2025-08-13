@@ -268,11 +268,11 @@
                 <div class="relative">
                   <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
                     <i class="fas fa-bell text-lg"></i>
-                    {% with unread=request.user|unread_notifications %}
-                      {% if unread.exists %}
+                    {% get_unread_notifications request.user request.session.clinic_id as unread_notifs %}
+                       {% if unread_notifs.exists %}
                         <span class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
                       {% endif %}
-                    {% endwith %}
+                    {% comment %} {% endwith %} {% endcomment %}
                   </button>
 
                   <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
@@ -302,7 +302,10 @@
                     <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
                       <span class="sr-only">Open user menu</span>
                       <div class="flex items-center">
-                        <span class="mr-2 font-medium text-gray-700">{{ clinic.name }}</span>
+                        <!-- Clinic name display -->
+                          <div class="hidden md:block text-sm font-medium text-gray-700">
+                              {{ request.session.clinic_name }}
+                          </div>
                         <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Company Logo">
                       </div>
                     </button>

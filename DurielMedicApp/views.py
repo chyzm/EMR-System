@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -146,7 +147,8 @@ def dashboard(request):
     # Get unread notifications
     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
     notifications = Notification.objects.filter(
-        Q(user=request.user, is_read=False) | Q(user__isnull=True)
+        Q(user=request.user, is_read=False) | 
+        Q(user__isnull=True, clinic_id=clinic_id)
     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
     
     context = {
@@ -155,7 +157,9 @@ def dashboard(request):
         'recent_patients': recent_patients,
         'notifications': notifications,
         'today': today,
+        'clinic_id': request.session.get('clinic_id'),
     }
+
     
     return render(request, 'dashboard.html', context)
 
@@ -424,9 +428,10 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST')  # or whatever roles you need
-def mark_notification_read(request, pk):  # Make sure to include the pk parameter
-    notification = get_object_or_404(Notification, pk=pk)
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST')
+def mark_notification_read(request, pk):
+    clinic_id = request.session.get('clinic_id')
+    notification = get_object_or_404(Notification, pk=pk, clinic_id=clinic_id)
     
     # Mark as read for personal notifications
     if notification.user == request.user:
@@ -440,24 +445,6 @@ def mark_notification_read(request, pk):  # Make sure to include the pk paramete
         )
     
     return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
-
-
-
-# @login_required
-# @csrf_exempt
-# def mark_notification_read(request):
-#     # Mark personal notifications
-#     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-
-#     # Mark global notifications as read per user
-#     unread_globals = Notification.objects.filter(user__isnull=True).exclude(
-#         id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-#     )
-#     NotificationRead.objects.bulk_create([
-#         NotificationRead(user=request.user, notification=n) for n in unread_globals
-#     ], ignore_conflicts=True)
-
-#     return JsonResponse({'status': 'success'})
 
 
 
@@ -936,11 +923,19 @@ def check_birthdays():
 
 @login_required
 def clear_notifications(request):
-    # Delete user-specific notifications
-    request.user.notifications.all().delete()
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected")
+        return redirect('core:select_clinic')
+    
+    # Delete user-specific notifications for this clinic
+    request.user.notifications.filter(clinic_id=clinic_id).delete()
 
-    # Mark global as read (don't delete them)
-    unread_globals = Notification.objects.filter(user__isnull=True).exclude(
+    # Mark global clinic notifications as read
+    unread_globals = Notification.objects.filter(
+        user__isnull=True,
+        clinic_id=clinic_id
+    ).exclude(
         id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
     )
     NotificationRead.objects.bulk_create([

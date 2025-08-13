@@ -827,42 +827,43 @@ def check_appointment_availability(request):
 
 @login_required
 def add_appointment(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
     if request.method == 'POST':
         form = AppointmentForm(request.POST)
+        # Filter patient and provider fields by clinic
+        form.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id)
+        form.fields['provider'].queryset = User.objects.filter(clinic__id=clinic_id, is_active=True)
         if form.is_valid():
             appointment = form.save(commit=False)
-
-
-            # Assign clinic based on provider's clinics:
             provider = appointment.provider
             if not provider.clinic.exists():
                 messages.error(request, "Selected provider is not assigned to a clinic. Contact admin.")
                 return redirect('DurielMedicApp:add_appointment')
-
             appointment.clinic = provider.clinic.first()
             appointment.status = 'SCHEDULED'
             appointment.save()
-
-  
-
-
             # Notify all active users
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
             staff_users = User.objects.filter(is_active=True)
             for user in staff_users:
                 Notification.objects.create(
                     user=user,
                     message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
-                    link=reverse('DurielMedicApp:appointment_list')
+                    link=reverse('DurielMedicApp:appointment_list'),
+                    clinic_id=clinic_id
                 )
-
             messages.success(request, 'Appointment scheduled successfully!')
             return redirect('DurielMedicApp:appointment_list')
         else:
             messages.error(request, 'Please correct the errors below.')
     else:
         form = AppointmentForm(initial={'provider': request.user})
+        # Filter patient and provider fields by clinic
+        form.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id)
+        form.fields['provider'].queryset = User.objects.filter(clinic__id=clinic_id, is_active=True)
 
     return render(request, 'appointments/add_appointment.html', {
         'form': form,

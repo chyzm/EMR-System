@@ -5,6 +5,10 @@ from django.core.validators import MinLengthValidator
 from django.conf import settings
 from django.db.models import Sum
 from django.forms import ValidationError
+from django.db import models
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
+
 
 
 class Clinic(models.Model):
@@ -190,3 +194,38 @@ class Payment(models.Model):
     
     class Meta:
         ordering = ['-payment_date']
+        
+        
+        
+
+
+
+class ActionLog(models.Model):
+    ACTION_CHOICES = [
+        ('CREATE', 'Create'),
+        ('UPDATE', 'Update'),
+        ('DELETE', 'Delete'),
+        ('LOGIN', 'Login'),
+        ('LOGOUT', 'Logout'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    clinic = models.ForeignKey(Clinic, on_delete=models.SET_NULL, null=True, blank=True)  # Add clinic reference
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
+    object_id = models.CharField(max_length=255, null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']  # Show most recent first
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['clinic']),
+        ]
+
+    def __str__(self):
+        full_name = self.user.get_full_name() if self.user else "Unknown User"
+        return f"{full_name} {self.action} {self.content_type} at {self.timestamp}"
+

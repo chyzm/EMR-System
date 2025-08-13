@@ -37,19 +37,19 @@ from datetime import datetime, timedelta, time
 from django.db.models import Count, Sum
 from django.http import HttpResponse
 import csv
-
 from .models import Appointment  # adjust if needed
 from .utils import admin_check  # or define your own admin_check function
 from decimal import Decimal
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.mail import send_mail
-
+from core.utils import log_action
+from core.models import Clinic
 
 User = get_user_model()
 
 
-from core.models import Clinic
+
 
 
 def staff_check(user):
@@ -250,6 +250,14 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
 
         appointment = form.save(commit=False)
         appointment.save()
+        
+        # ✅ Manual logging
+        log_action(
+            self.request,
+            'CREATE',
+            appointment,
+            details=f"Created appointment for {appointment.patient.full_name} on {appointment.date}"
+        )
 
         messages.success(self.request, 'Appointment scheduled successfully!')
         return redirect(self.success_url)
@@ -281,6 +289,14 @@ def record_vitals(request, patient_id):
             vitals = form.save(commit=False)
             vitals.appointment = appointment
             vitals.save()
+            
+            # ✅ Fixed manual logging
+            log_action(
+                request,
+                'CREATE',
+                vitals,  # Changed from prescription to vitals
+                details=f"Recorded vitals for {patient.full_name}"
+            )
 
             # Update patient status
             patient.status = 'VITALS_TAKEN'
@@ -336,6 +352,17 @@ def create_follow_up(request, patient_id):
             follow_up.patient = patient
             follow_up.created_by = request.user
             follow_up.save()
+            
+            # ✅ Add manual logging
+            log_action(
+                request,
+                'CREATE',
+                follow_up,
+                details=f"Created follow-up for {patient.full_name}"
+            )
+            
+            
+            
             messages.success(request, "Follow-up created successfully.")
             return redirect('core:patient_detail', pk=patient_id)
     else:
@@ -377,6 +404,16 @@ def add_medical_record(request, patient_id):
             record.patient = patient
             record.created_by = request.user
             record.save()
+            
+            # ✅ Manual logging
+            log_action(
+                request,
+                'CREATE',
+                record,
+                details=f"Added medical record for {patient.full_name}"
+            )
+            
+            
             messages.success(request, 'Medical record added successfully!')
             return redirect('core:patient_detail', pk=patient.pk)
     else:
@@ -396,6 +433,16 @@ def edit_medical_record(request, record_id):
         form = MedicalRecordForm(request.POST, instance=record)
         if form.is_valid():
             form.save()
+            
+            # ✅ Manual logging
+            log_action(
+                request,
+                'UPDATE',
+                record,
+                details=f"Updated medical record for {record.patient.full_name}"
+            )
+            
+            
             messages.success(request, 'Medical record updated successfully!')
             return redirect('core:patient_detail', pk=record.patient.pk)
     else:
@@ -411,6 +458,15 @@ def edit_medical_record(request, record_id):
 def delete_medical_record(request, record_id):
     record = get_object_or_404(MedicalRecord, pk=record_id)
     patient_id = record.patient.pk
+
+    # ✅ Manual logging
+    log_action(
+        request,
+        'DELETE',
+        record,
+        details=f"Deleted medical record for {record.patient.full_name}"
+    )
+
     record.delete()
     messages.success(request, 'Medical record deleted successfully!')
     return redirect('core:patient_detail', pk=patient_id)
@@ -491,6 +547,14 @@ def mark_appointment_completed(request, pk):
     appointment.status = 'COMPLETED'
     appointment.save()
     
+    # ✅ Fixed manual logging
+    log_action(
+        request,
+        'UPDATE',
+        appointment,
+        details=f"Marked appointment #{appointment.id} as completed" 
+    )
+    
     # Check if bill already exists
     if not hasattr(appointment, 'bill'):
         messages.info(request, 'Appointment marked as completed. Would you like to create a bill?')
@@ -568,6 +632,14 @@ def admit_patient(request, patient_id):
             admission.patient = patient
             admission.save()
             
+            # ✅ Add manual logging
+            log_action(
+                request,
+                'CREATE',
+                admission,
+                details=f"Admitted patient {patient.full_name} to {ward}"
+            )
+            
             patient.status = 'ADMITTED'
             patient.save()
             
@@ -615,6 +687,14 @@ def discharge_patient(request, patient_id):
     admission.discharged = True
     admission.save()
     
+    # ✅ Add manual logging
+    log_action(
+        request,
+        'UPDATE',
+        admission,
+        details=f"Discharged patient {admission.patient.full_name}"
+    )
+    
     # Reset patient status
     patient.status = 'REGISTERED'
     patient.save()
@@ -645,6 +725,16 @@ def add_prescription(request, patient_id):
                 instructions=instructions,
                 prescribed_by=request.user  
             )
+            
+            # ✅ Manual logging
+            log_action(
+                request,
+                'CREATE',
+                prescription,
+                details=f"Added prescription for {patient.full_name}"
+            )
+            
+            
             Notification.objects.create(
                 user=prescription.patient.created_by,
                 message=f"New prescription for {prescription.patient.full_name}",
@@ -706,6 +796,17 @@ def deactivate_prescription(request, pk):
     if request.method == 'POST':
         prescription.is_active = False
         prescription.save()
+        
+        # ✅ Manual logging
+        log_action(
+            request,
+            'UPDATE',
+            prescription,
+            details=f"Deactivated prescription for {patient.full_name}"
+        )
+        
+        
+        
         return redirect('core:patient_detail', pk=patient.patient_id)
 
     return render(request, 'prescription/deactivate_prescription.html', {
@@ -880,6 +981,7 @@ def add_appointment(request):
 
 from django.core.mail import send_mail
 
+
 def check_birthdays(clinic_id=None):
     today = date.today()
     patients = Patient.objects.filter(
@@ -890,35 +992,82 @@ def check_birthdays(clinic_id=None):
         patients = patients.filter(clinic_id=clinic_id)
 
     for patient in patients:
-        staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
-        for user in staff_users:
-            # Check if a birthday notification for this patient and user exists today
-            from django.db.models import Q
-
-            already_exists = Notification.objects.filter(
-                user=user,
-                clinic_id=patient.clinic_id,
-                created_at__date=today
-            ).filter(
-                Q(message__icontains=patient.full_name) & Q(message__icontains="birthday")
-            ).exists()
-            if not already_exists:
+        # Check if we've already sent a birthday email today
+        already_sent = Notification.objects.filter(
+            message__icontains=f"{patient.full_name}'s birthday",
+            created_at__date=today
+        ).exists()
+        
+        if not already_sent:
+            # Create notifications for staff
+            staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
+            for user in staff_users:
                 Notification.objects.create(
                     user=user,
                     message=f"Today is {patient.full_name}'s birthday!",
                     link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
                     clinic_id=patient.clinic_id
                 )
-        # Send email to patient if email exists
-        if hasattr(patient, 'email') and patient.email:
-            clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
-            send_mail(
-                'Happy Birthday!',
-                f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
-                settings.DEFAULT_FROM_EMAIL,
-                [patient.email],
-                fail_silently=True
-            )
+            
+            # Send email to patient if email exists
+            if hasattr(patient, 'email') and patient.email:
+                clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
+                try:
+                    send_mail(
+                        'Happy Birthday!',
+                        f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
+                        settings.DEFAULT_FROM_EMAIL,
+                        [patient.email],
+                        fail_silently=True
+                    )
+                    # Create a notification to mark that we've sent the email
+                    Notification.objects.create(
+                        user=None,  # Global notification
+                        message=f"Birthday email sent to {patient.full_name}",
+                        clinic_id=patient.clinic_id
+                    )
+                except Exception as e:
+                    print(f"Error sending birthday email: {str(e)}")
+
+# def check_birthdays(clinic_id=None):
+#     today = date.today()
+#     patients = Patient.objects.filter(
+#         date_of_birth__month=today.month,
+#         date_of_birth__day=today.day
+#     )
+#     if clinic_id:
+#         patients = patients.filter(clinic_id=clinic_id)
+
+#     for patient in patients:
+#         staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
+#         for user in staff_users:
+#             # Check if a birthday notification for this patient and user exists today
+#             from django.db.models import Q
+
+#             already_exists = Notification.objects.filter(
+#                 user=user,
+#                 clinic_id=patient.clinic_id,
+#                 created_at__date=today
+#             ).filter(
+#                 Q(message__icontains=patient.full_name) & Q(message__icontains="birthday")
+#             ).exists()
+#             if not already_exists:
+#                 Notification.objects.create(
+#                     user=user,
+#                     message=f"Today is {patient.full_name}'s birthday!",
+#                     link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+#                     clinic_id=patient.clinic_id
+#                 )
+#         # Send email to patient if email exists
+#         if hasattr(patient, 'email') and patient.email:
+#             clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
+#             send_mail(
+#                 'Happy Birthday!',
+#                 f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
+#                 settings.DEFAULT_FROM_EMAIL,
+#                 [patient.email],
+#                 fail_silently=True
+#             )
         
 
 
@@ -979,6 +1128,14 @@ def begin_consultation(request, patient_id):
     
     patient.status = 'IN_CONSULTATION'
     patient.save()
+    
+    # ✅ Add manual logging
+    log_action(
+        request,
+        'UPDATE',
+        patient,
+        details=f"Began consultation for {patient.full_name}"
+    )
 
     # ✅ Send notification to all active users
     User = get_user_model()
@@ -1024,6 +1181,15 @@ def complete_consultation(request, patient_id):
         with transaction.atomic():
             patient.status = 'CONSULTATION_COMPLETE'
             patient.save()
+            
+            
+            # ✅ Add manual logging for consultation completion
+            log_action(
+                request,
+                'UPDATE',
+                patient,
+                details=f"Completed consultation for {patient.full_name}"
+            )
 
             bill = Billing.objects.create(
                 patient=patient,
@@ -1034,6 +1200,8 @@ def complete_consultation(request, patient_id):
                 created_by=request.user,
                 clinic_id=clinic_id  # Use clinic_id directly
             )
+            
+           
 
             # Send notifications
             User = get_user_model()
@@ -1091,6 +1259,14 @@ def complete_follow_up(request, pk):
     if not follow_up.completed:
         follow_up.completed = True
         follow_up.save()
+        
+        # ✅ Add manual logging
+        log_action(
+            request,
+            'UPDATE',
+            follow_up,
+            details=f"Completed follow-up for {patient.full_name}"
+        )
         
         # Update patient status if this was their last pending follow-up
         if not patient.follow_ups.filter(completed=False).exists():

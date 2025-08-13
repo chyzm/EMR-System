@@ -6,6 +6,8 @@ from .views import (PatientListView, PatientDetailView, PatientCreateView,
 from core.views import select_clinic
 from django.shortcuts import redirect
 from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
+from .views import activity_log, clear_activity_log, bulk_delete_logs
+
 
 
 app_name = 'core'
@@ -33,6 +35,7 @@ urlpatterns = [
     # Staff Management
     path('staff/', views.staff_list, name='staff_list'),
     path('staff/add/', StaffCreateView.as_view(), name='add_staff'),
+    
 
     # API endpoints
     path('api/patients/', views.patient_search_api, name='patient_search_api'),
@@ -66,7 +69,7 @@ urlpatterns = [
     
     path('select-clinic/', views.select_clinic, name='select_clinic'),
     
-    
+    # admin dashboard
     path('dashboard/', admin_dashboard, name='admin_dashboard'),
     path('activate-user/<int:user_id>/', activate_user, name='activate_user'),
     path('set-staff/<int:user_id>/', set_staff, name='set_staff'),
@@ -74,4 +77,18 @@ urlpatterns = [
     path('verify-user/<int:user_id>/', verify_user, name='verify_user'),
     path('add-clinic/', add_clinic, name='add_clinic'),
     path('clinics/<int:pk>/edit/', ClinicUpdateView.as_view(), name='edit_clinic'),
+    
+    
+    # settings
+    path('settings/', views.settings_view, name='settings'),
+    
+    
+    path('toggle-superuser/<int:user_id>/', views.toggle_superuser, name='toggle_superuser'),
+    path('toggle-staff/<int:user_id>/', views.toggle_staff, name='toggle_staff'),
+    path('toggle-verify/<int:user_id>/', views.toggle_verify, name='toggle_verify'),
+    
+    # Activity Log
+    path('activity-log/', activity_log, name='activity_log'),
+    path('activity-log/clear/', clear_activity_log, name='clear_activity_log'),
+    path('activity-log/bulk-delete/', bulk_delete_logs, name='bulk_delete_logs'),
 ]

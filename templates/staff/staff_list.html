@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Staff List{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">Staff Members</h1>
+        <a href="{% url 'core:add_staff' %}" class="btn btn-primary">
+            <i class="fas fa-user-plus mr-2"></i>Add Staff
+        </a>
+    </div>
+
+    <div class="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for staff_member in staff %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                                    {% if staff_member.profile_picture %}
+                                    <img class="h-10 w-10 rounded-full" src="{{ staff_member.profile_picture.url }}" alt="">
+                                    {% else %}
+                                    <span class="text-gray-600">{{ staff_member.first_name|first|upper }}{{ staff_member.last_name|first|upper }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-medium text-gray-900">{{ staff_member.get_full_name }}</div>
+                                    <div class="text-sm text-gray-500">@{{ staff_member.username }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if staff_member.role == 'ADMIN' %}bg-purple-100 text-purple-800
+                                {% elif staff_member.role == 'DOCTOR' %}bg-blue-100 text-blue-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ staff_member.get_role_display }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ staff_member.email }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {% if staff_member.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                    {% if staff_member.is_active %}Active{% else %}Inactive{% endif %}
+                                </span>
+                                {% if staff_member.is_staff %}
+                                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    Staff
+                                </span>
+                                {% endif %}
+                                {% if staff_member.is_superuser %}
+                                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                    Superuser
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div class="flex gap-2">
+                                <a href="{% url 'core:edit_user_role' staff_member.id %}" class="text-blue-600 hover:text-blue-900" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+                                <form method="post" action="{% url 'core:toggle_staff' staff_member.id %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-gray-600 hover:text-gray-900" title="{% if staff_member.is_staff %}Remove Staff{% else %}Make Staff{% endif %}">
+                                        <i class="fas {% if staff_member.is_staff %}fa-user-check{% else %}fa-user{% endif %}"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if request.user.is_superuser %}
+                                <form method="post" action="{% url 'core:toggle_superuser' staff_member.id %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-gray-600 hover:text-gray-900" title="{% if staff_member.is_superuser %}Remove Superuser{% else %}Make Superuser{% endif %}">
+                                        <i class="fas {% if staff_member.is_superuser %}fa-star{% else %}fa-star-half-alt{% endif %}"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

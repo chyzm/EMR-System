@@ -166,6 +166,14 @@
                 Administration
               </a>
               {% endif %}
+
+              {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+              <a href="{% url 'core:activity_log' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
+               <i class="fas fa-tasks mr-3"></i>
+                Activity Log
+              </a>
+              {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST' %}
               <a href="{% url 'core:patient_list' %}" 
@@ -213,8 +221,8 @@
                 <i class="fas fa-chart-line mr-3"></i>
                 Reports
               </a>
-              <a href="#" 
-                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
+              <a href="{% url 'core:settings' %}" 
+                class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-cog mr-3"></i>
                 Settings
               </a>
@@ -249,7 +257,7 @@
 
             <div class="flex-1 flex justify-between items-center">
                 <!-- Scrolling message container with fixed max-width -->
-            <div class="flex-1 max-w-3xl mx-4 overflow-hidden">
+            <div class="flex-1 max-w-3xl mx-4 overflow-hidden hidden md:flex">
               <div class="relative h-10 flex items-center">
                 <div class="whitespace-nowrap overflow-hidden w-full">
                   <div class="inline-block animate-scroll px-4 py-2 bg-gradient-to-r from-white to-white text-gray-900 rounded-full text-sm font-medium">
@@ -264,7 +272,7 @@
 
             <!-- Notification Dropdown -->
             {% if request.user.is_authenticated %}
-              <div class="ml-4 flex items-center md:ml-6 space-x-4">
+             <div class="flex items-center justify-end w-full md:w-auto md:ml-6 md:space-x-4 space-x-2">
                 <div class="relative">
                   <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
                     <i class="fas fa-bell text-lg"></i>
@@ -278,15 +286,15 @@
                   <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
                     <div class="max-h-96 overflow-y-auto">
                       {% for notification in unread_notifs|slice:":5" %}
-  <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
-    <div class="flex justify-between items-center">
-      <span>{{ notification.message }}</span>
-      <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
-    </div>
-  </a>
-{% empty %}
-  <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
-{% endfor %}
+                        <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
+                          <div class="flex justify-between items-center">
+                            <span>{{ notification.message }}</span>
+                            <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
+                          </div>
+                        </a>
+                      {% empty %}
+                        <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
+                      {% endfor %}
                     </div>
                     <div class="border-t border-gray-200">
                       <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
@@ -299,14 +307,19 @@
                 <!-- Profile dropdown -->
                 <div class="relative">
                   <div>
-                    <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
+                   <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
                       <span class="sr-only">Open user menu</span>
                       <div class="flex items-center">
                         <!-- Clinic name display -->
-                          <div class="hidden md:block text-sm font-medium text-gray-700">
-                              {{ request.session.clinic_name }}
-                          </div>
-                        <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Company Logo">
+                        <div class="hidden md:block text-sm font-medium text-gray-700 mr-1">
+                          {{ request.session.clinic_name }}
+                        </div>
+                        {% if request.session.clinic_logo %}
+                          {% comment %} <img class="h-8 w-8 rounded-full object-cover" src="{{ request.session.clinic_logo.url }}" alt="Clinic Logo"> {% endcomment %}
+                          <img class="h-8 w-8 rounded-full object-cover" src="{{ MEDIA_URL }}{{ request.session.clinic_logo }}" alt="Clinic Logo">
+                        {% comment %} {% else %}
+                          <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Company Logo"> {% endcomment %}
+                        {% endif %}
                       </div>
                     </button>
                   </div>

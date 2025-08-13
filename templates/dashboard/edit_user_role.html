@@ -1,22 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Add Clinic{% endblock %}
+{% block title %}Edit User{% endblock %}
 {% block content %}
 <div class="container mx-auto px-4 py-8 max-w-3xl">
     <div class="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
         <div class="bg-blue-600 px-6 py-4">
-            <h1 class="text-2xl font-semibold text-white">Add New Clinic</h1>
+            <h1 class="text-2xl font-semibold text-white">Edit User: {{ user_obj.get_full_name }}</h1>
         </div>
         <div class="p-6">
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% for field in form %}
-                    <div class="col-span-1 md:col-span-{% if field.name == 'address' %}2{% else %}1{% endif %}">
+                    <div class="col-span-1 md:col-span-{% if field.name == 'clinic' %}2{% else %}1{% endif %}">
                         <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
                             {{ field.label }}
                             {% if field.field.required %}<span class="text-red-500">*</span>{% endif %}
                         </label>
-                        {{ field }}
+                        {% if field.name == 'clinic' %}
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {% for choice in field %}
+                                <div class="flex items-center">
+                                    {{ choice.tag }}
+                                    <label for="{{ choice.id_for_label }}" class="ml-2 text-sm text-gray-700">
+                                        {{ choice.choice_label }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            {{ field }}
+                        {% endif %}
                         {% if field.help_text %}
                         <p class="mt-1 text-sm text-gray-500">{{ field.help_text }}</p>
                         {% endif %}
@@ -27,9 +40,9 @@
                     {% endfor %}
                 </div>
                 <div class="mt-6 flex justify-end space-x-3">
-                    <a href="{% url 'core:admin_dashboard' %}" class="btn btn-gray">Cancel</a>
+                    <a href="{% url 'core:manage_roles' %}" class="btn btn-gray">Cancel</a>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save mr-2"></i>Save Clinic
+                        <i class="fas fa-save mr-2"></i>Save Changes
                     </button>
                 </div>
             </form>

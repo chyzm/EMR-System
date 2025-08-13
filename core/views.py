@@ -24,6 +24,17 @@ from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required
 from DurielMedicApp.models import Appointment, MedicalRecord, Prescription  
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_POST
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
+from django.db.models import Q
+from .models import ActionLog
+from .utils import log_action
+from django import forms
+
+
 
 
 
@@ -108,21 +119,48 @@ def manage_user_roles(request):
 @login_required
 def edit_user_role(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
-
+    editing_self = (request.user.id == user.id)
+    
     if request.method == 'POST':
-        form = UserEditForm(request.POST, instance=user)
+        form = UserEditForm(request.POST, request.FILES, instance=user)
         if form.is_valid():
+            # Prevent non-superusers from making superusers
+            if not request.user.is_superuser and form.cleaned_data.get('is_superuser'):
+                messages.error(request, "Only superusers can create other superusers.")
+                return redirect('core:manage_roles')
+            
+            # Prevent users from deactivating themselves
+            if editing_self and not form.cleaned_data.get('is_active'):
+                messages.error(request, "You cannot deactivate yourself.")
+                return redirect('core:manage_roles')
+                
             form.save()
+
+            # ✅ Manual logging
+            from .utils import log_action
+            log_action(
+                request,
+                'UPDATE',
+                user,
+                details=f"Updated user role/details for {user.get_full_name() or user.username}"
+            )
+
             messages.success(request, 'User details updated successfully.')
             return redirect('core:manage_roles')
     else:
         form = UserEditForm(instance=user)
         form.fields['clinic'].queryset = Clinic.objects.all()
+        
+        # Hide superuser checkbox for non-superusers
+        if not request.user.is_superuser:
+            form.fields['is_superuser'].widget = forms.HiddenInput()
 
-    return render(request, 'administration/edit_user_role.html', {
+    return render(request, 'dashboard/edit_user_role.html', {
         'form': form,
         'user_obj': user,
+        'editing_self': editing_self,
     })
+
 
 
 # ---------- PATIENTS ----------
@@ -189,6 +227,14 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         form.instance.created_by = self.request.user
         messages.success(self.request, 'Patient added successfully!')
         return super().form_valid(form)
+    # ✅ Manual logging
+        from .utils import log_action
+        log_action(
+                request,
+                'UPDATE',
+                user,
+                details=f"Updated user role/details for {user.get_full_name() or user.username}"
+            )
 
 # class PatientUpdateView(UpdateView):
 #     model = Patient
@@ -201,6 +247,19 @@ class PatientUpdateView(UpdateView):
     form_class = PatientForm
     template_name = 'patients/edit_patient.html'
     success_url = reverse_lazy('core:patient_list')
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        
+        # ✅ Manual logging
+        log_action(
+            self.request,
+            'UPDATE',
+            form.instance,
+            details=f"Updated patient: {form.instance.full_name}"
+        )
+        
+        return response
 
 
 
@@ -244,113 +303,67 @@ class PatientDeleteView(DeleteView):
     model = Patient
     template_name = 'patients/confirm_delete.html'
     success_url = reverse_lazy('core:patient_list')
+    
+    def delete(self, request, *args, **kwargs):
+        patient = self.get_object()
+        
+        # ✅ Manual logging
+        log_action(
+            request,
+            'DELETE',
+            patient,
+            details=f"Deleted patient: {patient.full_name}"
+        )
+        
+        messages.success(request, f"Patient {patient.full_name} deleted successfully.")
+        return super().delete(request, *args, **kwargs)
 
 
 # ---------- STAFF ----------
 @login_required
 @user_passes_test(admin_check)
 def staff_list(request):
-    staff = CustomUser.objects.filter(is_staff=True).exclude(role='ADMIN')
+    staff = CustomUser.objects.filter(is_staff=True).exclude(role='ADMIN').order_by('last_name', 'first_name')
     return render(request, 'staff/staff_list.html', {'staff': staff})
 
 
 class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = CustomUser
-    form_class = CustomUserCreationForm
-    template_name = 'staff/staff_form.html'
-    success_url = reverse_lazy('staff_list')
+    form_class = UserCreationWithRoleForm
+    template_name = 'dashboard/add_user.html'
+    success_url = reverse_lazy('core:admin_dashboard')
 
     def test_func(self):
-        return admin_check(self.request.user)
+        return self.request.user.is_superuser or (self.request.user.role == 'ADMIN' and self.request.user.is_staff)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request  # Pass the request to the form
+        kwargs['initial'] = {
+            'is_active': True,
+            'is_staff': True,
+        }
+        return kwargs
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # Hide superuser checkbox for non-superusers
+        if not self.request.user.is_superuser:
+            form.fields['is_superuser'].widget = forms.HiddenInput()
+        return form
 
     def form_valid(self, form):
-        form.instance.is_staff = True
-        response = super().form_valid(form)
-        clinics = form.cleaned_data.get('clinic')
-        if clinics:
-            self.object.clinic.set(clinics)
-        messages.add_message(self.request, messages.INFO, 'Staff member added successfully!')
-        return response
+        user = form.save(commit=False)
+        user.is_staff = True
+        user.save()
+        form.save_m2m()
+        messages.success(self.request, f'User {user.username} created successfully!')
+        return super().form_valid(form)
 
 
 
-# ---------- REPORTS ----------
-# @login_required
-# @clinic_selected_required
-# @user_passes_test(admin_check)
-# def generate_report(request):
-#     end_date = timezone.now()
-#     start_date = end_date - timedelta(days=30)
+# ---------- Billing ----------
 
-#     if request.method == 'POST':
-#         start_date_str = request.POST.get('start_date')
-#         end_date_str = request.POST.get('end_date')
-#         report_type = request.POST.get('report_type')
-
-#         if start_date_str and end_date_str:
-#             start_date = timezone.make_aware(datetime.strptime(start_date_str, '%Y-%m-%d'))
-#             end_date = timezone.make_aware(datetime.strptime(end_date_str, '%Y-%m-%d'))
-
-#         if report_type == 'patients':
-#             return generate_patient_report(start_date, end_date)
-#         elif report_type == 'financial':
-#             return generate_financial_report(start_date, end_date)
-
-#     return render(request, 'reports/generate_report.html', {
-#         'start_date': start_date.date(),
-#         'end_date': end_date.date(),
-#     })
-
-
-# def generate_patient_report(start_date, end_date):
-#     patients = Patient.objects.filter(created_at__range=[start_date, end_date])
-#     response = HttpResponse(content_type='text/csv')
-#     response['Content-Disposition'] = f'attachment; filename="patients_{start_date.date()}_to_{end_date.date()}.csv"'
-#     writer = csv.writer(response)
-#     writer.writerow(['Patient ID', 'Name', 'Gender', 'DOB', 'Contact', 'Created'])
-#     for patient in patients:
-#         writer.writerow([
-#             patient.patient_id,
-#             patient.full_name,
-#             patient.get_gender_display(),
-#             patient.date_of_birth,
-#             patient.contact,
-#             patient.created_at
-#         ])
-#     return response
-
-
-# def generate_financial_report(start_date, end_date):
-#     bills = Billing.objects.filter(service_date__range=[start_date.date(), end_date.date()])
-#     response = HttpResponse(content_type='text/csv')
-#     response['Content-Disposition'] = f'attachment; filename="financial_{start_date.date()}_to_{end_date.date()}.csv"'
-#     writer = csv.writer(response)
-#     writer.writerow(['Date', 'Patient', 'Amount', 'Paid', 'Balance', 'Status', 'Description'])
-#     for bill in bills:
-#         writer.writerow([
-#             bill.service_date,
-#             bill.patient.full_name if bill.patient else '',
-#             bill.amount,
-#             bill.paid_amount,
-#             bill.amount - bill.paid_amount,
-#             bill.get_status_display(),
-#             bill.description
-#         ])
-#     return response
-
-
-# ---------- BILLING ----------
-# @login_required
-# @clinic_selected_required
-# @role_required('ADMIN', 'RECEPTIONIST')
-# def billing_list(request):
-#     bills = Billing.objects.select_related('patient').order_by('-service_date')
-#     context = {
-#         'bills': bills,
-#         'total_amount': bills.aggregate(total=Sum('amount'))['total'] or 0,
-#         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
-#     }
-#     return render(request, 'billing/billing_list.html', context)
 
 @login_required
 @clinic_selected_required
@@ -434,6 +447,16 @@ def create_bill(request, patient_id=None):
             else:
                 bill.status = 'PENDING'
             bill.save()
+            
+            # ✅ Manual logging
+            log_action(
+                request,
+                'CREATE',
+                bill,
+                details=f"Created bill #{bill.id} for {bill.patient.full_name} - Amount: {bill.amount}"
+            )
+        
+        
             messages.success(request, "Bill created successfully!")
             return redirect('core:billing_list')
     else:
@@ -492,6 +515,14 @@ def edit_bill(request, pk):
             
             updated_bill.save()
             
+            # ✅ Manual logging
+            log_action(
+                request,
+                'UPDATE',
+                updated_bill,
+                details=f"Updated bill #{updated_bill.id} for {updated_bill.patient.full_name}"
+            )
+            
             messages.success(request, "Bill updated successfully!")
             return redirect('core:view_bill', pk=bill.pk)
     else:
@@ -537,6 +568,14 @@ def record_payment(request, pk):
             
             bill.save()
             
+            # ✅ Manual logging
+            log_action(
+                request,
+                'UPDATE',
+                bill,
+                details=f"Recorded payment of ₦{payment_amount:,.2f} for {bill.patient.full_name}"
+            )
+            
             # Create payment record
             Payment.objects.create(
                 billing=bill,
@@ -566,6 +605,14 @@ def view_bill(request, pk):
 def delete_bill(request, pk):
     bill = get_object_or_404(Billing, pk=pk)
     if request.method == 'POST':
+        
+        # ✅ Manual logging
+        log_action(
+            request,
+            'DELETE',
+            bill,
+            details=f"Deleted bill #{bill.id} for {bill.patient.full_name}"
+        )
         bill.delete()
         messages.success(request, "Bill deleted successfully!")
         return redirect('core:billing_list')
@@ -673,12 +720,34 @@ from .models import Patient, Clinic, CustomUser, Billing
 from DurielMedicApp.models import Appointment, Prescription, Notification
 from .forms import ClinicForm
 
+from django.core.paginator import Paginator
+from django.db.models import Q
+
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def admin_dashboard(request):
-    clinics = Clinic.objects.all()
+    # Clinics Management with search and pagination
+    clinic_search = request.GET.get('clinic_search', '')
+    clinic_page = request.GET.get('clinic_page', 1)
+    
+    clinics = Clinic.objects.all().order_by('name')  # Added ordering by name
+    if clinic_search:
+        clinics = clinics.filter(
+            Q(name__icontains=clinic_search) | 
+            Q(clinic_type__icontains=clinic_search) |
+            Q(address__icontains=clinic_search)
+        )
+    
+    clinic_paginator = Paginator(clinics, 10)  # Show 10 clinics per page
+    try:
+        clinic_page_obj = clinic_paginator.page(clinic_page)
+    except PageNotAnInteger:
+        clinic_page_obj = clinic_paginator.page(1)
+    except EmptyPage:
+        clinic_page_obj = clinic_paginator.page(clinic_paginator.num_pages)
+    
     stats = []
-    for clinic in clinics:
+    for clinic in clinic_page_obj:
         clinic_stats = {
             'clinic': clinic,
             'patients': Patient.objects.filter(clinic=clinic).count(),
@@ -688,13 +757,37 @@ def admin_dashboard(request):
             'prescriptions': Prescription.objects.filter(patient__clinic=clinic).count(),
         }
         stats.append(clinic_stats)
-    users = CustomUser.objects.all()
+    
+    # User Management with search and pagination
+    user_search = request.GET.get('user_search', '')
+    user_page = request.GET.get('user_page', 1)
+    
+    users = CustomUser.objects.all().order_by('last_name', 'first_name')  # Added ordering by last_name then first_name
+    if user_search:
+        users = users.filter(
+            Q(username__icontains=user_search) |
+            Q(first_name__icontains=user_search) |
+            Q(last_name__icontains=user_search) |
+            Q(email__icontains=user_search) |
+            Q(role__icontains=user_search)
+        )
+    
+    user_paginator = Paginator(users, 10)  # Show 10 users per page
+    try:
+        user_page_obj = user_paginator.page(user_page)
+    except PageNotAnInteger:
+        user_page_obj = user_paginator.page(1)
+    except EmptyPage:
+        user_page_obj = user_paginator.page(user_paginator.num_pages)
+    
     context = {
         'stats': stats,
-        'users': users,
-        'clinics': clinics,
+        'users': user_page_obj,
+        'clinics': clinic_page_obj,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
+
+
 
 
 @login_required
@@ -762,3 +855,196 @@ class ClinicUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         return self.request.user.is_superuser or self.request.user.role == 'ADMIN'
+    
+    
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def activate_user(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_active = not user.is_active
+    user.save()
+    messages.success(request, f"{user.username} has been {'activated' if user.is_active else 'deactivated'}.")
+    return redirect('core:admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def set_staff(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_staff = not user.is_staff
+    user.save()
+    messages.success(request, f"{user.username} has been {'granted staff privileges' if user.is_staff else 'removed from staff'}.")
+    return redirect('core:admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def verify_user(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.verified = not user.verified
+    user.save()
+    messages.success(request, f"{user.username} has been {'verified' if user.verified else 'unverified'}.")
+    return redirect('core:admin_dashboard')
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def toggle_superuser(request, user_id):
+    if request.user.id == user_id:
+        messages.error(request, "You cannot change your own superuser status.")
+        return redirect('core:admin_dashboard')
+    
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_superuser = not user.is_superuser
+    user.save()
+    status = "granted superuser privileges" if user.is_superuser else "removed from superusers"
+    messages.success(request, f"{user.username} has been {status}.")
+    return redirect('core:admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def toggle_staff(request, user_id):
+    if request.user.id == user_id and not request.user.is_superuser:
+        messages.error(request, "You cannot change your own staff status.")
+        return redirect('core:admin_dashboard')
+    
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.is_staff = not user.is_staff
+    user.save()
+    status = "added to staff" if user.is_staff else "removed from staff"
+    messages.success(request, f"{user.username} has been {status}.")
+    return redirect('core:admin_dashboard')
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def toggle_verify(request, user_id):
+    user = get_object_or_404(CustomUser, pk=user_id)
+    user.verified = not user.verified
+    user.save()
+    status = "verified" if user.verified else "unverified"
+    messages.success(request, f"{user.username} has been {status}.")
+    return redirect('core:admin_dashboard')
+    
+    
+    
+    
+    
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Clinic
+from .forms import ClinicLogoForm
+
+@login_required
+def settings_view(request):
+    clinic = None
+    if request.session.get('clinic_id'):
+        try:
+            clinic = Clinic.objects.get(id=request.session['clinic_id'])
+        except Clinic.DoesNotExist:
+            messages.error(request, "No clinic selected or clinic not found")
+            return redirect('some_other_view')
+    
+    if request.method == 'POST':
+        form = ClinicLogoForm(request.POST, request.FILES, instance=clinic)
+        if form.is_valid():
+            form.save()
+            if clinic and clinic.logo:  # Check if logo exists after save
+                request.session['clinic_logo'] = clinic.logo.url
+            messages.success(request, "Settings updated successfully")
+            return redirect('core:settings')
+    else:
+        form = ClinicLogoForm(instance=clinic)
+    
+    return render(request, 'settings/settings.html', {
+        'form': form,
+        'clinic': clinic,
+    })
+    
+    
+    
+
+
+@login_required
+@user_passes_test(lambda u: u.role == 'ADMIN')
+def activity_log(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected")
+        return redirect('core:select_clinic')
+    
+    try:
+        clinic = Clinic.objects.get(id=clinic_id)
+    except Clinic.DoesNotExist:
+        messages.error(request, "Invalid clinic selected")
+        return redirect('core:select_clinic')
+    
+    logs = ActionLog.objects.filter(clinic_id=clinic_id).select_related(
+        'user', 'content_type', 'clinic'
+    ).order_by('-timestamp')
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        logs = logs.filter(
+            Q(user__username__icontains=search_query) |
+            Q(action__icontains=search_query) |
+            Q(details__icontains=search_query) |
+            Q(content_type__model__icontains=search_query)
+        )
+
+    # Pagination
+    paginator = Paginator(logs, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'logs': page_obj,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+        'clinic_name': clinic.name,
+        'search_query': search_query
+    }
+    
+    return render(request, 'activity-log/activity_log.html', context)
+
+
+
+
+@require_POST
+@login_required
+@user_passes_test(lambda u: u.role == 'ADMIN')
+def clear_activity_log(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        return JsonResponse({'success': False, 'error': 'No clinic selected'}, status=400)
+    
+    ActionLog.objects.filter(clinic_id=clinic_id).delete()
+    return JsonResponse({'success': True})
+
+
+
+
+import json
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required, user_passes_test
+from .models import ActionLog
+
+@require_POST
+@login_required
+@user_passes_test(lambda u: u.role == 'ADMIN')
+def bulk_delete_logs(request):
+    try:
+        data = json.loads(request.body)  # Parse JSON from fetch request
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    
+    log_ids = data.get('log_ids', [])
+    if not log_ids:
+        return JsonResponse({'success': False, 'error': 'No logs selected'}, status=400)
+    
+    deleted_count, _ = ActionLog.objects.filter(
+        id__in=log_ids,
+        clinic_id=request.session.get('clinic_id')
+    ).delete()
+    
+    return JsonResponse({'success': True, 'count': deleted_count})

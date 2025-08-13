@@ -33,15 +33,30 @@ from ..models import Notification, NotificationRead
 
 register = template.Library()
 
+# @register.simple_tag
+# def get_unread_notifications(user, clinic_id):
+#     """Simple tag version that returns the queryset"""
+#     if not clinic_id:
+#         return Notification.objects.none()
+    
+#     read_global_ids = NotificationRead.objects.filter(user=user).values_list('notification_id', flat=True)
+#     return Notification.objects.filter(
+#         (Q(user=user) | Q(user__isnull=True, clinic_id=clinic_id)),
+#         is_read=False
+#     ).exclude(id__in=read_global_ids)
+    
 @register.simple_tag
 def get_unread_notifications(user, clinic_id):
-    """Simple tag version that returns the queryset"""
+    """Returns unread notifications for the user and clinic."""
     if not clinic_id:
         return Notification.objects.none()
     
     read_global_ids = NotificationRead.objects.filter(user=user).values_list('notification_id', flat=True)
     return Notification.objects.filter(
-        (Q(user=user) | Q(user__isnull=True, clinic_id=clinic_id)),
+        (
+            Q(user=user, clinic_id=clinic_id) | 
+            Q(user__isnull=True, clinic_id=clinic_id)
+        ),
         is_read=False
     ).exclude(id__in=read_global_ids)
 

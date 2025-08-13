@@ -277,16 +277,16 @@
 
                   <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
                     <div class="max-h-96 overflow-y-auto">
-                      {% for notification in request.user.notifications.all|slice:":5" %}
-                        <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
-                          <div class="flex justify-between items-center">
-                            <span>{{ notification.message }}</span>
-                            <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
-                          </div>
-                        </a>
-                      {% empty %}
-                        <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
-                      {% endfor %}
+                      {% for notification in unread_notifs|slice:":5" %}
+  <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
+    <div class="flex justify-between items-center">
+      <span>{{ notification.message }}</span>
+      <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
+    </div>
+  </a>
+{% empty %}
+  <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
+{% endfor %}
                     </div>
                     <div class="border-t border-gray-200">
                       <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">

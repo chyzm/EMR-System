@@ -147,8 +147,10 @@ def dashboard(request):
     # Get unread notifications
     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
     notifications = Notification.objects.filter(
-        Q(user=request.user, is_read=False) | 
-        Q(user__isnull=True, clinic_id=clinic_id)
+        (
+            Q(user=request.user, is_read=False, clinic_id=clinic_id) | 
+            Q(user__isnull=True, clinic_id=clinic_id)
+        )
     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
     
     context = {

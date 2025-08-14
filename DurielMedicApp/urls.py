@@ -42,8 +42,9 @@ urlpatterns = [
     path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
 
     # Admission
-    path('patients/<int:patient_id>/admit/', views.admit_patient, name='admit_patient'),
-    path('patients/<int:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),
+    path('patients/<str:patient_id>/admit/', views.admit_patient, name='admit_patient'),
+    path('patients/<str:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),
+
     
     # Patient status
     path('patients/<int:patient_id>/ready-for-doctor/', views.mark_ready_for_doctor, name='ready_for_doctor'),

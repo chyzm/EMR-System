@@ -62,7 +62,7 @@ def admin_check(user):
 def home(request):
     return render(request, 'core/login.html')
 
-# views.py (core or DurielMedicApp)
+
 
 @login_required
 def select_clinic(request):
@@ -340,12 +340,15 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs['request'] = self.request  # Pass the request to the form
+        if hasattr(self.form_class, '__init__'):
+            # Only pass request if the form expects it
+            kwargs['request'] = self.request
         kwargs['initial'] = {
             'is_active': True,
             'is_staff': True,
         }
         return kwargs
+
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)

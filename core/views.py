@@ -336,26 +336,21 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy('core:admin_dashboard')
 
     def test_func(self):
-        return self.request.user.is_superuser or (self.request.user.role == 'ADMIN' and self.request.user.is_staff)
+        return self.request.user.is_superuser or (
+            self.request.user.role == 'ADMIN' and self.request.user.is_staff
+        )
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        if hasattr(self.form_class, '__init__'):
-            # Only pass request if the form expects it
-            kwargs['request'] = self.request
-        kwargs['initial'] = {
+        # Safely pass request to the form
+        kwargs['request'] = self.request
+        # Set initial values
+        kwargs.setdefault('initial', {})
+        kwargs['initial'].update({
             'is_active': True,
             'is_staff': True,
-        }
+        })
         return kwargs
-
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        # Hide superuser checkbox for non-superusers
-        if not self.request.user.is_superuser:
-            form.fields['is_superuser'].widget = forms.HiddenInput()
-        return form
 
     def form_valid(self, form):
         user = form.save(commit=False)
@@ -364,6 +359,9 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         form.save_m2m()
         messages.success(self.request, f'User {user.username} created successfully!')
         return super().form_valid(form)
+
+
+
 
 
 

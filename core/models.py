@@ -207,11 +207,12 @@ class ActionLog(models.Model):
         ('DELETE', 'Delete'),
         ('LOGIN', 'Login'),
         ('LOGOUT', 'Logout'),
+        ('LOGIN_FAILED', 'Login Failed'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     clinic = models.ForeignKey(Clinic, on_delete=models.SET_NULL, null=True, blank=True)  # Add clinic reference
-    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    action = models.CharField(max_length=12, choices=ACTION_CHOICES)
     content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
     object_id = models.CharField(max_length=255, null=True, blank=True)
     content_object = GenericForeignKey('content_type', 'object_id')

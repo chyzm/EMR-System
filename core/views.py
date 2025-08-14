@@ -59,15 +59,61 @@ def admin_check(user):
 #     return redirect('DurielMedicApp:dashboard')
 
 
+# Replace the existing CustomLoginView and logout_view in views.py with these fixed versions:
+
+from django.contrib.auth import login as auth_login, logout as auth_logout
+from django.contrib.auth.views import LoginView
+from .utils import log_login, log_logout
+
+# views.py (snippet)
+class CustomLoginView(LoginView):
+    template_name = 'registration/login.html'
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+
+        # If no clinic in session but user has primary_clinic, set it
+        if not self.request.session.get('clinic_id') and self.request.user.primary_clinic:
+            self.request.session['clinic_id'] = self.request.user.primary_clinic.id
+            self.request.session['clinic_type'] = self.request.user.primary_clinic.clinic_type
+            self.request.session['clinic_name'] = self.request.user.primary_clinic.name
+
+            # Now that clinic exists, it's safe to log login here
+            from .utils import log_login
+            log_login(self.request, self.request.user)
+        else:
+            # No clinic yet — mark pending (handled inside log_login)
+            from .utils import log_login
+            log_login(self.request, self.request.user)
+
+        return response
+
+
+
+def logout_view(request):
+    """Custom logout view with proper logging"""
+    user = request.user if request.user.is_authenticated else None
+    
+    # ✅ Log logout BEFORE actually logging out
+    if user:
+        log_logout(request, user)
+    
+    # Now perform the actual logout
+    auth_logout(request)
+    return redirect('login')
+
+
 def home(request):
     return render(request, 'core/login.html')
 
 
 
+
+# views.py (snippet)
 @login_required
 def select_clinic(request):
     user_clinics = request.user.clinic.all().order_by('clinic_type', 'name')
-    
+
     if request.method == 'POST':
         clinic_id = request.POST.get('clinic_id')
         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
@@ -75,6 +121,11 @@ def select_clinic(request):
             request.session['clinic_id'] = clinic.id
             request.session['clinic_type'] = clinic.clinic_type
             request.session['clinic_name'] = clinic.name
+
+            # >>> Add these two lines <<<
+            from .utils import finalize_pending_login, log_login
+            finalize_pending_login(request)      # attaches pending login (if any) to this clinic
+            log_login(request, request.user)     # also log an explicit login-at-clinic selection
 
             if clinic.clinic_type == 'GENERAL':
                 return redirect('DurielMedicApp:dashboard')
@@ -86,7 +137,33 @@ def select_clinic(request):
     return render(request, 'select-clinic/select_clinic.html', {
         'clinics': user_clinics,
         'clinic_types': dict(Clinic.CLINIC_TYPES)
-           })
+    })
+
+
+
+# @login_required
+# def select_clinic(request):
+#     user_clinics = request.user.clinic.all().order_by('clinic_type', 'name')
+    
+#     if request.method == 'POST':
+#         clinic_id = request.POST.get('clinic_id')
+#         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
+#         if clinic:
+#             request.session['clinic_id'] = clinic.id
+#             request.session['clinic_type'] = clinic.clinic_type
+#             request.session['clinic_name'] = clinic.name
+
+#             if clinic.clinic_type == 'GENERAL':
+#                 return redirect('DurielMedicApp:dashboard')
+#             elif clinic.clinic_type == 'EYE':
+#                 return redirect('eye_dashboard')
+#             elif clinic.clinic_type == 'DENTAL':
+#                 return redirect('dental_dashboard')
+
+#     return render(request, 'select-clinic/select_clinic.html', {
+#         'clinics': user_clinics,
+#         'clinic_types': dict(Clinic.CLINIC_TYPES)
+#            })
 
 
 # ---------- USER ROLE MANAGEMENT ----------
@@ -620,9 +697,9 @@ def delete_bill(request, pk):
 
 
 
-def logout_view(request):
-    logout(request)
-    return redirect('login')  # or 'core:login' if namespaced
+# def logout_view(request):
+#     logout(request)
+#     return redirect('login')  # or 'core:login' if namespaced
 
 
 
@@ -837,10 +914,39 @@ def add_clinic(request):
         if form.is_valid():
             form.save()
             messages.success(request, "Clinic added.")
-            return redirect('admin_dashboard')
+            return redirect('core:admin_dashboard')
     else:
         form = ClinicForm()
     return render(request, 'dashboard/add_clinic.html', {'form': form})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)  # or u.role == 'ADMIN'
+def delete_clinic(request, pk):
+    clinic = get_object_or_404(Clinic, pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            clinic_name = clinic.name
+            clinic.delete()
+            
+            # Log the action
+            log_action(
+                request,
+                'DELETE',
+                clinic,
+                details=f"Deleted clinic: {clinic_name}"
+            )
+            
+            messages.success(request, f"Clinic '{clinic_name}' has been deleted.")
+            return redirect('core:admin_dashboard')
+        except Exception as e:
+            messages.error(request, f"Error deleting clinic: {str(e)}")
+            return redirect('core:admin_dashboard')
+    
+    # If not POST, show confirmation page
+    return render(request, 'dashboard/confirm_clinic_delete.html', {'clinic': clinic})
+
 
 
 from django.views.generic.edit import UpdateView

@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
 from .views import (PatientListView, PatientDetailView, PatientCreateView,
-                   StaffCreateView, PatientUpdateView, PatientDeleteView)
+                   StaffCreateView, PatientUpdateView, PatientDeleteView, CustomLoginView)
 from core.views import select_clinic
 from django.shortcuts import redirect
 from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
@@ -18,7 +18,8 @@ urlpatterns = [
     
     # Authentication
     path('', lambda request: redirect('login'), name='home_redirect'),
-    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    # path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('login/', CustomLoginView.as_view(), name='login'),  # ✅ Changed this line
     path('logout/', views.logout_view, name='logout'),
     
     # Role Management
@@ -85,6 +86,7 @@ urlpatterns = [
     path('verify-user/<int:user_id>/', verify_user, name='verify_user'),
     path('add-clinic/', add_clinic, name='add_clinic'),
     path('clinics/<int:pk>/edit/', ClinicUpdateView.as_view(), name='edit_clinic'),
+    path('clinics/<int:pk>/delete/', views.delete_clinic, name='delete_clinic'),
     
     
     # settings

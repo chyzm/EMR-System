@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Delete Clinic{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-3xl">
+    <div class="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
+        <div class="bg-red-600 px-6 py-4">
+            <h1 class="text-2xl font-semibold text-white">Delete Clinic</h1>
+        </div>
+        <div class="p-6">
+            <p class="text-lg mb-4">Are you sure you want to delete the clinic <strong>{{ clinic.name }}</strong>?</p>
+            <p class="text-red-600 mb-6">This action cannot be undone. All associated data will be permanently removed.</p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="mt-6 flex justify-end space-x-3">
+                    <a href="{% url 'core:admin_dashboard' %}" class="btn btn-gray">Cancel</a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash mr-2"></i>Delete Clinic
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

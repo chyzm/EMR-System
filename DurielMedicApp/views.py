@@ -15,8 +15,9 @@ from .models import (
 from core.views import PatientDetailView
 from .forms import (
     VitalsForm, AppointmentForm, FollowUpForm,
-    PrescriptionForm, MedicalRecordForm
+    MedicalRecordForm
 )
+from core.forms import PrescriptionForm
 from core.decorators import role_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
@@ -705,114 +706,12 @@ def discharge_patient(request, patient_id):
 
 
 
-@login_required
-def add_prescription(request, patient_id):
-    patient = get_object_or_404(Patient, patient_id=patient_id)
-
-    if request.method == 'POST':
-        medication = request.POST.get('medication')
-        dosage = request.POST.get('dosage')
-        instructions = request.POST.get('instructions')
-
-        # Validation (optional)
-        if not medication or not dosage:
-            messages.error(request, "Please fill in all required fields.")
-        else:
-            prescription = Prescription.objects.create(
-                patient=patient,
-                medication=medication,
-                dosage=dosage,
-                instructions=instructions,
-                prescribed_by=request.user  
-            )
-            
-            # ✅ Manual logging
-            log_action(
-                request,
-                'CREATE',
-                prescription,
-                details=f"Added prescription for {patient.full_name}"
-            )
-            
-            
-            Notification.objects.create(
-                user=prescription.patient.created_by,
-                message=f"New prescription for {prescription.patient.full_name}",
-                link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
-            )
-            messages.success(request, "Prescription saved successfully.")
-            return redirect('core:patient_detail', pk=patient.patient_id)
-
-    return render(request, 'prescription/add_prescription.html', {'patient': patient})
 
 
 
 
-@login_required
-def edit_prescription(request, pk):
-    prescription = get_object_or_404(Prescription, pk=pk)
-    patient = prescription.patient
-
-    if request.method == 'POST':
-        prescription.medication = request.POST.get('medication')
-        prescription.dosage = request.POST.get('dosage')
-        prescription.instructions = request.POST.get('instructions')
-        prescription.save()
-        return redirect('DurielMedicApp:patient_detail', pk=patient.patient_id)
-
-    return render(request, 'prescription/edit_prescription.html', {'prescription': prescription, 'patient': patient})
-
-@login_required
-def prescription_list(request):
-    clinic_id = request.session.get('clinic_id')
-    if not clinic_id:
-        messages.error(request, "No clinic selected. Please select a clinic first.")
-        return redirect('core:select_clinic')
-
-    query = request.GET.get('q', '')
-    prescriptions = Prescription.objects.filter(patient__clinic_id=clinic_id).select_related('patient', 'prescribed_by')
-
-    if query:
-        prescriptions = prescriptions.filter(
-            Q(patient__full_name__icontains=query) |
-            Q(prescribed_by__first_name__icontains=query) |
-            Q(prescribed_by__last_name__icontains=query) |
-            Q(medication__icontains=query) |
-            Q(date_prescribed__icontains=query)
-        )
-
-    context = {
-        'prescriptions': prescriptions.order_by('-date_prescribed'),
-        'query': query,
-    }
-    return render(request, 'prescription/prescription_list.html', context)
 
 
-@login_required
-def deactivate_prescription(request, pk):
-    prescription = get_object_or_404(Prescription, pk=pk)
-    patient = prescription.patient
-
-    if request.method == 'POST':
-        prescription.is_active = False
-        prescription.save()
-        
-        # ✅ Manual logging
-        log_action(
-            request,
-            'UPDATE',
-            prescription,
-            details=f"Deactivated prescription for {patient.full_name}"
-        )
-        
-        
-        
-        return redirect('core:patient_detail', pk=patient.patient_id)
-
-    return render(request, 'prescription/deactivate_prescription.html', {
-        'prescription': prescription,
-        'patient': patient
-    })
     
     
     

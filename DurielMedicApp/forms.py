@@ -3,8 +3,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
-from core.models import Patient
-from .models import Appointment, Prescription, MedicalRecord, Vitals, Admission, FollowUp
+from core.models import Patient, Prescription
+from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp
 
 class VitalsForm(forms.ModelForm):
     class Meta:
@@ -130,13 +130,7 @@ class AppointmentForm(forms.ModelForm):
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
 
 
-class PrescriptionForm(forms.ModelForm):
-    class Meta:
-        model = Prescription
-        fields = ['patient', 'medication', 'dosage', 'frequency', 'duration', 'instructions']
-        widgets = {
-            'instructions': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-        }
+
 
 class MedicalRecordForm(forms.ModelForm):
     class Meta:

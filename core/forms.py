@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from core.models import CustomUser, Patient, Billing, Payment, Clinic
+from core.models import CustomUser, Patient, Billing, Payment, Clinic, Prescription
 from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
@@ -269,6 +269,16 @@ class PaymentForm(forms.ModelForm):
         if self.billing and amount > self.billing.get_balance():
             raise forms.ValidationError(f"Payment amount exceeds outstanding balance of ₦{self.billing.get_balance():.2f}")
         return amount
+    
+    
+    
+class PrescriptionForm(forms.ModelForm):
+    class Meta:
+        model = Prescription
+        fields = ['patient', 'medication', 'dosage', 'frequency', 'duration', 'instructions']
+        widgets = {
+            'instructions': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        }
     
     
     

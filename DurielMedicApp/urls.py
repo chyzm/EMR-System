@@ -14,7 +14,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
 
     # Medical records
-    path('patients/<int:patient_id>/medical-records/add/', views.add_medical_record, name='add_medical_record'),
+    path('patients/<str:patient_id>/medical-records/add/', views.add_medical_record, name='add_medical_record'),
     path('medical-records/<int:record_id>/edit/', views.edit_medical_record, name='edit_medical_record'),
     path('medical-records/<int:record_id>/delete/', views.delete_medical_record, name='delete_medical_record'),
     
@@ -35,15 +35,12 @@ urlpatterns = [
     # path('notifications/mark-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/clear/', views.clear_notifications, name='clear_notifications'),
     
-    # Prescriptions
-    path('prescriptions/add/<int:patient_id>/', views.add_prescription, name='add_prescription'),
-    path('prescriptions/edit/<int:pk>/', views.edit_prescription, name='edit_prescription'),
-    path('prescriptions/', views.prescription_list, name='prescription_list'),
-    path('prescriptions/deactivate/<int:pk>/', views.deactivate_prescription, name='deactivate_prescription'),
+    
     
     # Vitals
-    path('patients/<int:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
-    
+    path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
+    path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
+
     # Admission
     path('patients/<int:patient_id>/admit/', views.admit_patient, name='admit_patient'),
     path('patients/<int:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),

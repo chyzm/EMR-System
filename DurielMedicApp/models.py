@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from core.models import Patient, Clinic
+from core.models import Patient, Clinic, Prescription
 
 class MedicalRecord(models.Model):
     RECORD_TYPES = (
@@ -87,19 +87,7 @@ class FollowUp(models.Model):
         return f"Follow-up for {self.patient.full_name} on {self.scheduled_date}"
 
 
-class Prescription(models.Model):
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='prescriptions')
-    prescribed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='prescriptions')
-    medication = models.CharField(max_length=200)
-    dosage = models.CharField(max_length=100)
-    frequency = models.CharField(max_length=100)
-    duration = models.CharField(max_length=100)
-    instructions = models.TextField(blank=True, null=True)
-    date_prescribed = models.DateField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-    
-    def __str__(self):
-        return f"{self.medication} for {self.patient.full_name}"
+
 
 
 class Notification(models.Model):

@@ -61,6 +61,14 @@ urlpatterns = [
     path('billing/<int:pk>/receipt/', views.generate_receipt, name='generate_receipt'),
     path('billing/<int:pk>/delete/', views.delete_bill, name='delete_bill'),
     
+    # Prescriptions
+    path('prescriptions/add/<str:patient_id>/', views.add_prescription, name='add_prescription'),
+    path('prescriptions/edit/<int:pk>/', views.edit_prescription, name='edit_prescription'),
+    path('prescriptions/', views.prescription_list, name='prescription_list'),
+    path('prescriptions/deactivate/<int:pk>/', views.deactivate_prescription, name='deactivate_prescription'),
+    path('prescriptions/delete/<int:pk>/', views.delete_prescription, name='delete_prescription'),
+
+    
     
     # AI assist
     path("api/ai-chat/", views.ai_chat, name="ai_chat"),

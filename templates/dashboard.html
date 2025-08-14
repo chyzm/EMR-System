@@ -206,13 +206,16 @@
                     </div>
                 </div>
                 <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Bills</h3>
+                {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                 <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_bills }}</p>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-yellow-600">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
                     <span class="text-red-600">₦{{ stats.outstanding_balance|floatformat:2 }} due</span>
                 </div>
+                
                 <div class="mt-4 bg-gray-200 rounded-full h-2">
                     <div class="bg-gradient-to-r from-red-400 to-red-600 h-2 rounded-full" style="width: 36%"></div>
+                 {% endif %}   
                 </div>
             </div>
         </div>
@@ -286,13 +289,13 @@
                     </h2>
                 </div>
                 <div class="p-6 space-y-4">
-                    {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                     <a href="{% url 'core:add_patient' %}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-user-plus mr-2"></i>Add New Patient
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE' %}
+                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                     <a href="{% url 'DurielMedicApp:add_appointment' %}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-calendar-plus mr-2"></i>Schedule Appointment
                     </a>
@@ -300,7 +303,7 @@
                     
                     {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
                         {% for patient in patients %}
-                            <a href="{% url 'add_prescription' patient.id %}" class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                            <a href="{% url 'core:add_prescription' patient.id %}" class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                                 <i class="fas fa-prescription mr-2"></i>Write Prescription
                             </a>
                         {% endfor %}
@@ -322,6 +325,7 @@
         </div>
 
         <!-- Recent Patients -->
+         {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
             <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-white flex items-center">
@@ -379,6 +383,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Notifications -->
         {% if notifications %}

@@ -37,10 +37,14 @@
                     <td class="px-6 py-4 whitespace-nowrap space-x-2">
                         <a href="{% url 'core:patient_detail' patient.patient_id %}" 
                            class="text-blue-600 hover:text-blue-800 hover:underline">View</a>
+
+                         {% if patient.pk and request.user.role == 'ADMIN' %}  
                         <a href="{% url 'core:delete_patient' patient.pk %}" 
                            class="text-red-600 hover:text-red-800 hover:underline">Delete</a>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
+                        {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
                         {% with balance=patient.get_outstanding_balance has_billing=patient.has_billing_records %}
                             {% if not has_billing %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
@@ -56,6 +60,7 @@
                                 </span>
                             {% endif %}
                         {% endwith %}
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

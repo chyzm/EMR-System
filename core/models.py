@@ -229,3 +229,19 @@ class ActionLog(models.Model):
         full_name = self.user.get_full_name() if self.user else "Unknown User"
         return f"{full_name} {self.action} {self.content_type} at {self.timestamp}"
 
+
+
+class Prescription(models.Model):
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='prescriptions')
+    clinic = models.ForeignKey(Clinic,on_delete=models.CASCADE,related_name='prescriptions')
+    prescribed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='prescriptions')
+    medication = models.CharField(max_length=200)
+    dosage = models.CharField(max_length=100)
+    frequency = models.CharField(max_length=100)
+    duration = models.CharField(max_length=100)
+    instructions = models.TextField(blank=True, null=True)
+    date_prescribed = models.DateField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.medication} for {self.patient.full_name}"

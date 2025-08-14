@@ -175,7 +175,7 @@
               </a>
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST' %}
+              {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
               <a href="{% url 'core:patient_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-users mr-3"></i>
@@ -200,7 +200,7 @@
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR' %}
-              <a href="{% url 'DurielMedicApp:prescription_list' %}" 
+              <a href="{% url 'core:prescription_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>
                 Prescriptions

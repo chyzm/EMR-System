@@ -11,7 +11,7 @@ from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
 
-from .models import CustomUser, Patient, Billing, Clinic, Payment
+from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription 
 from .forms import CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm
 from DurielMedicApp.decorators import role_required
 from django.http import JsonResponse
@@ -23,7 +23,7 @@ from django.db.models import Sum
 from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required
-from DurielMedicApp.models import Appointment, MedicalRecord, Prescription  
+from DurielMedicApp.models import Appointment, MedicalRecord  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
@@ -33,6 +33,8 @@ from django.db.models import Q
 from .models import ActionLog
 from .utils import log_action
 from django import forms
+from django.urls import reverse
+
 
 
 
@@ -717,7 +719,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Count, Sum
 from .models import Patient, Clinic, CustomUser, Billing
-from DurielMedicApp.models import Appointment, Prescription, Notification
+from DurielMedicApp.models import Appointment, Notification
 from .forms import ClinicForm
 
 from django.core.paginator import Paginator
@@ -1048,3 +1050,147 @@ def bulk_delete_logs(request):
     ).delete()
     
     return JsonResponse({'success': True, 'count': deleted_count})
+
+
+
+
+@login_required
+def add_prescription(request, patient_id):
+    patient = get_object_or_404(Patient, patient_id=patient_id)
+
+    if request.method == 'POST':
+        medication = request.POST.get('medication')
+        dosage = request.POST.get('dosage')
+        instructions = request.POST.get('instructions')
+        # frequency = request.POST.get('frequency')
+        # duration = request.POST.get('duration')
+        
+
+        # Validation (optional)
+        if not medication or not dosage:
+            messages.error(request, "Please fill in all required fields.")
+        else:
+            prescription = Prescription.objects.create(
+                patient=patient,
+                medication=medication,
+                dosage=dosage,
+                clinic=patient.clinic,
+                # frequency=frequency,
+                # duration=duration,
+                instructions=instructions,
+                prescribed_by=request.user
+            )
+
+            
+            # ✅ Manual logging
+            log_action(
+                request,
+                'CREATE',
+                prescription,
+                details=f"Added prescription for {patient.full_name}"
+            )
+            
+            
+            Notification.objects.create(
+                user=prescription.patient.created_by,
+                message=f"New prescription for {prescription.patient.full_name}",
+                link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
+            )
+            messages.success(request, "Prescription saved successfully.")
+            return redirect('core:patient_detail', pk=patient.patient_id)
+
+    return render(request, 'prescription/add_prescription.html', {'patient': patient})
+
+
+
+@login_required
+def edit_prescription(request, pk):
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if request.method == 'POST':
+        prescription.medication = request.POST.get('medication')
+        prescription.dosage = request.POST.get('dosage')
+        prescription.instructions = request.POST.get('instructions')
+        prescription.save()
+        return redirect('core:patient_detail', pk=patient.patient_id)
+
+    return render(request, 'prescription/edit_prescription.html', {'prescription': prescription, 'patient': patient})
+
+@login_required
+def prescription_list(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
+    query = request.GET.get('q', '')
+    prescriptions = Prescription.objects.filter(patient__clinic_id=clinic_id).select_related('patient', 'prescribed_by')
+
+    if query:
+        prescriptions = prescriptions.filter(
+            Q(patient__full_name__icontains=query) |
+            Q(prescribed_by__first_name__icontains=query) |
+            Q(prescribed_by__last_name__icontains=query) |
+            Q(medication__icontains=query) |
+            Q(date_prescribed__icontains=query)
+        )
+
+    context = {
+        'prescriptions': prescriptions.order_by('-date_prescribed'),
+        'query': query,
+    }
+    return render(request, 'prescription/prescription_list.html', context)
+
+
+@login_required
+def deactivate_prescription(request, pk):
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if request.method == 'POST':
+        prescription.is_active = False
+        prescription.save()
+        
+        # ✅ Manual logging
+        log_action(
+            request,
+            'UPDATE',
+            prescription,
+            details=f"Deactivated prescription for {patient.full_name}"
+        )
+        
+        
+        
+        return redirect('core:patient_detail', pk=patient.patient_id)
+
+    return render(request, 'prescription/deactivate_prescription.html', {
+        'prescription': prescription,
+        'patient': patient
+    })
+    
+    
+    from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+@login_required
+@user_passes_test(lambda u: u.role in ['ADMIN', 'DOCTOR'])  # adjust roles as needed
+def delete_prescription(request, pk):
+    prescription = get_object_or_404(Prescription, pk=pk, clinic_id=request.session.get('clinic_id'))
+    patient = prescription.patient
+
+    if request.method == "POST":
+        # ✅ Manual logging
+        log_action(
+            request,
+            'DELETE',
+            prescription,
+            details=f"Deleted prescription for {patient.full_name}"
+        )
+        
+        prescription.delete()
+        messages.success(request, "Prescription deleted successfully.")
+        return redirect('core:prescription_list')
+
+    return render(request, 'prescription/confirm_delete.html', {'prescription': prescription})

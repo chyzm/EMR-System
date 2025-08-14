@@ -7,7 +7,7 @@
             <p class="text-gray-600">Patient ID: {{ patient.patient_id }}</p>
         </div>
         <div>
-            {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'RECEPTIONIST' %}
+            {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
             <a href="{% url 'core:edit_patient' patient.pk %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Edit Patient</a>
             {% endif %}
         
@@ -31,21 +31,26 @@
                 <div>
                     <h4 class="text-xl font-semibold">{{ patient.full_name }}</h4>
                     <p class="text-gray-600">{{ patient.get_gender_display }}</p>
+                     {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
                     <p class="text-gray-600">DOB: {{ patient.date_of_birth|date:"F j, Y" }}</p>
+                    {% endif %}
                     <p class="text-gray-600">Age: {{ patient.date_of_birth|timesince }}</p>
                 </div>
             </div>
             <div class="space-y-2">
+                 {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
                 <p><strong>Blood Group:</strong> {{ patient.blood_group }}</p>
                 <p><strong>Allergies:</strong> {{ patient.allergies|default:"None recorded" }}</p>
                 <p><strong>Contact:</strong> {{ patient.contact }}</p>
                 <p><strong>Address:</strong> {{ patient.address }}</p>
                 <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact }} ({{ patient.emergency_contact_name|default:"No name provided" }})</p>
+                {% endif %}
             </div>
         </div>
     </div>
 
         <!-- Status Section -->
+ {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}        
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3">
         <h2 class="text-xl font-semibold"><i class="fas fa-tasks mr-2"></i>Clinical Actions </h2>
@@ -162,12 +167,14 @@
         </div>
     </div>
 </div>
+{% endif %}
 
+ {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}
 <!-- Medical Records Section -->
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Records</h2>
-        {% if request.user.role in 'DOCTOR,NURSE' %}
+        {% if request.user.role in 'DOCTOR' %}
         <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
         {% endif %}
     </div>
@@ -208,13 +215,15 @@
     </div>
     {% endif %}
 </div>
+{% endif %}
 
+ {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}
 <!-- Prescription -->
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i> Prescriptions</h2>
-        {% if request.user.role in 'DOCTOR,NURSE' %}
-        <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">
+        {% if request.user.role in 'DOCTOR' %}
+        <a href="{% url 'core:add_prescription' patient.pk %}" class="text-sm hover:underline">
             Add Prescription
         </a>
         {% endif %}
@@ -238,12 +247,12 @@
                     </p>
                     {% if request.user.role == 'DOCTOR' %}
                     {# Uncomment if you want edit/delete #}
-                    {# <div class="mt-2">
-                        <a href="{% url 'DurielMedicApp:edit_prescription' prescription.id %}"
+                     <div class="mt-2">
+                        <a href="{% url 'core:edit_prescription' prescription.id %}"
                            class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                        <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}"
+                        <a href="{% url 'core:deactivate_prescription' prescription.id %}"
                            class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                    </div> #}
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -263,10 +272,13 @@
     </div>
     {% endif %}
 </div>
+{% endif %}
 
 
 
     <!-- Billing -->
+
+     {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"> <i class="fas fa-money-bill-wave mr-2"></i>Billing</h2>
@@ -330,7 +342,7 @@
         </div>
         {% endif %}
     </div>
-    
+    {% endif %}
 
    
 
@@ -339,7 +351,9 @@
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Recent Appointments</h2>
+            {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
             <a href="{% url 'DurielMedicApp:appointment_list' %}?patient={{ patient.id }}" class="text-sm hover:underline">View All</a>
+            {% endif %}
         </div>
         <div class="divide-y">
             {% for appointment in appointments|slice:":5" %}
@@ -364,6 +378,7 @@
     </div>
 
     <!-- Prescriptions Section -->
+      {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-red-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Active Prescriptions</h2>
@@ -386,13 +401,13 @@
                         </p>
                         {% if request.user.role in 'DOCTOR' %}
                         <div class="mt-2">
-                            <a href="{% url 'DurielMedicApp:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.pk %}"
+                            <a href="{% url 'core:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="{% url 'core:deactivate_prescription' prescription.pk %}"
                                 class="text-yellow-600 hover:underline"
                                 onclick="return confirm('Are you sure you want to deactivate this prescription?');">
                                 Deactivate
                               </a>
-                            <a href="{% url 'DurielMedicApp:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                            <a href="{% url 'core:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
                               
 
                         </div>
@@ -419,6 +434,7 @@
 </ul>
 
 </div>
+{% endif %}
 
 <!-- Floating AI Chat Icon -->
 <div id="ai-chat-icon" 

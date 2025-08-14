@@ -106,17 +106,18 @@ class UserCreationWithRoleForm(UserCreationForm):
             }),
         }
         
-        def __init__(self, *args, **kwargs):
-            self.request = kwargs.pop('request', None)
-            super().__init__(*args, **kwargs)
-            
-            # Hide and disable is_superuser field if user is not a superuser
-            if self.request and not self.request.user.is_superuser:
-                self.fields['is_superuser'].widget = forms.HiddenInput()
-                self.fields['is_superuser'].disabled = True
-                self.fields['is_superuser'].initial = False
-            
-            
+    # MOVED OUTSIDE Meta class - this was the issue!
+    def __init__(self, *args, **kwargs):
+        # Extract the request from kwargs before calling super()
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        # Hide superuser checkbox for non-superusers
+        if self.request and not self.request.user.is_superuser:
+            self.fields['is_superuser'].widget = forms.HiddenInput()
+            self.fields['is_superuser'].disabled = True
+            self.fields['is_superuser'].initial = False
+
 
 class UserEditForm(forms.ModelForm):
     clinic = forms.ModelMultipleChoiceField(
@@ -164,19 +165,24 @@ class UserEditForm(forms.ModelForm):
             'profile_picture': forms.FileInput(attrs={
                 'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
             }),
-            
         }
         
+    # MOVED OUTSIDE Meta class - same issue here!        
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
         
-        def __init__(self, *args, **kwargs):
-            self.request = kwargs.pop('request', None)
-            super().__init__(*args, **kwargs)
+        # Hide and disable is_superuser field if user is not a superuser
+        if self.request and not self.request.user.is_superuser:
+            self.fields['is_superuser'].widget = forms.HiddenInput()
+            self.fields['is_superuser'].disabled = True
             
-            # Hide and disable is_superuser field if user is not a superuser
-            if self.request and not self.request.user.is_superuser:
-                self.fields['is_superuser'].widget = forms.HiddenInput()
-                self.fields['is_superuser'].disabled = True
-
+            
+            
+            
+            
+            
+            
 from django.utils import timezone
 
 class PatientForm(forms.ModelForm):

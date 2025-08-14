@@ -342,11 +342,8 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        # Safely pass request to the form
-        kwargs['request'] = self.request
-        # Set initial values
-        kwargs.setdefault('initial', {})
-        kwargs['initial'].update({
+        kwargs['request'] = self.request  # safely pass request
+        kwargs.setdefault('initial', {}).update({
             'is_active': True,
             'is_staff': True,
         })

@@ -167,9 +167,15 @@ def select_clinic(request):
 
 
 # ---------- USER ROLE MANAGEMENT ----------
+
 @login_required
 def manage_user_roles(request):
-    users = CustomUser.objects.all()
+    # 🔹 Only superusers can see other superusers
+    if request.user.is_superuser:
+        users = CustomUser.objects.all()
+    else:
+        users = CustomUser.objects.filter(is_superuser=False)
+
     new_user_form = UserCreationWithRoleForm()
     new_user_form.fields['clinic'].queryset = Clinic.objects.all()
     role_forms = {user.id: UserEditForm(instance=user) for user in users}
@@ -193,6 +199,35 @@ def manage_user_roles(request):
         'new_user_form': new_user_form,
         'role_forms': role_forms,
     })
+
+
+
+# @login_required
+# def manage_user_roles(request):
+#     users = CustomUser.objects.all()
+#     new_user_form = UserCreationWithRoleForm()
+#     new_user_form.fields['clinic'].queryset = Clinic.objects.all()
+#     role_forms = {user.id: UserEditForm(instance=user) for user in users}
+
+#     if request.method == 'POST':
+#         if 'create_user' in request.POST:
+#             new_user_form = UserCreationWithRoleForm(request.POST)
+#             if new_user_form.is_valid():
+#                 new_user_form.save()
+#                 return redirect('core:manage_roles')
+#         elif 'update_role' in request.POST:
+#             user_id = request.POST.get('user_id')
+#             user = get_object_or_404(CustomUser, id=user_id)
+#             role_form = UserEditForm(request.POST, instance=user)
+#             if role_form.is_valid():
+#                 role_form.save()
+#                 return redirect('core:manage_roles')
+
+#     return render(request, 'administration/manage_roles.html', {
+#         'users': users,
+#         'new_user_form': new_user_form,
+#         'role_forms': role_forms,
+#     })
 
 
 @login_required

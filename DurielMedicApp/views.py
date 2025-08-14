@@ -86,6 +86,91 @@ def admin_check(user):
 # --------------------
 
 
+# @login_required
+# @user_passes_test(staff_check, login_url='login')
+# def dashboard(request):
+#     today = date.today()
+#     start_week = today - timedelta(days=today.weekday())
+#     end_week = start_week + timedelta(days=6)
+#     start_year = date(today.year, 1, 1)
+
+#     # Get the clinic ID from the session or the user's primary clinic
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
+#         clinic_id = request.user.primary_clinic.id
+#         request.session['clinic_id'] = clinic_id
+
+#     # --- Birthday notifications ---
+#     check_birthdays(clinic_id)  # <-- Ensure this runs every dashboard load
+
+#     # Filter all queries by the clinic ID
+#     patients = Patient.objects.all()
+#     if clinic_id:
+#         patients = patients.filter(clinic_id=clinic_id)
+
+#     # Financial stats
+#     financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
+#         total_count=Count('id'),
+#         total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+#         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
+#     )
+
+#     stats = {
+#         'total_patients': patients.count(),
+#         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
+#         'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
+#         'today_appointments': Appointment.objects.filter(clinic_id=clinic_id, date=today).count(),
+#         'completed_appointments_today': Appointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
+#         'week_appointments': Appointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
+#         'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
+#         'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
+#         'pending_bills': financial_stats['total_count'],
+#         'total_pending_amount': financial_stats['total_amount'],
+#         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
+#     }
+
+#     # Get today's appointments for the clinic
+#     user_appointments = Appointment.objects.filter(
+#         clinic_id=clinic_id,
+#         date=today
+#     ).order_by('-start_time')
+
+#     # Paginate appointments
+#     page = request.GET.get('page', 1)
+#     paginator = Paginator(user_appointments, 3)  # 3 appointments per page
+
+#     try:
+#         user_appointments_page = paginator.page(page)
+#     except PageNotAnInteger:
+#         user_appointments_page = paginator.page(1)
+#     except EmptyPage:
+#         user_appointments_page = paginator.page(paginator.num_pages)
+
+#     # Get recent patients for the clinic
+#     recent_patients = patients.order_by('-created_at')[:5]
+
+#     # Get unread notifications (including birthday notifications)
+#     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+#     notifications = Notification.objects.filter(
+#         (
+#             Q(user=request.user, is_read=False, clinic_id=clinic_id) |
+#             Q(user__isnull=True, clinic_id=clinic_id)
+#         )
+#     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
+
+#     context = {
+#         'stats': stats,
+#         'user_appointments': user_appointments_page,
+#         'recent_patients': recent_patients,
+#         'notifications': notifications,
+#         'today': today,
+#         'clinic_id': clinic_id,
+#     }
+
+#     return render(request, 'dashboard.html', context)
+
+
+
 @login_required
 @user_passes_test(staff_check, login_url='login')
 def dashboard(request):
@@ -129,11 +214,17 @@ def dashboard(request):
         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
     }
 
-    # Get today's appointments for the clinic
+    # Get today's appointments for the clinic and user
     user_appointments = Appointment.objects.filter(
         clinic_id=clinic_id,
         date=today
-    ).order_by('-start_time')
+    )
+    
+    # For non-admin/receptionist users, filter by provider
+    if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+        user_appointments = user_appointments.filter(provider=request.user)
+        
+    user_appointments = user_appointments.order_by('-start_time')
 
     # Paginate appointments
     page = request.GET.get('page', 1)

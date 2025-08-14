@@ -50,10 +50,10 @@ urlpatterns = [
     path('patients/<int:patient_id>/ready-for-doctor/', views.mark_ready_for_doctor, name='ready_for_doctor'),
     
     # Consultation
-    path('patients/<int:patient_id>/begin-consultation/', views.begin_consultation, name='begin_consultation'),
-    path('patients/<int:patient_id>/complete-consultation/', views.complete_consultation, name='complete_consultation'),
-    path('patients/<int:patient_id>/schedule-follow-up/', views.schedule_follow_up, name='schedule_follow_up'),
-    
+    path('patients/<str:patient_id>/begin-consultation/', views.begin_consultation, name='begin_consultation'),
+    path('patients/<str:patient_id>/complete-consultation/', views.complete_consultation, name='complete_consultation'),
+    path('patients/<str:patient_id>/schedule-follow-up/', views.schedule_follow_up, name='schedule_follow_up'),
+
     # Follow Up
     path('follow-up/', FollowUpListView.as_view(), name='followup_list'),
     path('follow-up/new/', FollowUpCreateView.as_view(), name='followup_create'),

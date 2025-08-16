@@ -14,13 +14,24 @@ from django.http import JsonResponse, HttpResponse
 from django.utils.timezone import make_aware
 from django.views.decorators.http import require_POST
 
-from core.models import Patient, Billing
+from core.models import Patient, Billing, CustomUser
 from .models import EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeNotification, EyeNotificationRead, EyeExam
 from .forms import EyeAppointmentForm, EyeMedicalRecordForm, EyeFollowUpForm, EyeExamForm
 from core.utils import log_action
 from django.utils import timezone
 from core.models import Patient
 from django.db.models import Count 
+from django.contrib import messages
+from django.urls import reverse_lazy
+from django.shortcuts import redirect
+from django.views.generic import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+
+from .models import EyeAppointment
+from .forms import EyeAppointmentForm
+from core.utils import log_action  
+
+
 
 
 
@@ -130,40 +141,36 @@ class EyeAppointmentListView(ListView):
         return qs.order_by('-date', '-start_time')
 
 
-class EyeAppointmentCreateView(CreateView):
+class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = EyeAppointment
     form_class = EyeAppointmentForm
     template_name = 'eye/appointments/appointment_form.html'
     success_url = reverse_lazy('DurielEyeApp:appointment_list')
 
-    def get_initial(self):
-        """Pre-fill provider if desired"""
-        initial = super().get_initial()
-        initial['provider'] = self.request.user
-        return initial
+    def test_func(self):
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'OPTOMETRIST']
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['clinic_id'] = self.request.session.get('clinic_id')
+        return kwargs
 
     def form_valid(self, form):
-        # Set provider and clinic_id automatically
-        form.instance.provider = self.request.user
+        form.instance.provider = self.request.user  # 👈 ensure logged-in user is provider
         form.instance.clinic_id = self.request.session.get('clinic_id')
 
-        # Debug: check values
-        print("Clinic ID:", form.instance.clinic_id)
-        print("Provider:", form.instance.provider)
+        appointment = form.save(commit=False)
+        appointment.save()
 
-        appointment = form.save()
         log_action(
-            self.request, 'CREATE', appointment,
-            details=f"Created eye appointment for {appointment.patient.full_name}"
+            self.request,
+            'CREATE',
+            appointment,
+            details=f"Created eye appointment for {appointment.patient.full_name} on {appointment.date}"
         )
-        messages.success(self.request, "Appointment scheduled successfully!")
-        return super().form_valid(form)
 
-    def form_invalid(self, form):
-        # Print form errors for debugging
-        print(form.errors)
-        messages.error(self.request, "There was a problem with your submission.")
-        return super().form_invalid(form)
+        messages.success(self.request, "Appointment scheduled successfully!")
+        return redirect(self.success_url)
 
 
 
@@ -176,19 +183,19 @@ def eye_appointment_detail(request, pk):
 def eye_appointment_update(request, appointment_id):
     appointment = get_object_or_404(EyeAppointment, id=appointment_id)
 
-    # Get user's clinics (supports multiple clinics)
-    user_clinics = request.user.clinic.all()  # queryset of clinics
+    clinic_id = request.session.get('clinic_id')  # 👈 grab the active clinic from session
 
     if request.method == "POST":
-        form = EyeAppointmentForm(request.POST, instance=appointment, clinics=user_clinics)
+        form = EyeAppointmentForm(request.POST, instance=appointment, clinic_id=clinic_id)
         if form.is_valid():
             form.save()
             messages.success(request, "Eye appointment updated successfully.")
             return redirect('DurielEyeApp:appointment_detail', pk=appointment.id)
     else:
-        form = EyeAppointmentForm(instance=appointment, clinics=user_clinics)
+        form = EyeAppointmentForm(instance=appointment, clinic_id=clinic_id)
 
     return render(request, 'eye/appointments/appointment_form.html', {'form': form, 'appointment': appointment})
+
 
 
 def eye_appointment_delete(request, pk):
@@ -197,9 +204,9 @@ def eye_appointment_delete(request, pk):
     if request.method == "POST":
         appointment.delete()
         messages.success(request, "Eye appointment deleted successfully.")
-        return redirect('DurielEyeApp:eye_appointment_list')  # Make sure you have this URL name
+        return redirect('DurielEyeApp:appointment_list')  # Make sure you have this URL name
 
-    return render(request, 'eye_clinic/confirm_delete.html', {'appointment': appointment})
+    return render(request, 'eye/appointments/appointment_delete.html', {'appointment': appointment})
 
 
 def mark_eye_appointment_completed(request, appointment_id):
@@ -272,6 +279,7 @@ def record_eye_exam(request, appointment_id):
         'form': form,
         'appointment': appointment
     }
+    exams = EyeExam.objects.all().order_by('-created_at')  # show all exams
     return render(request, 'eye/exams/record_exam.html', context)
 
 
@@ -370,14 +378,25 @@ def edit_eye_medical_record(request, record_id):
 
 
 
-def delete_eye_medical_record(request, pk):
-    record = get_object_or_404(MedicalRecord, pk=pk)
+# def delete_eye_medical_record(request, pk):
+#     record = get_object_or_404(MedicalRecord, pk=pk)
+
+#     if request.method == "POST":
+#         record.delete()
+#         return redirect('core:patient_detail', pk=record.patient.pk)
+
+#     return render(request, 'eye/medical_records/delete_medical_record', {'object': record})
+
+@login_required
+def delete_eye_medical_record(request, record_id):
+    record = get_object_or_404(EyeMedicalRecord, pk=record_id)
 
     if request.method == "POST":
         record.delete()
         return redirect('core:patient_detail', pk=record.patient.pk)
 
-    return render(request, 'eye/medical_records/delete_medical_record', {'object': record})
+    return render(request, 'eye/medical_records/delete_eye_medical_record.html', {'object': record})
+
 
 
 

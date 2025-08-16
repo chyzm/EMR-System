@@ -7,10 +7,9 @@
             <p class="text-gray-600">Patient ID: {{ patient.patient_id }}</p>
         </div>
         <div>
-            {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
+            {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
             <a href="{% url 'core:edit_patient' patient.pk %}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Edit Patient</a>
             {% endif %}
-        
         </div>
     </div>
 
@@ -31,14 +30,14 @@
                 <div>
                     <h4 class="text-xl font-semibold">{{ patient.full_name }}</h4>
                     <p class="text-gray-600">{{ patient.get_gender_display }}</p>
-                     {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
+                    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
                     <p class="text-gray-600">DOB: {{ patient.date_of_birth|date:"F j, Y" }}</p>
                     {% endif %}
                     <p class="text-gray-600">Age: {{ patient.date_of_birth|timesince }}</p>
                 </div>
             </div>
             <div class="space-y-2">
-                 {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
+                {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
                 <p><strong>Blood Group:</strong> {{ patient.blood_group }}</p>
                 <p><strong>Allergies:</strong> {{ patient.allergies|default:"None recorded" }}</p>
                 <p><strong>Contact:</strong> {{ patient.contact }}</p>
@@ -48,134 +47,134 @@
             </div>
         </div>
     </div>
- {% if request.session.clinic_type == "GENERAL" %}
-        <!-- Status Section -->
- {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}        
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-gray-800 text-white px-6 py-3">
-        <h2 class="text-xl font-semibold"><i class="fas fa-tasks mr-2"></i>Clinical Actions </h2>
-    </div>
-    <div class="p-6">
-        <div class="mb-4">
-            <p class="text-lg"><span class="font-semibold">Current Status:</span> 
-                <span class="px-2 py-1 rounded 
-                    {% if patient.status == 'REGISTERED' %}bg-gray-200 text-gray-800
-                    {% elif patient.status == 'VITALS_TAKEN' %}bg-blue-200 text-blue-800
-                    {% elif patient.status == 'IN_CONSULTATION' %}bg-yellow-200 text-yellow-800
-                    {% elif patient.status == 'ADMITTED' %}bg-orange-200 text-orange-800
-                    {% elif patient.status == 'FOLLOW_UP' %}bg-purple-200 text-purple-800
-                    {% elif patient.status == 'FOLLOW_UP_COMPLETE' %}bg-purple-200 text-purple-800
-                    {% elif patient.status == 'DISCHARGED' %}bg-green-200 text-green-800
-                    {% endif %}">
-                    {{ patient.get_status_display }}
-                </span>
-            </p>
-        </div>
 
-        <!-- Vitals Display (if available) -->
-        {% if vitals %}
-        <div class="mb-6 border-b pb-4">
-            <h3 class="font-semibold mb-2">Vitals Recorded</h3>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                    <p class="text-sm text-gray-600">Blood Pressure</p>
-                    <p class="font-medium">{{ vitals.blood_pressure }}</p>
+    {% if request.session.clinic_type == "GENERAL" %}
+    <!-- Status Section -->
+    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}        
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-gray-800 text-white px-6 py-3">
+            <h2 class="text-xl font-semibold"><i class="fas fa-tasks mr-2"></i>Clinical Actions</h2>
+        </div>
+        <div class="p-6">
+            <div class="mb-4">
+                <p class="text-lg"><span class="font-semibold">Current Status:</span> 
+                    <span class="px-2 py-1 rounded 
+                        {% if patient.status == 'REGISTERED' %}bg-gray-200 text-gray-800
+                        {% elif patient.status == 'VITALS_TAKEN' %}bg-blue-200 text-blue-800
+                        {% elif patient.status == 'IN_CONSULTATION' %}bg-yellow-200 text-yellow-800
+                        {% elif patient.status == 'ADMITTED' %}bg-orange-200 text-orange-800
+                        {% elif patient.status == 'FOLLOW_UP' %}bg-purple-200 text-purple-800
+                        {% elif patient.status == 'FOLLOW_UP_COMPLETE' %}bg-purple-200 text-purple-800
+                        {% elif patient.status == 'DISCHARGED' %}bg-green-200 text-green-800
+                        {% endif %}">
+                        {{ patient.get_status_display }}
+                    </span>
+                </p>
+            </div>
+
+            <!-- Vitals Display (if available) -->
+            {% if vitals %}
+            <div class="mb-6 border-b pb-4">
+                <h3 class="font-semibold mb-2">Vitals Recorded</h3>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600">Blood Pressure</p>
+                        <p class="font-medium">{{ vitals.blood_pressure }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Pulse</p>
+                        <p class="font-medium">{{ vitals.pulse }} bpm</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Temperature</p>
+                        <p class="font-medium">{{ vitals.temperature }}°C</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600">Weight</p>
+                        <p class="font-medium">{{ vitals.weight }} kg</p>
+                    </div>
+                    {% if vitals.notes %}
+                    <div class="md:col-span-3">
+                        <p class="text-sm text-gray-600">Notes</p>
+                        <p class="font-medium">{{ vitals.notes }}</p>
+                    </div>
+                    {% endif %}
                 </div>
-                <div>
-                    <p class="text-sm text-gray-600">Pulse</p>
-                    <p class="font-medium">{{ vitals.pulse }} bpm</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Temperature</p>
-                    <p class="font-medium">{{ vitals.temperature }}°C</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Weight</p>
-                    <p class="font-medium">{{ vitals.weight }} kg</p>
-                </div>
-                {% if vitals.notes %}
-                <div class="md:col-span-3">
-                    <p class="text-sm text-gray-600">Notes</p>
-                    <p class="font-medium">{{ vitals.notes }}</p>
-                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-2">
+                {% if request.user.is_authenticated %}
+                    {% if patient.status == 'REGISTERED' %}
+                        {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+                            <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                            Record Vitals
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                
+                    {% if patient.status == 'VITALS_TAKEN' %}
+                        {% if request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' %}
+                            <a href="{% url 'DurielMedicApp:begin_consultation' patient_id=patient.patient_id %}" 
+                               class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Begin Consultation</a>
+                        {% endif %}
+                        {% if request.user.role in 'NURSE,DOCTOR' %}
+                            <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+                               class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
+                        {% endif %}
+                    {% endif %}
+                
+                    {% if patient.status == 'IN_CONSULTATION' and request.user.role == 'DOCTOR' or patient.status == 'IN_CONSULTATION' and request.user.role == 'OPTOMETRIST' %}
+                        <a href="{% url 'DurielMedicApp:complete_consultation' patient_id=patient.patient_id %}" 
+                           class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Complete Consultation</a>
+                    {% endif %}
+                
+                    {% if patient.status == 'CONSULTATION_COMPLETE' or patient.status == 'ADMITTED' and request.user.role == 'DOCTOR' %}
+                        {% if patient.status == 'CONSULTATION_COMPLETE' %}
+                            <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
+                               class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
+                            <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
+                               class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
+                        {% endif %}
+                        <a href="{% url 'DurielMedicApp:discharge_patient' patient_id=patient.patient_id %}" 
+                           class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
+                    {% endif %}
+
+                    {% for follow_up in patient.follow_ups.all %}
+                        {% if not follow_up.completed %}
+                        <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                        Complete Follow-up
+                        </a>
+                        {% endif %}
+                    {% endfor %}
+                
+                    {% if patient.status == 'FOLLOW_UP' %}
+                        {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+                            {% for follow_up in patient.follow_ups.all %}
+                                {% if not follow_up.completed %}
+                                    <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
+                                       class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Complete Follow-up</a>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
-        {% endif %}
-
-        <!-- Action Buttons -->
-        <div class="flex flex-wrap gap-2">
-            {% if request.user.is_authenticated %}
-            {% if patient.status == 'REGISTERED' %}
-            {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR'%}
-                <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
-                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-                Record Vitals
-                </a>
-            {% endif %}
-            {% endif %}
-            {% endif %}
-
-            
-            {% if patient.status == 'VITALS_TAKEN' %}
-                {% if request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' %}
-                    <a href="{% url 'DurielMedicApp:begin_consultation' patient_id=patient.patient_id %}" 
-                       class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Begin Consultation</a>
-                {% endif %}
-                {% if request.user.role in 'NURSE,DOCTOR' %}
-                    <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
-                       class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
-                {% endif %}
-            {% endif %}
-            
-            {% if patient.status == 'IN_CONSULTATION' and request.user.role == 'DOCTOR' or patient.status == 'IN_CONSULTATION' and request.user.role == 'OPTOMETRIST' %}
-                <a href="{% url 'DurielMedicApp:complete_consultation' patient_id=patient.patient_id %}" 
-                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Complete Consultation</a>
-            {% endif %}
-            
-            {% if patient.status == 'CONSULTATION_COMPLETE' or patient.status == 'ADMITTED' and request.user.role == 'DOCTOR'  %}
-    {% if patient.status == 'CONSULTATION_COMPLETE' %}
-        <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
-           class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
-        <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
-           class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">Admit Patient</a>
-    {% endif %}
-    <a href="{% url 'DurielMedicApp:discharge_patient' patient_id=patient.patient_id %}" 
-       class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
-{% endif %}
-
-
-            {% for follow_up in patient.follow_ups.all %}
-            {% if not follow_up.completed %}
-            <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
-            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-            Complete Follow-up
-            </a>
-            {% endif %}
-            {% endfor %}
-            
-            {% if patient.status == 'FOLLOW_UP' %}
-                {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
-                    {% for follow_up in patient.follow_ups.all %}
-                        {% if not follow_up.completed %}
-                            <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
-                               class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Complete Follow-up</a>
-                        {% endif %}
-                    {% endfor %}
-                {% endif %}
-            {% endif %}
-        </div>
     </div>
-</div>
-{% endif %}
+    {% endif %}
     {% endif %}
 
-       <!-- Medical Records Section -->
+  
+ <!-- Medical Records Section -->
+<!-- Medical Records Section -->
 {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Records</h2>
-
         {% if request.session.clinic_type == "GENERAL" %}
             {% if request.user.role in 'DOCTOR' %}
             <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
@@ -190,7 +189,7 @@
     <div class="divide-y" id="medical-records-list">
         {% if request.session.clinic_type == "GENERAL" %}
             {% for record in medical_records %}
-            <div class="p-4 hover:bg-gray-50 medical-record-item {% if forloop.counter > 3 %}hidden{% endif %}">
+            <div class="p-4 hover:bg-gray-50">
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 class="font-medium">{{ record.title }}</h3>
@@ -218,7 +217,7 @@
         {% elif request.session.clinic_type == "EYE" %}
             <!-- Eye Medical Records -->
             {% for record in patient.eye_medical_records.all %}
-            <div class="p-4 hover:bg-gray-50 medical-record-item {% if forloop.counter > 3 %}hidden{% endif %}">
+            <div class="p-4 hover:bg-gray-50">
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 class="font-medium">{{ record.title }}</h3>
@@ -243,163 +242,264 @@
                 No eye medical records found
             </div>
             {% endfor %}
-            
-            <!-- Eye Exams -->
-            <!-- Eye Exams -->
-{% for exam in patient.eye_exams.all %}
-<div class="p-4 hover:bg-gray-50 medical-record-item {% if forloop.counter > 3 %}hidden{% endif %}">
-    <div class="flex justify-between items-start">
-        <div>
-            <h3 class="font-medium">Eye Exam</h3>
-            <p class="text-sm text-gray-600">Exam Date: {{ exam.created_at|date:"M j, Y" }}</p>
-            <div class="mt-2 grid grid-cols-2 gap-4">
-                <!-- Left Eye -->
-                <div>
-                    <p class="text-sm font-medium text-gray-700">Left Eye:</p>
-                    <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_left|default:"Not recorded" }} mmHg</p>
-                    <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Axis: {{ exam.axis_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Add: {{ exam.add_left|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_left|default:"Not recorded" }} mm</p>
-                </div>
-                
-                <!-- Right Eye -->
-                <div>
-                    <p class="text-sm font-medium text-gray-700">Right Eye:</p>
-                    <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_right|default:"Not recorded" }} mmHg</p>
-                    <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Axis: {{ exam.axis_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Add: {{ exam.add_right|default:"Not recorded" }}</p>
-                    <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_right|default:"Not recorded" }} mm</p>
-                </div>
-            </div>
-            
-            <!-- Special Findings -->
-            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {% if exam.slit_lamp_findings %}
-                <div>
-                    <p class="text-sm font-medium text-gray-700">Slit Lamp Findings:</p>
-                    <p class="text-sm text-gray-600">{{ exam.slit_lamp_findings }}</p>
-                </div>
-                {% endif %}
-                
-                {% if exam.fundus_exam_findings %}
-                <div>
-                    <p class="text-sm font-medium text-gray-700">Fundus Exam Findings:</p>
-                    <p class="text-sm text-gray-600">{{ exam.fundus_exam_findings }}</p>
-                </div>
-                {% endif %}
-            </div>
-            
-            <!-- General Notes -->
-            {% if exam.notes %}
-            <div class="mt-2">
-                <p class="text-sm font-medium text-gray-700">Notes:</p>
-                <p class="text-sm text-gray-600">{{ exam.notes }}</p>
-            </div>
-            {% endif %}
-        </div>
-        <div class="text-right">
-            <p class="text-xs text-gray-500">
-                {{ exam.created_at|date:"M j, Y" }}, Exam by {{ exam.created_by.last_name }}
-            </p>
-            {% if request.user.role in 'OPTOMETRIST' %}
-            <div class="mt-2">
-                <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                <form action="{% url 'DurielEyeApp:delete_eye_exam' exam.id %}" method="post" class="inline">
-                    {% csrf_token %}
-                    <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
-                </form>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-{% endfor %}
         {% endif %}
-    </div>
 
-    {% if medical_records|length > 3 or patient.eye_medical_records.count > 3 or patient.eye_exams.count > 3 %}
-    <div class="px-6 py-3 text-center">
-        <button id="toggle-medical-records" class="text-blue-600 hover:underline text-sm font-semibold">
-            See More
-        </button>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
-
- {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
-<!-- Prescription -->
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-    <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
-        <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i> Prescriptions</h2>
-        {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
-        <a href="{% url 'core:add_prescription' patient.pk %}" class="text-sm hover:underline">
-            Add Prescription
-        </a>
-        {% endif %}
-    </div>
-
-    <div class="divide-y" id="prescriptions-list">
-        {% for prescription in prescriptions %}
-        <div class="p-4 hover:bg-gray-50 prescription-item {% if forloop.counter > 3 %}hidden{% endif %}">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
-                    <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
-                    {% if prescription.instructions %}
-                    <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
+        <!-- Medical Records Pagination -->
+        {% if medical_records.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
+                </div>
+                <div class="flex space-x-1">
+                    {% if medical_records.has_previous %}
+                        <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Previous
+                        </a>
                     {% endif %}
-                </div>
-
-                <div class="text-right">
-                    <p class="text-xs text-gray-500">
-                        {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
-                    </p>
-                    {% if request.user.role == 'DOCTOR' %}
-                    {# Uncomment if you want edit/delete #}
-                     <div class="mt-2">
-                        <a href="{% url 'core:edit_prescription' prescription.id %}"
-                           class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                        <a href="{% url 'core:deactivate_prescription' prescription.id %}"
-                           class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                    </div>
+                    
+                    {% for num in medical_records.paginator.page_range %}
+                        {% if medical_records.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
+                            <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if medical_records.has_next %}
+                        <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Next
+                        </a>
                     {% endif %}
                 </div>
             </div>
         </div>
-        {% empty %}
-        <div class="p-4 text-center text-gray-500">
-            No prescriptions found
-        </div>
-        {% endfor %}
+        {% endif %}
     </div>
-
-    {% if prescriptions|length > 3 %}
-    <div class="px-6 py-3 text-center">
-        <button id="toggle-prescriptions" class="text-blue-600 hover:underline text-sm font-semibold">
-            See More
-        </button>
-    </div>
-    {% endif %}
 </div>
 {% endif %}
-
-
-
-    <!-- Billing -->
-
-     {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST' %}
+            
+    <!-- Eye Exams Section (only for EYE clinic) -->
+    {% if request.session.clinic_type == "EYE" and eye_exams %}
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold"> <i class="fas fa-money-bill-wave mr-2"></i>Billing</h2>
+            <h2 class="text-xl font-semibold"><i class="fas fa-eye mr-2"></i>Eye Exams</h2>
+            {% if request.user.role in 'OPTOMETRIST' %}
+            <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="text-sm hover:underline">Add Exam</a>
+            {% endif %}
+        </div>
+        <div class="divide-y">
+            {% for exam in eye_exams %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div class="w-full">
+                        <h3 class="font-medium">Eye Exam - {{ exam.created_at|date:"M j, Y" }}</h3>
+                        <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Left Eye -->
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Left Eye:</p>
+                                <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_left|default:"Not recorded" }} mmHg</p>
+                                <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Axis: {{ exam.axis_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Add: {{ exam.add_left|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_left|default:"Not recorded" }} mm</p>
+                            </div>
+                            
+                            <!-- Right Eye -->
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Right Eye:</p>
+                                <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_right|default:"Not recorded" }} mmHg</p>
+                                <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Axis: {{ exam.axis_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Add: {{ exam.add_right|default:"Not recorded" }}</p>
+                                <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_right|default:"Not recorded" }} mm</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Special Findings -->
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% if exam.slit_lamp_findings %}
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Slit Lamp Findings:</p>
+                                <p class="text-sm text-gray-600">{{ exam.slit_lamp_findings }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if exam.fundus_exam_findings %}
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Fundus Exam Findings:</p>
+                                <p class="text-sm text-gray-600">{{ exam.fundus_exam_findings }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- General Notes -->
+                        {% if exam.notes %}
+                        <div class="mt-2">
+                            <p class="text-sm font-medium text-gray-700">Notes:</p>
+                            <p class="text-sm text-gray-600">{{ exam.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            {{ exam.created_at|date:"M j, Y" }}
+                        </p>
+                        {% if request.user.role in 'OPTOMETRIST' %}
+                        <div class="mt-2">
+                            <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <form action="{% url 'DurielEyeApp:delete_eye_exam' exam.id %}" method="post" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Eye Exams Pagination -->
+        {% if eye_exams.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ eye_exams.start_index }} to {{ eye_exams.end_index }} of {{ eye_exams.paginator.count }} exams
+                </div>
+                <div class="flex space-x-1">
+                    {% if eye_exams.has_previous %}
+                        <a href="?exams_page={{ eye_exams.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'exams_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Previous
+                        </a>
+                    {% endif %}
+                    
+                    {% for num in eye_exams.paginator.page_range %}
+                        {% if eye_exams.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > eye_exams.number|add:'-3' and num < eye_exams.number|add:'3' %}
+                            <a href="?exams_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'exams_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if eye_exams.has_next %}
+                        <a href="?exams_page={{ eye_exams.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'exams_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Prescriptions Section -->
+    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Prescriptions</h2>
+            {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
+            <a href="{% url 'core:add_prescription' patient.pk %}" class="text-sm hover:underline">
+                Add Prescription
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="divide-y">
+            {% for prescription in prescriptions %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
+                        <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
+                        {% if prescription.instructions %}
+                        <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
+                        </p>
+                        {% if request.user.role == 'DOCTOR' %}
+                        <div class="mt-2">
+                            <a href="{% url 'core:edit_prescription' prescription.id %}"
+                               class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="{% url 'core:deactivate_prescription' prescription.id %}"
+                               class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No prescriptions found
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Prescriptions Pagination -->
+        {% if prescriptions.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ prescriptions.start_index }} to {{ prescriptions.end_index }} of {{ prescriptions.paginator.count }} prescriptions
+                </div>
+                <div class="flex space-x-1">
+                    {% if prescriptions.has_previous %}
+                        <a href="?prescriptions_page={{ prescriptions.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Previous
+                        </a>
+                    {% endif %}
+                    
+                    {% for num in prescriptions.paginator.page_range %}
+                        {% if prescriptions.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > prescriptions.number|add:'-3' and num < prescriptions.number|add:'3' %}
+                            <a href="?prescriptions_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if prescriptions.has_next %}
+                        <a href="?prescriptions_page={{ prescriptions.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Billing Section -->
+    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
+    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+            <h2 class="text-xl font-semibold"><i class="fas fa-money-bill-wave mr-2"></i>Billing</h2>
             {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST" %}
                 {% if patient and patient.pk %}
                     <a href="{% url 'core:create_bill_for_patient' patient.pk %}" class="btn btn-primary">
@@ -420,9 +520,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="billing-list">
-                    {% for bill in patient.bills.all %}
-                    <tr class="hover:bg-gray-50 billing-item {% if forloop.counter > 5 %}hidden{% endif %}">
+                <tbody>
+                    {% for bill in bills %}
+                    <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ bill.id }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ bill.service_date|date:"M d, Y" }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₦{{ bill.amount|floatformat:2 }}</td>
@@ -452,105 +552,301 @@
                 </tbody>
             </table>
         </div>
-        {% if patient.bills.count > 5 %}
-        <div class="px-6 py-3 text-center">
-            <button id="toggle-billing" class="text-blue-600 hover:underline text-sm font-semibold">
-                See More
-            </button>
+
+        <!-- Billing Pagination -->
+        {% if bills.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ bills.start_index }} to {{ bills.end_index }} of {{ bills.paginator.count }} bills
+                </div>
+                <div class="flex space-x-1">
+                    {% if bills.has_previous %}
+                        <a href="?bills_page={{ bills.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'bills_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Previous
+                        </a>
+                    {% endif %}
+                    
+                    {% for num in bills.paginator.page_range %}
+                        {% if bills.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > bills.number|add:'-3' and num < bills.number|add:'3' %}
+                            <a href="?bills_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'bills_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if bills.has_next %}
+                        <a href="?bills_page={{ bills.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'bills_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% endif %}
     </div>
     {% endif %}
 
-   
-
-
-    <!-- Appointments Section -->
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Recent Appointments</h2>
-            {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'RECEPTIONIST'  %}
-            <a href="{% url 'DurielMedicApp:appointment_list' %}?patient={{ patient.id }}" class="text-sm hover:underline">View All</a>
-            {% endif %}
-        </div>
-        <div class="divide-y">
-            {% for appointment in appointments|slice:":5" %}
-            <div class="p-4 hover:bg-gray-50">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="font-medium">{{ appointment.date|date:"F j, Y" }}</h3>
-                        <p class="text-sm text-gray-600">{{ appointment.reason }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm">{{ appointment.start_time|time:"h:i A" }} - {{ appointment.end_time|time:"h:i A" }}</p>
-                        <p class="text-xs text-gray-500">{{ appointment.get_status_display }}</p>
-                    </div>
+    <!-- Appointments Section with Pagination -->
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Appointments</h2>
+        {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
+        <a href="{% if request.session.clinic_type == 'GENERAL' %}{% url 'DurielMedicApp:appointment_list' %}{% else %}{% url 'DurielEyeApp:appointment_list' %}{% endif %}?patient={{ patient.id }}" 
+           class="text-sm hover:underline">View All</a>
+        {% endif %}
+    </div>
+    
+    <div class="divide-y">
+        <!-- Regular Appointments -->
+        {% for appointment in appointments %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-medium">{{ appointment.date|date:"F j, Y" }}</h3>
+                    <p class="text-sm text-gray-600">{{ appointment.reason }}</p>
+                    <p class="text-xs text-gray-500">General Clinic</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm">{{ appointment.start_time|time:"h:i A" }} - {{ appointment.end_time|time:"h:i A" }}</p>
+                    <p class="text-xs text-gray-500">{{ appointment.get_status_display }}</p>
                 </div>
             </div>
-            {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No appointments found
-            </div>
-            {% endfor %}
         </div>
+        {% endfor %}
+        
+        <!-- Eye Appointments -->
+        {% for eye_appointment in eye_appointments %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-medium">{{ eye_appointment.date|date:"F j, Y" }}</h3>
+                    <p class="text-sm text-gray-600">{{ eye_appointment.reason }}</p>
+                    <p class="text-xs text-gray-500 text-blue-600">Eye Clinic</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm">{{ eye_appointment.start_time|time:"h:i A" }} - {{ eye_appointment.end_time|time:"h:i A" }}</p>
+                    <p class="text-xs text-gray-500">{{ eye_appointment.get_status_display }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if not appointments and not eye_appointments %}
+        <div class="p-4 text-center text-gray-500">
+            No appointments found
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Prescriptions Section -->
-      {% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
-        <div class="bg-red-800 text-white px-6 py-3 flex justify-between items-center">
-            <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Active Prescriptions</h2>
-            {% if patient and request.user.role in 'ADMIN,DOCTOR' %}
-            {% comment %} <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a> {% endcomment %}
-            {% endif %}
-        </div>
-        <div class="divide-y">
-            {% for prescription in prescriptions %}
-            <div class="p-4 hover:bg-gray-50">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="font-medium">{{ prescription.medication }}</h3>
-                        <p class="text-sm text-gray-600">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
-                        <p class="mt-2 text-gray-700">{{ prescription.instructions|default:"No special instructions" }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            Prescribed on {{ prescription.date_prescribed|date:"M j, Y" }}
-                        </p>
-                        {% if request.user.role in 'DOCTOR, OPTOMETRIST' %}
-                        <div class="mt-2">
-                            <a href="{% url 'core:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="{% url 'core:deactivate_prescription' prescription.pk %}"
-                                class="text-yellow-600 hover:underline"
-                                onclick="return confirm('Are you sure you want to deactivate this prescription?');">
-                                Deactivate
-                              </a>
-                            <a href="{% url 'core:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                              
-
-                        </div>
+    <!-- Appointments Pagination -->
+    {% if appointments.has_other_pages or eye_appointments.has_other_pages %}
+    <div class="px-6 py-4 bg-gray-50 border-t">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Showing 
+                {% if appointments %}
+                    {{ appointments.start_index }} to {{ appointments.end_index }} of {{ appointments.paginator.count }} appointments
+                {% else %}
+                    {{ eye_appointments.start_index }} to {{ eye_appointments.end_index }} of {{ eye_appointments.paginator.count }} appointments
+                {% endif %}
+            </div>
+            <div class="flex space-x-1">
+                {% if appointments.has_previous %}
+                    <a href="?appointments_page={{ appointments.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Previous
+                    </a>
+                {% elif eye_appointments.has_previous %}
+                    <a href="?eye_appointments_page={{ eye_appointments.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Previous
+                    </a>
+                {% endif %}
+                
+                {% if appointments %}
+                    {% for num in appointments.paginator.page_range %}
+                        {% if appointments.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > appointments.number|add:'-3' and num < appointments.number|add:'3' %}
+                            <a href="?appointments_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
                         {% endif %}
-                    </div>
-                </div>
+                    {% endfor %}
+                {% else %}
+                    {% for num in eye_appointments.paginator.page_range %}
+                        {% if eye_appointments.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > eye_appointments.number|add:'-3' and num < eye_appointments.number|add:'3' %}
+                            <a href="?eye_appointments_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                
+                {% if appointments.has_next %}
+                    <a href="?appointments_page={{ appointments.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Next
+                    </a>
+                {% elif eye_appointments.has_next %}
+                    <a href="?eye_appointments_page={{ eye_appointments.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Next
+                    </a>
+                {% endif %}
             </div>
-            {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No active prescriptions
-            </div>
-            {% endfor %}
         </div>
     </div>
-    <h2 class="text-lg font-semibold mt-6">Deactivated Prescriptions</h2>
-<ul>
-  {% for prescription in deactivated_prescriptions %}
-    <li class="text-gray-500">
-      {{ prescription.medication }} - {{ prescription.dosage }} ({{ prescription.date_prescribed }})
-    </li>
-  {% empty %}
-    <li>No deactivated prescriptions.</li>
-  {% endfor %}
-</ul>
+    {% endif %}
+</div>
 
+<!-- Prescriptions Section -->
+{% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-red-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Active Prescriptions</h2>
+        {% if patient and request.user.role in 'ADMIN,DOCTOR' %}
+        {% comment %} <a href="{% url 'DurielMedicApp:add_prescription' patient.pk %}" class="text-sm hover:underline">Add Prescription</a> {% endcomment %}
+        {% endif %}
+    </div>
+    <div class="divide-y">
+{% for prescription in active_prescriptions %}
+<div class="p-4 hover:bg-gray-50">
+    <div class="flex justify-between items-start">
+        <div>
+            <h3 class="font-medium">{{ prescription.medication }}</h3>
+            <p class="text-sm text-gray-600">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
+            <p class="mt-2 text-gray-700">{{ prescription.instructions|default:"No special instructions" }}</p>
+        </div>
+        <div class="text-right">
+            <p class="text-xs text-gray-500">
+                Prescribed on {{ prescription.date_prescribed|date:"M j, Y" }}
+            </p>
+            {% if request.user.role in 'DOCTOR, OPTOMETRIST' %}
+            <div class="mt-2">
+                <a href="{% url 'core:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                <a href="{% url 'core:deactivate_prescription' prescription.pk %}"
+                    class="text-yellow-600 hover:underline"
+                    onclick="return confirm('Are you sure you want to deactivate this prescription?');">
+                    Deactivate
+                  </a>
+                <a href="{% url 'core:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="p-4 text-center text-gray-500">
+    No active prescriptions
+</div>
+{% endfor %}
+    </div>
+    
+    <!-- Active Prescriptions Pagination -->
+    {% if active_prescriptions.has_other_pages %}
+    <div class="px-6 py-4 bg-gray-50 border-t">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Showing {{ active_prescriptions.start_index }} to {{ active_prescriptions.end_index }} of {{ active_prescriptions.paginator.count }} active prescriptions
+            </div>
+            <div class="flex space-x-1">
+                {% if active_prescriptions.has_previous %}
+                    <a href="?active_prescriptions_page={{ active_prescriptions.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'active_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Previous
+                    </a>
+                {% endif %}
+                
+                {% for num in active_prescriptions.paginator.page_range %}
+                    {% if active_prescriptions.number == num %}
+                        <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                    {% elif num > active_prescriptions.number|add:'-3' and num < active_prescriptions.number|add:'3' %}
+                        <a href="?active_prescriptions_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'active_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            {{ num }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if active_prescriptions.has_next %}
+                    <a href="?active_prescriptions_page={{ active_prescriptions.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'active_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<h2 class="text-lg font-semibold mt-6">Deactivated Prescriptions</h2>
+<div class="bg-white rounded-lg shadow overflow-hidden mt-2">
+    <div class="divide-y">
+        {% for prescription in deactivated_prescriptions %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-medium text-gray-500">{{ prescription.medication }}</h3>
+                    <p class="text-sm text-gray-400">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
+                    <p class="text-xs text-gray-500">Deactivated on {{ prescription.deactivated_at|date:"M j, Y" }}</p>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-4 text-center text-gray-500">
+            No deactivated prescriptions
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Deactivated Prescriptions Pagination -->
+    {% if deactivated_prescriptions.has_other_pages %}
+    <div class="px-6 py-4 bg-gray-50 border-t">
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Showing {{ deactivated_prescriptions.start_index }} to {{ deactivated_prescriptions.end_index }} of {{ deactivated_prescriptions.paginator.count }} deactivated prescriptions
+            </div>
+            <div class="flex space-x-1">
+                {% if deactivated_prescriptions.has_previous %}
+                    <a href="?deactivated_prescriptions_page={{ deactivated_prescriptions.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'deactivated_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Previous
+                    </a>
+                {% endif %}
+                
+                {% for num in deactivated_prescriptions.paginator.page_range %}
+                    {% if deactivated_prescriptions.number == num %}
+                        <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                    {% elif num > deactivated_prescriptions.number|add:'-3' and num < deactivated_prescriptions.number|add:'3' %}
+                        <a href="?deactivated_prescriptions_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'deactivated_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                            {{ num }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if deactivated_prescriptions.has_next %}
+                    <a href="?deactivated_prescriptions_page={{ deactivated_prescriptions.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'deactivated_prescriptions_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -675,65 +971,5 @@ input.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
 });
 </script>
-
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        function setupToggle(buttonId, itemClass, containerId) {
-            const toggleBtn = document.getElementById(buttonId);
-            if (!toggleBtn) return;
-    
-            let expanded = false;
-            toggleBtn.addEventListener('click', function () {
-                const hiddenItems = document.querySelectorAll('.' + itemClass + '.hidden');
-                if (!expanded) {
-                    hiddenItems.forEach(item => item.classList.remove('hidden'));
-                    toggleBtn.textContent = 'See Less';
-                } else {
-                    hiddenItems.forEach(item => item.classList.add('hidden'));
-                    toggleBtn.textContent = 'See More';
-                    document.getElementById(containerId).scrollIntoView({behavior: 'smooth'});
-                }
-                expanded = !expanded;
-            });
-        }
-    
-        setupToggle('toggle-medical-records', 'medical-record-item', 'medical-records-list');
-        setupToggle('toggle-prescriptions', 'prescription-item', 'prescriptions-list');
-        setupToggle('toggle-billing', 'billing-item', 'billing-list');
-    });
-    </script>
-    
-
-
-
-
-
-{% comment %} <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const toggleBtn = document.getElementById('toggle-medical-records');
-        if (!toggleBtn) return;
-    
-        let expanded = false;
-    
-        toggleBtn.addEventListener('click', function () {
-            const hiddenItems = document.querySelectorAll('.medical-record-item.hidden');
-    
-            if (!expanded) {
-                hiddenItems.forEach(item => item.classList.remove('hidden'));
-                toggleBtn.textContent = 'See Less';
-            } else {
-                hiddenItems.forEach(item => item.classList.add('hidden'));
-                toggleBtn.textContent = 'See More';
-                // Scroll to top of the medical records list so user isn't left mid-list
-                document.getElementById('medical-records-list').scrollIntoView({behavior: 'smooth'});
-            }
-    
-            expanded = !expanded;
-        });
-    });
-    </script> {% endcomment %}
-    
-
 
 {% endblock %}

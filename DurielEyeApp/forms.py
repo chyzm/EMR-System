@@ -1,39 +1,67 @@
 from django import forms
-from core.models import Patient
-from .models import (
-    EyeAppointment,
-    EyeMedicalRecord,
-    EyeFollowUp,
-    EyeExam
-)
+from core.models import Patient, CustomUser
+from django.utils import timezone
+from .models import (EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam)
+from django.core.exceptions import ValidationError
+
+
 
 
 class EyeAppointmentForm(forms.ModelForm):
     date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
     start_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
     end_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
+    reason = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
 
     class Meta:
         model = EyeAppointment
-        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'status', 'notes']
-        
-    reason = forms.CharField(required=False)  # Make optional
+        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes']
 
-    # def __init__(self, *args, **kwargs):
-    #     clinic_id = kwargs.pop('clinic_id', None)
-    #     super().__init__(*args, **kwargs)
-    #     if clinic_id:
-    #         self.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id, clinic__clinic_type='EYE')
-    
     def __init__(self, *args, **kwargs):
-        clinics = kwargs.pop('clinics', None)  # get clinics from kwargs
+        clinic_id = kwargs.pop('clinic_id', None)
         super().__init__(*args, **kwargs)
 
-        if clinics:
-            # Filter patients belonging to user's clinics
-            self.fields['patient'].queryset = Patient.objects.filter(clinic__in=clinics)
+        # Filter providers by clinic (ManyToMany)
+        if clinic_id:
+            self.fields['provider'].queryset = CustomUser.objects.filter(clinic__id=clinic_id)
         else:
-            self.fields['patient'].queryset = Patient.objects.none()
+            self.fields['provider'].queryset = CustomUser.objects.none()
+
+        # Show full name + title
+        self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name()}"
+
+        # Add styling and placeholder
+        self.fields['provider'].widget.attrs.update({
+            'class': 'mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'
+        })
+        self.fields['provider'].empty_label = "--------"
+        self.initial['provider'] = None
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        date = cleaned_data.get('date')
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        provider = cleaned_data.get('provider')
+        
+        if date and date < timezone.now().date():
+            raise ValidationError("Appointment date cannot be in the past.")
+        
+        if start_time and end_time and start_time >= end_time:
+            raise ValidationError("End time must be after start time.")
+        
+        if provider and date and start_time and end_time:
+            overlapping = EyeAppointment.objects.filter(
+                provider=provider,
+                date=date,
+                start_time__lt=end_time,
+                end_time__gt=start_time
+            ).exclude(pk=self.instance.pk if self.instance else None)
+            
+            if overlapping.exists():
+                raise ValidationError("This provider already has an appointment scheduled during this time.")
+
             
             
 

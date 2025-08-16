@@ -34,6 +34,7 @@ from .models import ActionLog
 from .utils import log_action
 from django import forms
 from django.urls import reverse
+from DurielEyeApp.models import EyeAppointment
 
 
 
@@ -377,6 +378,51 @@ class PatientUpdateView(UpdateView):
 
 
 
+# class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+#     model = Patient
+#     template_name = 'patients/patient_detail.html'
+#     context_object_name = 'patient'
+    
+#     def test_func(self):
+#         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST']
+    
+    
+#     def get_object(self, queryset=None):
+#         clinic_id = self.request.session.get('clinic_id')
+#         patient = super().get_object(queryset)
+        
+#         if clinic_id and patient.clinic_id != clinic_id:
+#             raise Http404("Patient not found.")
+#         return patient
+    
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         patient = self.get_object()
+        
+#         # Get the latest vitals if available (from general appointments)
+#         appointment = patient.appointments.filter(status='SCHEDULED').first()
+#         if appointment:
+#             context['vitals'] = getattr(appointment, 'vitals', None)
+        
+#         # Add all required context data
+#         context['medical_records'] = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+        
+#         # Regular appointments from DurielMedicApp
+#         context['appointments'] = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+        
+#         # Eye appointments from DurielEyeApp - need to import EyeAppointment at top
+#         from DurielEyeApp.models import EyeAppointment
+#         context['eye_appointments'] = EyeAppointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+        
+#         context['prescriptions'] = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
+#         context['deactivated_prescriptions'] = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
+#         context['bills'] = Billing.objects.filter(patient=patient).order_by('-service_date')
+    
+        
+#         return context
+
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
 class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Patient
     template_name = 'patients/patient_detail.html'
@@ -385,33 +431,109 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST']
     
-    
-    def get_object(self, queryset=None):
-        clinic_id = self.request.session.get('clinic_id')
-        patient = super().get_object(queryset)
-        
-        if clinic_id and patient.clinic_id != clinic_id:
-            raise Http404("Patient not found.")
-        return patient
-    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         patient = self.get_object()
-    
 
-        # Get the latest vitals if available
+        # Define items per page once and reuse everywhere
+        items_per_page = 1
+
+        # Get the latest vitals if available (from general appointments)
         appointment = patient.appointments.filter(status='SCHEDULED').first()
         if appointment:
             context['vitals'] = getattr(appointment, 'vitals', None)
+
+        # Medical Records Pagination (show for both GENERAL and EYE clinics)
+        medical_records_list = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+        medical_paginator = Paginator(medical_records_list, items_per_page)
+        medical_page = self.request.GET.get('medical_page', 1)
         
-        # Add all required context data
-        context['medical_records'] = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
-        context['appointments'] = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
-        context['prescriptions'] = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
-        context['deactivated_prescriptions'] = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
-        context['bills'] = Billing.objects.filter(patient=patient).order_by('-service_date')
+        try:
+            medical_records = medical_paginator.page(medical_page)
+        except PageNotAnInteger:
+            medical_records = medical_paginator.page(1)
+        except EmptyPage:
+            medical_records = medical_paginator.page(medical_paginator.num_pages)
         
+        context['medical_records'] = medical_records
+
+        # Eye Exams Pagination (only for EYE clinic)
+        if self.request.session.get('clinic_type') == 'EYE':
+            eye_exams_list = patient.eye_exams.all().order_by('-created_at')
+            exams_paginator = Paginator(eye_exams_list, items_per_page)
+            exams_page = self.request.GET.get('exams_page', 1)
+            try:
+                eye_exams = exams_paginator.page(exams_page)
+            except PageNotAnInteger:
+                eye_exams = exams_paginator.page(1)
+            except EmptyPage:
+                eye_exams = exams_paginator.page(exams_paginator.num_pages)
+            context['eye_exams'] = eye_exams
+
+        # Appointments Pagination (Regular)
+        appointments_list = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+        appointments_paginator = Paginator(appointments_list, items_per_page)
+        appointments_page = self.request.GET.get('appointments_page', 1)
+        try:
+            appointments = appointments_paginator.page(appointments_page)
+        except PageNotAnInteger:
+            appointments = appointments_paginator.page(1)
+        except EmptyPage:
+            appointments = appointments_paginator.page(appointments_paginator.num_pages)
+        context['appointments'] = appointments
+
+        # Eye Appointments Pagination
+        eye_appointments_list = EyeAppointment.objects.filter(patient=patient).order_by('-date', '-start_time')
+        eye_appointments_paginator = Paginator(eye_appointments_list, items_per_page)
+        eye_appointments_page = self.request.GET.get('eye_appointments_page', 1)
+        try:
+            eye_appointments = eye_appointments_paginator.page(eye_appointments_page)
+        except PageNotAnInteger:
+            eye_appointments = eye_appointments_paginator.page(1)
+        except EmptyPage:
+            eye_appointments = eye_appointments_paginator.page(eye_appointments_paginator.num_pages)
+        context['eye_appointments'] = eye_appointments
+
+        # Prescriptions Pagination (Active)
+        prescriptions_list = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
+        prescriptions_paginator = Paginator(prescriptions_list, items_per_page)
+        prescriptions_page = self.request.GET.get('prescriptions_page', 1)
+        try:
+            prescriptions = prescriptions_paginator.page(prescriptions_page)
+        except PageNotAnInteger:
+            prescriptions = prescriptions_paginator.page(1)
+        except EmptyPage:
+            prescriptions = prescriptions_paginator.page(prescriptions_paginator.num_pages)
+        context['prescriptions'] = prescriptions
+
+        # Deactivated Prescriptions Pagination
+        deactivated_prescriptions_list = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
+        deactivated_prescriptions_paginator = Paginator(deactivated_prescriptions_list, items_per_page)
+        deactivated_prescriptions_page = self.request.GET.get('deactivated_prescriptions_page', 1)
+        try:
+            deactivated_prescriptions = deactivated_prescriptions_paginator.page(deactivated_prescriptions_page)
+        except PageNotAnInteger:
+            deactivated_prescriptions = deactivated_prescriptions_paginator.page(1)
+        except EmptyPage:
+            deactivated_prescriptions = deactivated_prescriptions_paginator.page(deactivated_prescriptions_paginator.num_pages)
+        context['deactivated_prescriptions'] = deactivated_prescriptions
+
+        # Bills Pagination
+        bills_list = Billing.objects.filter(patient=patient).order_by('-service_date')
+        bills_paginator = Paginator(bills_list, items_per_page)
+        bills_page = self.request.GET.get('bills_page', 1)
+        try:
+            bills = bills_paginator.page(bills_page)
+        except PageNotAnInteger:
+            bills = bills_paginator.page(1)
+        except EmptyPage:
+            bills = bills_paginator.page(bills_paginator.num_pages)
+        context['bills'] = bills
+
         return context
+
+
+
 
 
 class PatientDeleteView(DeleteView):

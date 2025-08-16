@@ -59,115 +59,6 @@ def staff_check(user):
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
 
-# @login_required
-# def select_clinic(request):
-#     user_clinics = request.user.clinic.all()  # returns Clinic objects
-    
-#     if request.method == 'POST':
-#         clinic_id = request.POST.get('clinic_id')
-#         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
-#         if clinic:
-#             request.session['clinic_id'] = clinic.id
-#             request.session['clinic_type'] = clinic.clinic_type
-
-#             if clinic.clinic_type == 'GENERAL':
-#                 return redirect('DurielMedicApp:dashboard')
-#             elif clinic.clinic_type == 'EYE':
-#                 return redirect('eye_dashboard')
-#             elif clinic.clinic_type == 'DENTAL':
-#                 return redirect('dental_dashboard')
-
-#     return render(request, 'select-clinic/select_clinic.html', {'clinics': user_clinics})
-
-
-
-# --------------------
-# Dashboard
-# --------------------
-
-
-# @login_required
-# @user_passes_test(staff_check, login_url='login')
-# def dashboard(request):
-#     today = date.today()
-#     start_week = today - timedelta(days=today.weekday())
-#     end_week = start_week + timedelta(days=6)
-#     start_year = date(today.year, 1, 1)
-
-#     # Get the clinic ID from the session or the user's primary clinic
-#     clinic_id = request.session.get('clinic_id')
-#     if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
-#         clinic_id = request.user.primary_clinic.id
-#         request.session['clinic_id'] = clinic_id
-
-#     # --- Birthday notifications ---
-#     check_birthdays(clinic_id)  # <-- Ensure this runs every dashboard load
-
-#     # Filter all queries by the clinic ID
-#     patients = Patient.objects.all()
-#     if clinic_id:
-#         patients = patients.filter(clinic_id=clinic_id)
-
-#     # Financial stats
-#     financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
-#         total_count=Count('id'),
-#         total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
-#         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
-#     )
-
-#     stats = {
-#         'total_patients': patients.count(),
-#         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
-#         'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
-#         'today_appointments': Appointment.objects.filter(clinic_id=clinic_id, date=today).count(),
-#         'completed_appointments_today': Appointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
-#         'week_appointments': Appointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
-#         'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
-#         'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
-#         'pending_bills': financial_stats['total_count'],
-#         'total_pending_amount': financial_stats['total_amount'],
-#         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
-#     }
-
-#     # Get today's appointments for the clinic
-#     user_appointments = Appointment.objects.filter(
-#         clinic_id=clinic_id,
-#         date=today
-#     ).order_by('-start_time')
-
-#     # Paginate appointments
-#     page = request.GET.get('page', 1)
-#     paginator = Paginator(user_appointments, 3)  # 3 appointments per page
-
-#     try:
-#         user_appointments_page = paginator.page(page)
-#     except PageNotAnInteger:
-#         user_appointments_page = paginator.page(1)
-#     except EmptyPage:
-#         user_appointments_page = paginator.page(paginator.num_pages)
-
-#     # Get recent patients for the clinic
-#     recent_patients = patients.order_by('-created_at')[:5]
-
-#     # Get unread notifications (including birthday notifications)
-#     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-#     notifications = Notification.objects.filter(
-#         (
-#             Q(user=request.user, is_read=False, clinic_id=clinic_id) |
-#             Q(user__isnull=True, clinic_id=clinic_id)
-#         )
-#     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
-
-#     context = {
-#         'stats': stats,
-#         'user_appointments': user_appointments_page,
-#         'recent_patients': recent_patients,
-#         'notifications': notifications,
-#         'today': today,
-#         'clinic_id': clinic_id,
-#     }
-
-#     return render(request, 'dashboard.html', context)
 
 
 
@@ -262,15 +153,6 @@ def dashboard(request):
 
 
 
-
-
-
-
-
-
-
-
-
 # --------------------
 # Appointments
 # --------------------
@@ -303,22 +185,6 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         return queryset.order_by('-date', '-start_time')
 
-
-
-
-# @login_required
-# def appointment_create(request):
-#     if request.method == 'POST':
-#         form = AppointmentForm(request.POST)
-#         if form.is_valid():
-#             appt = form.save(commit=False)
-#             appt.provider = request.user
-#             appt.save()
-#             messages.success(request, "Appointment scheduled successfully.")
-#             return redirect('DurielMedicApp:appointment_list')
-#     else:
-#         form = AppointmentForm()
-#     return render(request, 'DurielMedicApp/appointment_form.html', {'form': form})
 
 
 class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -461,25 +327,6 @@ def create_follow_up(request, patient_id):
         form = FollowUpForm()
     return render(request, 'DurielMedicApp/followup_form.html', {'form': form, 'patient': patient})
 
-
-# --------------------
-# Prescriptions
-# --------------------
-# @login_required
-# def create_prescription(request, patient_id):
-#     patient = get_object_or_404(Patient, pk=patient_id)
-#     if request.method == 'POST':
-#         form = PrescriptionForm(request.POST)
-#         if form.is_valid():
-#             prescription = form.save(commit=False)
-#             prescription.patient = patient
-#             prescription.prescribed_by = request.user
-#             prescription.save()
-#             messages.success(request, "Prescription created successfully.")
-#             return redirect('core:patient_detail', pk=patient_id)
-#     else:
-#         form = PrescriptionForm()
-#     return render(request, 'DurielMedicApp/prescription_form.html', {'form': form, 'patient': patient})
 
 
 # --------------------
@@ -797,15 +644,6 @@ def discharge_patient(request, patient_id):
 
 
 
-
-
-
-
-
-
-    
-    
-    
     
 @login_required
 @role_required('ADMIN', 'DOCTOR', 'NURSE')
@@ -836,36 +674,6 @@ def delete_medical_record(request, record_id):
 
 
 
-# def patient_search_api(request):
-#     query = request.GET.get('q', '')
-#     results = Patient.objects.filter(full_name__icontains=query)
-#     data = [{'id': p.id, 'name': p.full_name} for p in results]
-#     return JsonResponse({'results': data})
-
-
-
-
-# Appointment List View
-# 1. List all appointments (for staff/admin)
-# @login_required
-# def appointment_list(request):
-#     appointments = Appointment.objects.all().order_by('-date')
-#     return render(request, 'appointments/appointment_list.html', {'appointments': appointments})
-
-
-# 2. Create new appointment
-# @login_required
-# def appointment_create(request):
-#     if request.method == 'POST':
-#         form = AppointmentForm(request.POST)
-#         if form.is_valid():
-#             form.save()
-#             messages.success(request, 'Appointment scheduled successfully.')
-#             return redirect('appointment_list')
-#     else:
-#         form = AppointmentForm()
-    
-#     return render(request, 'appointments/appointment_form.html', {'form': form})
 
 
 # 3. Update appointment
@@ -1019,65 +827,6 @@ def check_birthdays(clinic_id=None):
                 except Exception as e:
                     print(f"Error sending birthday email: {str(e)}")
 
-# def check_birthdays(clinic_id=None):
-#     today = date.today()
-#     patients = Patient.objects.filter(
-#         date_of_birth__month=today.month,
-#         date_of_birth__day=today.day
-#     )
-#     if clinic_id:
-#         patients = patients.filter(clinic_id=clinic_id)
-
-#     for patient in patients:
-#         staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
-#         for user in staff_users:
-#             # Check if a birthday notification for this patient and user exists today
-#             from django.db.models import Q
-
-#             already_exists = Notification.objects.filter(
-#                 user=user,
-#                 clinic_id=patient.clinic_id,
-#                 created_at__date=today
-#             ).filter(
-#                 Q(message__icontains=patient.full_name) & Q(message__icontains="birthday")
-#             ).exists()
-#             if not already_exists:
-#                 Notification.objects.create(
-#                     user=user,
-#                     message=f"Today is {patient.full_name}'s birthday!",
-#                     link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
-#                     clinic_id=patient.clinic_id
-#                 )
-#         # Send email to patient if email exists
-#         if hasattr(patient, 'email') and patient.email:
-#             clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
-#             send_mail(
-#                 'Happy Birthday!',
-#                 f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
-#                 settings.DEFAULT_FROM_EMAIL,
-#                 [patient.email],
-#                 fail_silently=True
-#             )
-        
-
-
-# from django.views.decorators.csrf import csrf_exempt
-
-# @login_required
-# @csrf_exempt
-# def mark_notification_read(request):
-#     # Mark personal notifications
-#     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-
-#     # Mark global notifications as read per user
-#     unread_globals = Notification.objects.filter(user__isnull=True).exclude(
-#         id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-#     )
-#     NotificationRead.objects.bulk_create([
-#         NotificationRead(user=request.user, notification=n) for n in unread_globals
-#     ], ignore_conflicts=True)
-
-#     return JsonResponse({'status': 'success'})
 
 
 

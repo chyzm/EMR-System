@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block title %}Schedule Eye Follow-up{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold text-blue-900 mb-6">Schedule Eye Follow-up</h1>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Patient Field -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.patient.label }}
+                        {% if form.patient.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.patient }}
+                    {% if form.patient.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.patient.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+                
+                <!-- Reason Field -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.reason.label }}
+                        {% if form.reason.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.reason }}
+                    {% if form.reason.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.reason.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Scheduled Date -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.scheduled_date.label }}
+                        {% if form.scheduled_date.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.scheduled_date }}
+                    {% if form.scheduled_date.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.scheduled_date.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+                
+                <!-- Scheduled Time -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ form.scheduled_time.label }}
+                        {% if form.scheduled_time.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.scheduled_time }}
+                    {% if form.scheduled_time.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.scheduled_time.errors.as_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Notes Field -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    {{ form.notes.label }}
+                    {% if form.notes.field.required %}<span class="text-red-500">*</span>{% endif %}
+                </label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.notes.errors.as_text }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Completed Field -->
+            <div class="flex items-center">
+                {{ form.completed }}
+                <label class="ml-2 text-sm font-medium text-gray-700" for="{{ form.completed.id_for_label }}">
+                    {{ form.completed.label }}
+                </label>
+                {% if form.completed.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.completed.errors.as_text }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="flex justify-end space-x-4">
+                <a href="{% url 'DurielEyeApp:followup_list' %}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </a>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Schedule Follow-up
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -123,6 +123,44 @@
       display: inline-block;
       padding-right: 100%;
     }
+
+    /* Add this to your base.html <style> section after the gradient-bg rule */
+
+/* Hide Django's default ugly error lists completely */
+.errorlist {
+    display: none !important;
+}
+
+ul.errorlist {
+    display: none !important;
+}
+
+.errorlist li {
+    display: none !important;
+}
+
+.errorlist li ul.errorlist {
+    display: none !important;
+}
+
+/* Hide any form error displays that might leak through */
+form .errorlist {
+    display: none !important;
+}
+
+/* Hide them in any context */
+* .errorlist {
+    display: none !important;
+}
+
+/* Additional safety nets */
+ul[class*="errorlist"] {
+    display: none !important;
+}
+
+li ul[id*="_error"] {
+    display: none !important;
+}
   </style>
 
   {% block extra_css %}{% endblock %}
@@ -145,21 +183,37 @@
 
             <!-- Always show the Dashboard (unclickable if no clinic selected) -->
             {% if request.session.clinic_id %}
-              <a href="{% url 'DurielMedicApp:dashboard' %}" 
-                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-                <i class="fas fa-tachometer-alt mr-3"></i>
-                Dashboard
-              </a>
-            {% else %}
-              <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
-                <i class="fas fa-tachometer-alt mr-3"></i>
-                Dashboard
-              </div>
-            {% endif %}
+              <!-- Eye clinic Dashboard-->
+                  {% if request.session.clinic_type == "EYE" %}
+                    <a href="{% url 'DurielEyeApp:eye_dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'eye_dashboard' %}active{% endif %}">
+                      <i class="fas fa-tachometer-alt mr-3"></i>
+                      Dashboard
+                    </a>
+                    <!-- Medical clinic Dashboard-->
+                  {% elif request.session.clinic_type == "GENERAL" %}
+                    <a href="{% url 'DurielMedicApp:dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                      <i class="fas fa-tachometer-alt mr-3"></i>
+                      Dashboard
+                    </a>
+                  {% else %}
+                    <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
+                      <i class="fas fa-tachometer-alt mr-3"></i>
+                      Dashboard
+                    </div>
+                  {% endif %}
+                {% else %}
+                  <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
+                    <i class="fas fa-tachometer-alt mr-3"></i>
+                    Dashboard
+                  </div>
+                {% endif %}
+
           
             <!-- Other sidebar items only if clinic selected -->
             {% if request.session.clinic_id %}
-              {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+              {% if request.user.is_superuser or request.user.role == 'ADMIN' %} 
               <a href="{% url 'core:manage_roles' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'manage_roles' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-tools mr-3"></i>
@@ -183,23 +237,40 @@
               </a>
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST, NURSE' %}
+              {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
+              {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:appointment_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
                 Appointments
               </a>
+              {% elif request.session.clinic_type == "EYE" %}
+              <a href="{% url 'DurielEyeApp:appointment_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-calendar-alt mr-3"></i>
+                Appointments
+              </a>
               {% endif %}
-          
-              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST' %}
+              {% endif %}
+
+              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST' %}
+              {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:followup_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-clock-rotate-left mr-3"></i>
                 Follow Ups
               </a>
+
+              {% elif request.session.clinic_type == "EYE" %}
+              <a href="{% url 'DurielEyeApp:followup_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-clock-rotate-left mr-3"></i>
+                Follow Ups
+              </a>
+              {% endif %}
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR' %}
+              {% if request.user.role in 'ADMIN,DOCTOR,OPTOMETRIST' %}
               <a href="{% url 'core:prescription_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>

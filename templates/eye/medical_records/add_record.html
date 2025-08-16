@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Medical Record{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Add Medical Record</h1>
+        <a href="{% url 'core:patient_detail' patient.patient_id %}" class="text-blue-600 hover:text-blue-800">
+          <i class="fas fa-arrow-left mr-1"></i> Back to Patient
+        </a>
+      </div>
+      
+      <!-- Global Form Errors (if any) -->
+      {% if form.non_field_errors %}
+        <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div class="flex items-start">
+            <div class="flex-shrink-0">
+              <i class="fas fa-exclamation-circle text-red-400"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-red-800">Please fix the following errors:</h3>
+              <div class="mt-2 text-sm text-red-700">
+                {% for error in form.non_field_errors %}
+                  <p>{{ error }}</p>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Summary of Field Errors -->
+      {% if form.errors %}
+        <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div class="flex items-start">
+            <div class="flex-shrink-0">
+              <i class="fas fa-exclamation-triangle text-red-400"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-red-800">Required fields missing:</h3>
+              <div class="mt-2 text-sm text-red-700">
+                <p>Please complete the following required fields:
+                {% for field, errors in form.errors.items %}
+                  {% if field == 'record_type' %}Record Type{% endif %}
+                  {% if field == 'title' %}Title{% endif %}
+                  {% if field == 'description' %}Description{% endif %}
+                  {% if not forloop.last %}, {% endif %}
+                {% endfor %}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+      
+      <form method="post">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 gap-6 mb-6">
+          <!-- Patient Info (readonly) -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Patient</label>
+            <div class="bg-gray-100 p-3 rounded-md">
+              <p class="font-medium">{{ patient.full_name }} ({{ patient.patient_id }})</p>
+            </div>
+          </div>
+          
+          <!-- Record Type -->
+          <div>
+            <label for="{{ form.record_type.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+              Record Type <span class="text-red-500">*</span>
+            </label>
+            <select name="{{ form.record_type.name }}" 
+                    id="{{ form.record_type.id_for_label }}" 
+                    class="w-full px-3 py-2 border {% if form.record_type.errors %}border-red-300 bg-red-50{% else %}border-gray-300{% endif %} rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              <option value="">-- Select Record Type --</option>
+              {% for value, label in form.record_type.field.choices %}
+                {% if value %}
+                  <option value="{{ value }}" {% if form.record_type.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            {% if form.record_type.errors %}
+              <div class="mt-1 flex items-start">
+                <i class="fas fa-exclamation-circle text-red-500 text-xs mt-0.5 mr-1"></i>
+                <p class="text-sm text-red-600">Please select a record type.</p>
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Title -->
+          <div>
+            <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+              Title <span class="text-red-500">*</span>
+            </label>
+            <input type="text" 
+                   name="{{ form.title.name }}" 
+                   id="{{ form.title.id_for_label }}" 
+                   value="{{ form.title.value|default_if_none:'' }}" 
+                   placeholder="Enter a descriptive title"
+                   class="w-full px-3 py-2 border {% if form.title.errors %}border-red-300 bg-red-50{% else %}border-gray-300{% endif %} rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            {% if form.title.errors %}
+              <div class="mt-1 flex items-start">
+                <i class="fas fa-exclamation-circle text-red-500 text-xs mt-0.5 mr-1"></i>
+                <p class="text-sm text-red-600">Please enter a title for this record.</p>
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Description -->
+          <div>
+            <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+              Description <span class="text-red-500">*</span>
+            </label>
+            <textarea name="{{ form.description.name }}" 
+                      id="{{ form.description.id_for_label }}" 
+                      rows="4" 
+                      placeholder="Enter detailed description of the medical record..."
+                      class="w-full px-3 py-2 border {% if form.description.errors %}border-red-300 bg-red-50{% else %}border-gray-300{% endif %} rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">{{ form.description.value|default_if_none:'' }}</textarea>
+            {% if form.description.errors %}
+              <div class="mt-1 flex items-start">
+                <i class="fas fa-exclamation-circle text-red-500 text-xs mt-0.5 mr-1"></i>
+                <p class="text-sm text-red-600">Please enter a description for this record.</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+          <button type="reset" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition-colors">
+            Reset
+          </button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+            Save Record
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Floating AI Chat Icon -->
+<div id="ai-chat-icon" class="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg cursor-pointer hover:bg-green-700 transition-all z-50">
+  <i class="fas fa-robot"></i>
+</div>
+
+<!-- Chat Box (hidden initially) -->
+<div id="ai-chat-box" class="hidden fixed bottom-20 right-6 w-96 max-w-full bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+  <!-- Header -->
+  <div class="flex justify-between items-center px-4 py-2 bg-sky-600 text-white rounded-t-lg">
+    <span class="font-semibold">AI Assistant</span>
+    <button id="close-chat" class="text-lg hover:text-gray-200">&times;</button>
+  </div>
+
+  <!-- Messages Area -->
+  <div id="chat-messages" class="p-4 h-64 overflow-y-auto space-y-3 bg-gray-50"></div>
+
+  <!-- Input Area -->
+  <div class="flex items-center p-3 border-t border-gray-200 bg-white">
+    <input id="chat-input" 
+           type="text" 
+           placeholder="Ask something..." 
+           class="flex-grow border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300" />
+    <button id="send-btn" class="ml-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors">Send</button>
+  </div>
+</div>
+
+<script>
+const icon = document.getElementById("ai-chat-icon");
+const box = document.getElementById("ai-chat-box");
+const closeBtn = document.getElementById("close-chat");
+const sendBtn = document.getElementById("send-btn");
+const input = document.getElementById("chat-input");
+const messages = document.getElementById("chat-messages");
+
+// Toggle chat visibility
+icon.addEventListener("click", () => box.classList.remove("hidden"));
+closeBtn.addEventListener("click", () => box.classList.add("hidden"));
+
+// Function to add a message bubble
+function addMessage(text, sender = "bot") {
+  const div = document.createElement("div");
+  div.className = sender === "me" ? "text-right" : "text-left";
+  
+  const bubble = document.createElement("div");
+  bubble.className = sender === "me"
+      ? "inline-block bg-sky-600 text-white px-3 py-2 rounded-lg max-w-[80%]"
+      : "inline-block bg-white text-gray-800 px-3 py-2 rounded-lg border border-gray-200 max-w-[80%]";
+  bubble.innerText = text;
+  
+  div.appendChild(bubble);
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// Send message and handle AI response
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Add doctor message
+  addMessage(text, "me");
+  input.value = "";
+
+  // Show temporary "Thinking..." message
+  const thinkingDiv = document.createElement("div");
+  thinkingDiv.className = "text-left";
+  const thinkingBubble = document.createElement("div");
+  thinkingBubble.className = "inline-block bg-gray-200 text-gray-600 px-3 py-2 rounded-lg max-w-[80%]";
+  thinkingBubble.innerText = "Thinking...";
+  thinkingDiv.appendChild(thinkingBubble);
+  messages.appendChild(thinkingDiv);
+  messages.scrollTop = messages.scrollHistory;
+
+  try {
+    const res = await fetch("/api/ai-chat/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ prompt: text })
+    });
+
+    const data = await res.json();
+
+    // Remove "Thinking..." bubble
+    thinkingDiv.remove();
+
+    // Add AI response
+    addMessage(data.answer || "No response", "bot");
+
+  } catch (err) {
+    thinkingDiv.remove();
+    addMessage("Error: Unable to fetch AI response", "bot");
+  }
+}
+
+// Get CSRF token for Django
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+sendBtn.addEventListener("click", sendMessage);
+input.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
+
+// Auto-hide error summary after form interaction
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.querySelector('form');
+  const errorSummary = document.querySelector('.bg-red-50');
+  
+  if (form && errorSummary) {
+    const inputs = form.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+      input.addEventListener('focus', function() {
+        // Fade out the error summary when user starts interacting
+        if (errorSummary) {
+          errorSummary.style.transition = 'opacity 0.3s ease';
+          errorSummary.style.opacity = '0.5';
+        }
+      });
+    });
+  }
+});
+</script>
+
+<style>
+/* Custom styles for error states */
+.border-red-300:focus {
+  --tw-ring-color: rgb(239 68 68 / 0.5);
+  border-color: rgb(252 165 165);
+}
+
+/* Smooth transitions for interactive elements */
+input, select, textarea, button {
+  transition: all 0.2s ease;
+}
+
+/* Error icon animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.fa-exclamation-circle {
+  animation: shake 0.5s ease-in-out;
+}
+</style>
+{% endblock %}

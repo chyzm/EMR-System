@@ -130,9 +130,9 @@ def select_clinic(request):
             if clinic.clinic_type == 'GENERAL':
                 return redirect('DurielMedicApp:dashboard')
             elif clinic.clinic_type == 'EYE':
-                return redirect('eye_dashboard')
+                return redirect('DurielEyeApp:eye_dashboard')
             elif clinic.clinic_type == 'DENTAL':
-                return redirect('dental_dashboard')
+                return redirect('DurielDentalApp:dental_dashboard')
 
     return render(request, 'select-clinic/select_clinic.html', {
         'clinics': user_clinics,
@@ -322,7 +322,7 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy('core:patient_list')
 
     def test_func(self):
-        return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE']
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST']
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -383,12 +383,13 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     context_object_name = 'patient'
     
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST']
     
     
     def get_object(self, queryset=None):
         clinic_id = self.request.session.get('clinic_id')
         patient = super().get_object(queryset)
+        
         if clinic_id and patient.clinic_id != clinic_id:
             raise Http404("Patient not found.")
         return patient

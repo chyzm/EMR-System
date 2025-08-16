@@ -1,14 +1,49 @@
 {% if messages %}
 <div class="fixed top-4 right-4 space-y-2 z-50">
     {% for message in messages %}
-    <div class="relative px-6 py-4 pr-10 rounded shadow-lg text-white
+    <div class="relative px-6 py-4 pr-10 rounded-lg shadow-lg text-white max-w-md slide-in
         {% if message.tags == 'success' %} bg-green-600
         {% elif message.tags == 'error' %} bg-red-600
         {% elif message.tags == 'warning' %} bg-yellow-600 text-black
         {% else %} bg-blue-600
         {% endif %}">
         
-        <span class="mr-4">{{ message }}</span>
+        <!-- Clean up the message content -->
+        <div class="mr-4">
+            {% if message.tags == 'error' %}
+                {% if '<ul' in message|stringformat:"s" or 'errorlist' in message|stringformat:"s" %}
+                    <!-- If it's an ugly error list, show a clean message instead -->
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-circle mt-0.5 mr-2"></i>
+                        <div>
+                            <div class="font-semibold">Form Validation Error</div>
+                            <div class="text-sm opacity-90">Please check the required fields and try again.</div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-circle mt-0.5 mr-2"></i>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endif %}
+            {% elif message.tags == 'success' %}
+                <div class="flex items-start">
+                    <i class="fas fa-check-circle mt-0.5 mr-2"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% elif message.tags == 'warning' %}
+                <div class="flex items-start">
+                    <i class="fas fa-exclamation-triangle mt-0.5 mr-2"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% else %}
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle mt-0.5 mr-2"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% endif %}
+        </div>
+        
         <button onclick="this.parentElement.style.display='none'" 
                 class="absolute top-3 right-3 text-xl hover:opacity-80 transition-opacity">
             &times;
@@ -16,4 +51,24 @@
     </div>
     {% endfor %}
 </div>
+
+<script>
+// Auto-hide success messages after 4 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    const messages = document.querySelectorAll('.fixed.top-4 > div');
+    messages.forEach(function(message) {
+        // Auto-hide success and info messages, but keep errors and warnings visible
+        if (message.classList.contains('bg-green-600') || message.classList.contains('bg-blue-600')) {
+            setTimeout(function() {
+                message.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                message.style.opacity = '0';
+                message.style.transform = 'translateX(100%)';
+                setTimeout(function() {
+                    message.remove();
+                }, 500);
+            }, 4000);
+        }
+    });
+});
+</script>
 {% endif %}

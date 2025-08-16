@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}Edit{% else %}New{% endif %} Eye Appointment{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <h1 class="text-2xl font-bold text-gray-800 mb-6">
+        {% if form.instance.pk %}Edit{% else %}New{% endif %} Eye Appointment
+      </h1>
+      
+      <form method="post">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <!-- Patient Field -->
+          <div>
+            <label for="{{ form.patient.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Patient</label>
+            {{ form.patient }}
+            {% if form.patient.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.patient.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          
+          <!-- Provider Field -->
+          <div>
+            <label for="{{ form.provider.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+            {{ form.provider }}
+            {% if form.provider.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.provider.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          
+          <!-- Date Field -->
+          <div>
+            <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            {{ form.date }}
+            {% if form.date.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.date.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          
+          <!-- Start Time Field -->
+          <div>
+            <label for="{{ form.start_time.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+            {{ form.start_time }}
+            {% if form.start_time.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.start_time.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          
+          <!-- End Time Field -->
+          <div>
+            <label for="{{ form.end_time.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            {{ form.end_time }}
+            {% if form.end_time.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.end_time.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          
+          <!-- Status Field -->
+          <div>
+            <label for="{{ form.status.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            {{ form.status }}
+            {% if form.status.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.status.errors.as_text }}</p>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Notes Field -->
+        <div class="mb-6">
+          <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}
+            <p class="mt-1 text-sm text-red-600">{{ form.notes.errors.as_text }}</p>
+          {% endif %}
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+          <a href="{% url 'DurielEyeApp:appointment_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg">
+            Cancel
+          </a>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+            {% if form.instance.pk %}Update{% else %}Create{% endif %} Appointment
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize date picker
+  const dateInput = document.getElementById('id_date');
+  if (dateInput) {
+    dateInput.type = 'date';
+  }
+  
+  // Initialize time pickers
+  const timeInputs = ['start_time', 'end_time'];
+  timeInputs.forEach(function(field) {
+    const input = document.getElementById('id_' + field);
+    if (input) {
+      input.type = 'time';
+    }
+  });
+});
+</script>
+{% endblock %}

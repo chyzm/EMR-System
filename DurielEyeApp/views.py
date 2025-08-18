@@ -136,7 +136,7 @@ def eye_dashboard(request):
         'appointments': appointments,
     }
 
-    return render(request, 'Eye/eye_dashboard.html', context)
+    return render(request, 'eye/eye_dashboard.html', context)
 
 
 

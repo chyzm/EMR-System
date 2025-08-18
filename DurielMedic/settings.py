@@ -31,7 +31,7 @@ DEBUG = True
 AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 ALLOWED_HOSTS = [
-    'https://durielmedic.pythonanywhere.com',
+    'durielmedic.pythonanywhere.com',
     'www.durielmedic.pythonanywhere.com',
     'localhost',
     '127.0.0.1']

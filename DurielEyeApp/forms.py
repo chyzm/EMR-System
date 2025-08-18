@@ -61,6 +61,9 @@ class EyeAppointmentForm(forms.ModelForm):
             
             if overlapping.exists():
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
+            
+       
+
 
             
             

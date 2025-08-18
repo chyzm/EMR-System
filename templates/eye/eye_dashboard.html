@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 
+
 {% block title %}Eye Clinic Dashboard{% endblock %}
 
 {% block content %}
@@ -170,7 +171,7 @@
                         <div class="w-3 h-3 bg-yellow-400 rounded-full pulse-dot"></div>
                     </div>
                 </div>
-                <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Glasses Prescriptions</h3>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Active Prescriptions</h3>
                 <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_prescriptions }}</p>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-green-600 flex items-center">
@@ -194,7 +195,7 @@
                         <div class="w-3 h-3 bg-red-400 rounded-full pulse-dot"></div>
                     </div>
                 </div>
-                <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Bills</h3>
+                <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Invoice</h3>
                 {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                 <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_bills }}</p>
                 <div class="flex items-center justify-between text-sm">
@@ -344,16 +345,16 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="py-4 px-4">
-                                    {% with last_appointment=patient.appointments.first %}
-                                    {% if last_appointment %}
-                                    <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
-                                    <div class="text-sm text-gray-600">{{ last_appointment.reason|truncatechars:20 }}</div>
-                                    {% else %}
-                                    <div class="text-sm text-gray-600">No visits yet</div>
-                                    {% endif %}
-                                    {% endwith %}
-                                </td>
+                                  <td class="py-4 px-4">
+        {% if patient.ordered_appointments %}
+            {% with last_appointment=patient.ordered_appointments.0 %}
+            <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
+            <div class="text-sm text-gray-600">{{ last_appointment.reason|truncatechars:20 }}</div>
+            {% endwith %}
+        {% else %}
+            <div class="text-sm text-gray-600">No visits yet</div>
+        {% endif %}
+    </td>
                                 <td class="py-4 px-4">
                                     <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Active</span>
                                 </td>
@@ -369,29 +370,32 @@
         </div>
         {% endif %}
 
-        {% if notifications %}
-        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
-            <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-white flex items-center">
-                    <i class="fas fa-bell mr-2"></i>Notifications
-                </h2>
-                <a href="{% url 'DurielEyeApp:clear_notifications' %}" class="text-gray-300 hover:text-white text-sm">Mark All Read</a>
+       
+
+<!-- Notifications -->
+       {% if notifications %}
+<div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
+    <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-white flex items-center">
+            <i class="fas fa-bell mr-2"></i>Notifications
+        </h2>
+        <a href="{% url 'core:clear_notifications' %}" class="text-gray-300 hover:text-white text-sm">Mark All Read</a>
+    </div>
+    <div class="p-6 space-y-4">
+        {% for notification in notifications %}
+        <div class="flex items-center p-4 {% if not notification.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} rounded-xl border-l-4 border-blue-500 hover:shadow-md transition-all card-hover cursor-pointer" onclick="window.location='{% url 'core:mark_notification_read' notification.pk %}'">
+            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                <i class="fas fa-info text-white"></i>
             </div>
-            <div class="p-6 space-y-4">
-                {% for notification in notifications %}
-                <div class="flex items-center p-4 {% if not notification.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} rounded-xl border-l-4 border-blue-500 hover:shadow-md transition-all card-hover cursor-pointer" onclick="window.location='{% url 'DurielEyeApp:mark_notification_read' notification.pk %}'">
-                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
-                        <i class="fas fa-info text-white"></i>
-                    </div>
-                    <div class="flex-1">
-                        <p class="{% if not notification.is_read %}font-semibold text-gray-900{% else %}text-gray-800{% endif %}">{{ notification.message }}</p>
-                    </div>
-                    <span class="text-xs text-gray-600 font-medium">{{ notification.created_at|timesince }} ago</span>
-                </div>
-                {% endfor %}
+            <div class="flex-1">
+                <p class="{% if not notification.is_read %}font-semibold text-gray-900{% else %}text-gray-800{% endif %}">{{ notification.message }}</p>
             </div>
+            <span class="text-xs text-gray-600 font-medium">{{ notification.created_at|timesince }} ago</span>
         </div>
-        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
     </div>
 </div>
 

@@ -37,8 +37,8 @@ urlpatterns = [
 
 
     # Notifications
-    path('notifications/mark-read/<int:pk>/', views.mark_eye_notification_read, name='mark_notification_read'),
-    path('notifications/clear/', views.clear_eye_notifications, name='clear_notifications'),
+    # path('notifications/mark-read/<int:pk>/', views.mark_eye_notification_read, name='mark_notification_read'),
+    # path('notifications/clear/', views.clear_eye_notifications, name='clear_notifications'),
 
     # Consultation flow
     path('patients/<str:patient_id>/begin-consultation/', views.begin_eye_consultation, name='begin_consultation'),

@@ -90,25 +90,4 @@ class FollowUp(models.Model):
 
 
 
-class Notification(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
-    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
-    message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    link = models.URLField(blank=True, null=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"Notification for {self.user.username if self.user else 'All'} - {self.message[:50]}"
 
-
-class NotificationRead(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    notification = models.ForeignKey('Notification', on_delete=models.CASCADE)
-    read_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'notification')

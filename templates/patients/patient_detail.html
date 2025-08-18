@@ -170,7 +170,6 @@
 
   
  <!-- Medical Records Section -->
-<!-- Medical Records Section -->
 {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
 <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
@@ -216,7 +215,7 @@
             {% endfor %}
         {% elif request.session.clinic_type == "EYE" %}
             <!-- Eye Medical Records -->
-            {% for record in patient.eye_medical_records.all %}
+            {% for record in eye_medical_records %}
             <div class="p-4 hover:bg-gray-50">
                 <div class="flex justify-between items-start">
                     <div>
@@ -242,43 +241,145 @@
                 No eye medical records found
             </div>
             {% endfor %}
+        {% else %}
+            <!-- Show all medical records if no specific clinic type -->
+            {% for record in medical_records %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-medium">{{ record.title }}</h3>
+                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
+                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
+                        </p>
+                        {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
+                        <div class="mt-2">
+                            <a href="#" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="#" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No medical records found
+            </div>
+            {% endfor %}
         {% endif %}
 
         <!-- Medical Records Pagination -->
-        {% if medical_records.has_other_pages %}
-        <div class="px-6 py-4 bg-gray-50 border-t">
-            <div class="flex items-center justify-between">
-                <div class="text-sm text-gray-700">
-                    Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
-                </div>
-                <div class="flex space-x-1">
-                    {% if medical_records.has_previous %}
-                        <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                            Previous
-                        </a>
-                    {% endif %}
-                    
-                    {% for num in medical_records.paginator.page_range %}
-                        {% if medical_records.number == num %}
-                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
-                        {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
-                            <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+        {% if request.session.clinic_type == "GENERAL" %}
+            {% if medical_records.has_other_pages %}
+            <div class="px-6 py-4 bg-gray-50 border-t">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-700">
+                        Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
+                    </div>
+                    <div class="flex space-x-1">
+                        {% if medical_records.has_previous %}
+                            <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
                                class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                {{ num }}
+                                Previous
                             </a>
                         {% endif %}
-                    {% endfor %}
-                    
-                    {% if medical_records.has_next %}
-                        <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                            Next
-                        </a>
-                    {% endif %}
+                        
+                        {% for num in medical_records.paginator.page_range %}
+                            {% if medical_records.number == num %}
+                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                            {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
+                                <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                    {{ num }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if medical_records.has_next %}
+                            <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                Next
+                            </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-        </div>
+            {% endif %}
+        {% elif request.session.clinic_type == "EYE" %}
+            {% if eye_medical_records.has_other_pages %}
+            <div class="px-6 py-4 bg-gray-50 border-t">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-700">
+                        Showing {{ eye_medical_records.start_index }} to {{ eye_medical_records.end_index }} of {{ eye_medical_records.paginator.count }} records
+                    </div>
+                    <div class="flex space-x-1">
+                        {% if eye_medical_records.has_previous %}
+                            <a href="?eye_medical_page={{ eye_medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                Previous
+                            </a>
+                        {% endif %}
+                        
+                        {% for num in eye_medical_records.paginator.page_range %}
+                            {% if eye_medical_records.number == num %}
+                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                            {% elif num > eye_medical_records.number|add:'-3' and num < eye_medical_records.number|add:'3' %}
+                                <a href="?eye_medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                    {{ num }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if eye_medical_records.has_next %}
+                            <a href="?eye_medical_page={{ eye_medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                Next
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+            {% if medical_records.has_other_pages %}
+            <div class="px-6 py-4 bg-gray-50 border-t">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-700">
+                        Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
+                    </div>
+                    <div class="flex space-x-1">
+                        {% if medical_records.has_previous %}
+                            <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                Previous
+                            </a>
+                        {% endif %}
+                        
+                        {% for num in medical_records.paginator.page_range %}
+                            {% if medical_records.number == num %}
+                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                            {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
+                                <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                    {{ num }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if medical_records.has_next %}
+                            <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                Next
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         {% endif %}
     </div>
 </div>
@@ -720,38 +821,43 @@
         {% endif %}
     </div>
     <div class="divide-y">
-{% for prescription in active_prescriptions %}
-<div class="p-4 hover:bg-gray-50">
-    <div class="flex justify-between items-start">
-        <div>
-            <h3 class="font-medium">{{ prescription.medication }}</h3>
-            <p class="text-sm text-gray-600">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
-            <p class="mt-2 text-gray-700">{{ prescription.instructions|default:"No special instructions" }}</p>
-        </div>
-        <div class="text-right">
-            <p class="text-xs text-gray-500">
-                Prescribed on {{ prescription.date_prescribed|date:"M j, Y" }}
-            </p>
-            {% if request.user.role in 'DOCTOR, OPTOMETRIST' %}
-            <div class="mt-2">
-                <a href="{% url 'core:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                <a href="{% url 'core:deactivate_prescription' prescription.pk %}"
-                    class="text-yellow-600 hover:underline"
-                    onclick="return confirm('Are you sure you want to deactivate this prescription?');">
-                    Deactivate
-                  </a>
-                <a href="{% url 'core:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+
+{% for prescription in prescriptions %}
+            <div class="p-4 hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
+                        <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
+                        {% if prescription.instructions %}
+                        <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">
+                            {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
+                        </p>
+                         {% if request.user.role in 'DOCTOR, OPTOMETRIST' %}
+                        <div class="mt-2">
+                            <a href="{% url 'core:edit_prescription' prescription.pk %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                            <a href="{% url 'core:deactivate_prescription' prescription.pk %}"
+                                class="text-yellow-600 hover:underline"
+                                onclick="return confirm('Are you sure you want to deactivate this prescription?');">
+                                Deactivate
+                            </a>
+                            <a href="{% url 'core:deactivate_prescription' prescription.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-{% empty %}
-<div class="p-4 text-center text-gray-500">
-    No active prescriptions
-</div>
-{% endfor %}
-    </div>
+            
+            {% empty %}
+            <div class="p-4 text-center text-gray-500">
+                No active prescriptions
+            </div>
+            {% endfor %}
+                </div>
     
     <!-- Active Prescriptions Pagination -->
     {% if active_prescriptions.has_other_pages %}
@@ -801,6 +907,8 @@
                     <h3 class="font-medium text-gray-500">{{ prescription.medication }}</h3>
                     <p class="text-sm text-gray-400">{{ prescription.dosage }} - {{ prescription.frequency }}</p>
                     <p class="text-xs text-gray-500">Deactivated on {{ prescription.deactivated_at|date:"M j, Y" }}</p>
+                   
+
                 </div>
             </div>
         </div>

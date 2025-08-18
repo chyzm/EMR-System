@@ -186,27 +186,34 @@ class UserEditForm(forms.ModelForm):
 from django.utils import timezone
 
 class PatientForm(forms.ModelForm):
-    email = forms.EmailField(required=False)  # <-- Add this line
+    email = forms.EmailField(required=False)
+    
     class Meta:
         model = Patient
         fields = '__all__'
-        exclude = ['created_by', 'clinic', 'patient_id']
+        exclude = ['created_by', 'clinic', 'patient_id', 'full_name']  # Add full_name to exclude
         widgets = {
-            'date_of_birth': forms.DateInput(attrs={'type': 'date'})
+            'date_of_birth': forms.DateInput(attrs={'type': 'date'}),
+            'status': forms.Select(attrs={
+                'class': 'mt-1 block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+            }),
         }
-
+    
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
         # Make fields optional if needed
         self.fields['blood_group'].required = False
-        self.fields['allergies'].required = False
+        self.fields['allergies'].required = True
         self.fields['emergency_contact_name'].required = False
         self.fields['profile_picture'].required = False
-
+    
     def save(self, commit=True):
         instance = super().save(commit=False)
+        
+        # Set the full_name property from first_name and last_name
+        # instance.full_name = f"{instance.first_name} {instance.last_name}"
         
         if self.request:
             instance.created_by = self.request.user
@@ -233,6 +240,9 @@ class PatientForm(forms.ModelForm):
             raise ValidationError("Date of Birth cannot be in the future.")
 
         return dob
+    
+    
+    
 
 class BillingForm(forms.ModelForm):
     class Meta:

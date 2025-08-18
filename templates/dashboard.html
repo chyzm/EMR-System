@@ -392,11 +392,11 @@
                 <h2 class="text-xl font-semibold text-white flex items-center">
                     <i class="fas fa-bell mr-2"></i>Notifications
                 </h2>
-                <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="text-gray-300 hover:text-white text-sm">Mark All Read</a>
+                <a href="{% url 'core:clear_notifications' %}" class="text-gray-300 hover:text-white text-sm">Mark All Read</a>
             </div>
             <div class="p-6 space-y-4">
                 {% for notification in notifications %}
-                <div class="flex items-center p-4 {% if not notification.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} rounded-xl border-l-4 border-blue-500 hover:shadow-md transition-all card-hover cursor-pointer" onclick="window.location='{% url 'DurielMedicApp:mark_notification_read' notification.pk %}'">
+                <div class="flex items-center p-4 {% if not notification.is_read %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} rounded-xl border-l-4 border-blue-500 hover:shadow-md transition-all card-hover cursor-pointer" onclick="window.location='{% url 'core:mark_notification_read' notification.pk %}'">
                     <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
                         <i class="fas fa-info text-white"></i>
                     </div>

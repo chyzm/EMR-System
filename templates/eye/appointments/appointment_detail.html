@@ -30,11 +30,11 @@
                   <p class="text-lg font-medium text-gray-900">{{ appointment.patient.full_name }}</p>
                   <p class="text-sm text-gray-500">ID: {{ appointment.patient.patient_id }}</p>
                 </div>
-              </div>
+              </div>                                                                               
               <div class="space-y-1">
                 <p class="text-sm"><span class="font-medium text-gray-700">Gender:</span> {{ appointment.patient.gender }}</p>
-                <p class="text-sm"><span class="font-medium text-gray-700">Age:</span> {{ appointment.patient.age }}</p>
-                <p class="text-sm"><span class="font-medium text-gray-700">Phone:</span> {{ appointment.patient.phone_number }}</p>
+                <p class="text-sm"><span class="font-medium text-gray-700">Age:</span> {{ appointment.patient.date_of_birth|timesince }}</p>
+                <p class="text-sm"><span class="font-medium text-gray-700">Phone:</span> {{ appointment.patient.contact }}</p>
               </div>
             </div>
           </div>
@@ -51,10 +51,10 @@
                   <p class="text-sm font-medium text-gray-700">Provider</p>
                   <p class="text-sm">{{ appointment.provider.get_full_name }}</p>
                 </div>
-                <div>
+                {% comment %} <div>
                   <p class="text-sm font-medium text-gray-700">Created By</p>
                   <p class="text-sm">{{ appointment.created_by.get_full_name }}</p>
-                </div>
+                </div> {% endcomment %}
                 <div>
                   <p class="text-sm font-medium text-gray-700">Created At</p>
                   <p class="text-sm">{{ appointment.created_at }}</p>
@@ -88,7 +88,7 @@
           {% endif %}
           {% if appointment.status != 'CANCELLED' %}
           <a href="{% url 'DurielEyeApp:mark_cancelled' appointment.pk %}" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-times mr-2"></i> Cancel
+            <i class="fas fa-times mr-2"></i> Cancel Appointment
           </a>
           {% endif %}
           <a href="{% url 'DurielEyeApp:appointment_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg flex items-center">

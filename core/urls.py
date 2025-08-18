@@ -7,6 +7,7 @@ from core.views import select_clinic
 from django.shortcuts import redirect
 from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
 from .views import activity_log, clear_activity_log, bulk_delete_logs
+from .views import mark_notification_read, clear_notifications
 
 
 
@@ -101,4 +102,8 @@ urlpatterns = [
     path('activity-log/', activity_log, name='activity_log'),
     path('activity-log/clear/', clear_activity_log, name='clear_activity_log'),
     path('activity-log/bulk-delete/', bulk_delete_logs, name='bulk_delete_logs'),
+    
+    # Notification
+     path('notifications/mark-read/<int:pk>/', mark_notification_read, name='mark_notification_read'),
+     path('notifications/clear/', clear_notifications, name='clear_notifications'),
 ]

@@ -13,9 +13,10 @@ from django.views.generic import ListView, CreateView, UpdateView
 from django.http import JsonResponse, HttpResponse
 from django.utils.timezone import make_aware
 from django.views.decorators.http import require_POST
+from django.conf import settings  # ADD THIS IMPORT
 
-from core.models import Patient, Billing, CustomUser
-from .models import EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeNotification, EyeNotificationRead, EyeExam
+from core.models import Patient, Billing, CustomUser, Notification, NotificationRead, Prescription
+from .models import EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam
 from .forms import EyeAppointmentForm, EyeMedicalRecordForm, EyeFollowUpForm, EyeExamForm
 from core.utils import log_action
 from django.utils import timezone
@@ -29,8 +30,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
 from .models import EyeAppointment
 from .forms import EyeAppointmentForm
-from core.utils import log_action  
-
+from core.utils import log_action
 
 
 
@@ -48,6 +48,8 @@ def admin_check(user):
 # --------------------
 # Dashboard
 # --------------------
+from django.shortcuts import render
+
 @login_required
 @user_passes_test(staff_check, login_url='login')
 def eye_dashboard(request):
@@ -60,9 +62,16 @@ def eye_dashboard(request):
     if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
         clinic_id = request.user.primary_clinic.id
         request.session['clinic_id'] = clinic_id
+        
+    # --- Birthday notifications ---
+    # ENSURE THIS RUNS EVERY DASHBOARD LOAD
+    if clinic_id:  # Only run if we have a clinic_id
+        check_birthdays(clinic_id)
 
-    # Patients
-    patients = Patient.objects.filter(clinic_id=clinic_id, clinic__clinic_type='EYE')
+    # Patients - FIXED: Filter properly for eye clinic
+    patients = Patient.objects.all()
+    if clinic_id:
+        patients = patients.filter(clinic_id=clinic_id)
 
     # Financial stats
     financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
@@ -78,19 +87,25 @@ def eye_dashboard(request):
         'today_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).count(),
         'completed_appointments_today': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
         'week_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
+        'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
+        'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
         'pending_bills': financial_stats['total_count'],
         'total_pending_amount': financial_stats['total_amount'],
         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
     }
 
     # Appointments for the user
-    user_appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today)
+    user_appointments = EyeAppointment.objects.filter(
+        clinic_id=clinic_id, 
+        date=today
+    ).select_related('patient', 'provider', 'clinic').order_by('start_time')
+
     if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
         user_appointments = user_appointments.filter(provider=request.user)
-    user_appointments = user_appointments.order_by('-start_time')
 
-    paginator = Paginator(user_appointments, 3)
+    paginator = Paginator(user_appointments, 3)  # Changed to 3 to match DurielMedicApp
     page = request.GET.get('page', 1)
+    
     try:
         user_appointments_page = paginator.page(page)
     except (PageNotAnInteger, EmptyPage):
@@ -99,25 +114,108 @@ def eye_dashboard(request):
     # Recent patients
     recent_patients = patients.order_by('-created_at')[:5]
 
-    # Notifications
-    read_global_ids = EyeNotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-    notifications = EyeNotification.objects.filter(
-        Q(user=request.user, is_read=False, clinic_id=clinic_id) |
-        Q(user__isnull=True, clinic_id=clinic_id)
+    # Notifications - FIXED: Use same logic as DurielMedicApp
+    read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+    notifications = Notification.objects.filter(
+        (
+            Q(user=request.user, is_read=False, clinic_id=clinic_id) |
+            Q(user__isnull=True, clinic_id=clinic_id)
+        )
     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
 
-    # appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today)
+    # All appointments for today
     appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).exclude(id__isnull=True)
 
-    return render(request, 'Eye/eye_dashboard.html', {
+    context = {
         'stats': stats,
         'user_appointments': user_appointments_page,
         'recent_patients': recent_patients,
         'notifications': notifications,
         'today': today,
         'clinic_id': clinic_id,
-        'appointments': appointments,  # add this
-    })
+        'appointments': appointments,
+    }
+
+    return render(request, 'Eye/eye_dashboard.html', context)
+
+
+
+    
+    
+    
+    
+    
+
+# @login_required
+# @user_passes_test(staff_check, login_url='login')
+# def eye_dashboard(request):
+#     today = date.today()
+#     start_week = today - timedelta(days=today.weekday())
+#     end_week = start_week + timedelta(days=6)
+#     start_year = date(today.year, 1, 1)
+
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
+#         clinic_id = request.user.primary_clinic.id
+#         request.session['clinic_id'] = clinic_id
+
+#     # Patients
+#     patients = Patient.objects.filter(clinic_id=clinic_id, clinic__clinic_type='EYE')
+
+#     # Financial stats
+#     financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
+#         total_count=Count('id'),
+#         total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+#         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
+#     )
+
+#     stats = {
+#         'total_patients': patients.count(),
+#         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
+#         'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
+#         'today_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).count(),
+#         'completed_appointments_today': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
+#         'week_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
+#         'pending_bills': financial_stats['total_count'],
+#         'total_pending_amount': financial_stats['total_amount'],
+#         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
+#     }
+
+#     # Appointments for the user
+#     user_appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today)
+#     if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+#         user_appointments = user_appointments.filter(provider=request.user)
+#     user_appointments = user_appointments.order_by('-start_time')
+
+#     paginator = Paginator(user_appointments, 3)
+#     page = request.GET.get('page', 1)
+#     try:
+#         user_appointments_page = paginator.page(page)
+#     except (PageNotAnInteger, EmptyPage):
+#         user_appointments_page = paginator.page(1)
+
+#     # Recent patients
+#     recent_patients = patients.order_by('-created_at')[:5]
+
+#     # Notifications
+#     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+#     notifications = Notification.objects.filter(
+#         Q(user=request.user, is_read=False, clinic_id=clinic_id) |
+#         Q(user__isnull=True, clinic_id=clinic_id)
+#     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
+
+#     # appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today)
+#     appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).exclude(id__isnull=True)
+
+#     return render(request, 'Eye/eye_dashboard.html', {
+#         'stats': stats,
+#         'user_appointments': user_appointments_page,
+#         'recent_patients': recent_patients,
+#         'notifications': notifications,
+#         'today': today,
+#         'clinic_id': clinic_id,
+#         'appointments': appointments,  # add this
+#     })
 
 
 # --------------------
@@ -141,6 +239,52 @@ class EyeAppointmentListView(ListView):
         return qs.order_by('-date', '-start_time')
 
 
+# class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+#     model = EyeAppointment
+#     form_class = EyeAppointmentForm
+#     template_name = 'eye/appointments/appointment_form.html'
+#     success_url = reverse_lazy('DurielEyeApp:appointment_list')
+
+#     def test_func(self):
+#         return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'OPTOMETRIST']
+
+#     def get_form_kwargs(self):
+#         kwargs = super().get_form_kwargs()
+#         kwargs['clinic_id'] = self.request.session.get('clinic_id')
+#         return kwargs
+
+#     def form_valid(self, form):
+#         form.instance.provider = self.request.user  # 👈 ensure logged-in user is provider
+#         form.instance.clinic_id = self.request.session.get('clinic_id')
+
+#         appointment = form.save(commit=False)
+#         appointment.save()
+        
+#         # CREATE NOTIFICATION WHEN APPOINTMENT IS CREATED (like DurielMedicApp does)
+#         clinic_id = self.request.session.get('clinic_id')
+#         if clinic_id:
+#             from django.contrib.auth import get_user_model
+#             User = get_user_model()
+#             staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
+#             for user in staff_users:
+#                 Notification.objects.create(
+#                     user=user,
+#                     message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
+#                     link=reverse('DurielEyeApp:appointment_list'),
+#                     clinic_id=clinic_id
+#                 )
+
+#         log_action(
+#             self.request,
+#             'CREATE',
+#             appointment,
+#             details=f"Created eye appointment for {appointment.patient.full_name} on {appointment.date}"
+#         )
+
+#         messages.success(self.request, "Appointment scheduled successfully!")
+#         return redirect(self.success_url)
+
+
 class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = EyeAppointment
     form_class = EyeAppointmentForm
@@ -153,14 +297,57 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['clinic_id'] = self.request.session.get('clinic_id')
+        # kwargs['request'] = self.request  # Pass request to the form
         return kwargs
 
-    def form_valid(self, form):
-        form.instance.provider = self.request.user  # 👈 ensure logged-in user is provider
-        form.instance.clinic_id = self.request.session.get('clinic_id')
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # Limit provider choices to staff in the same clinic
+        clinic_id = self.request.session.get('clinic_id')
+        if clinic_id:
+            form.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic__id=clinic_id,
+                is_active=True,
+                role__in=['DOCTOR', 'OPTOMETRIST', 'ADMIN']  # Only show appropriate roles
+            ).order_by('first_name', 'last_name')
+        return form
 
-        appointment = form.save(commit=False)
-        appointment.save()
+    def form_valid(self, form):
+        clinic_id = self.request.session.get('clinic_id')
+        if not clinic_id:
+            messages.error(self.request, "No clinic selected")
+            return redirect('core:select_clinic')
+
+        # Set clinic and save appointment
+        form.instance.clinic_id = clinic_id
+        appointment = form.save()
+
+        # Create notification for staff in the same clinic
+        staff_users = CustomUser.objects.filter(
+            clinic__id=clinic_id,
+            is_active=True
+         ) #.exclude(id=appointment.provider.id)  # Exclude the provider
+
+        for user in staff_users:
+            Notification.objects.create(
+                user=user,
+                message=f"New eye appointment with {appointment.patient.full_name} on {appointment.date}",
+                link=reverse('DurielEyeApp:appointment_list'),
+                clinic_id=clinic_id,
+                object_id=str(appointment.id),  # Unique identifier
+                app_name='eye'
+            )
+
+        # Also notify the provider if they're not the one creating the appointment
+        if appointment.provider != self.request.user:
+            Notification.objects.create(
+                user=appointment.provider,
+                message=f"You have a new appointment with {appointment.patient.full_name} on {appointment.date}",
+                link=reverse('DurielEyeApp:appointment_list'),
+                clinic_id=clinic_id,
+                object_id=str(appointment.id),
+                app_name='eye'
+            )
 
         log_action(
             self.request,
@@ -179,16 +366,21 @@ def eye_appointment_detail(request, pk):
     appointment = get_object_or_404(EyeAppointment, pk=pk)
     return render(request, 'eye/appointments/appointment_detail.html', {'appointment': appointment})
 
-
 def eye_appointment_update(request, appointment_id):
     appointment = get_object_or_404(EyeAppointment, id=appointment_id)
-
-    clinic_id = request.session.get('clinic_id')  # 👈 grab the active clinic from session
+    clinic_id = request.session.get('clinic_id')
 
     if request.method == "POST":
         form = EyeAppointmentForm(request.POST, instance=appointment, clinic_id=clinic_id)
         if form.is_valid():
             form.save()
+            # ✅ Add logging
+            log_action(
+                request,
+                'UPDATE',
+                appointment,
+                details=f"Updated eye appointment for {appointment.patient.full_name} on {appointment.date}"
+            )
             messages.success(request, "Eye appointment updated successfully.")
             return redirect('DurielEyeApp:appointment_detail', pk=appointment.id)
     else:
@@ -202,27 +394,46 @@ def eye_appointment_delete(request, pk):
     appointment = get_object_or_404(EyeAppointment, id=pk)
 
     if request.method == "POST":
+        # ✅ Add logging before deletion
+        log_action(
+            request,
+            'DELETE',
+            appointment,
+            details=f"Deleted eye appointment for {appointment.patient.full_name} scheduled for {appointment.date}"
+        )
         appointment.delete()
         messages.success(request, "Eye appointment deleted successfully.")
-        return redirect('DurielEyeApp:appointment_list')  # Make sure you have this URL name
+        return redirect('DurielEyeApp:appointment_list')
 
     return render(request, 'eye/appointments/appointment_delete.html', {'appointment': appointment})
 
 
-def mark_eye_appointment_completed(request, appointment_id):
-    """Mark an eye appointment as completed."""
-    appointment = get_object_or_404(EyeAppointment, id=appointment_id)
-    appointment.status = 'COMPLETED'  # Make sure 'COMPLETED' exists in your status choices
+def mark_eye_appointment_completed(request, pk):
+    appointment = get_object_or_404(EyeAppointment, pk=pk)
+    appointment.status = 'COMPLETED'
     appointment.save()
+    # ✅ Add logging
+    log_action(
+        request,
+        'UPDATE',
+        appointment,
+        details=f"Marked eye appointment as completed for {appointment.patient} on {appointment.date}"
+    )
     messages.success(request, f"Appointment for {appointment.patient} marked as completed.")
-    return redirect('DurielEyeApp:eye_appointment_list')
+    return redirect('DurielEyeApp:appointment_list')
 
 
 def mark_eye_appointment_cancelled(request, appointment_id):
-    """Mark an eye appointment as cancelled."""
     appointment = get_object_or_404(EyeAppointment, id=appointment_id)
-    appointment.status = 'CANCELLED'  # Make sure this value exists in your status choices
+    appointment.status = 'CANCELLED'
     appointment.save()
+    # ✅ Add logging
+    log_action(
+        request,
+        'UPDATE',
+        appointment,
+        details=f"Cancelled eye appointment for {appointment.patient} scheduled for {appointment.date}"
+    )
     messages.warning(request, f"Appointment for {appointment.patient} has been cancelled.")
     return redirect('DurielEyeApp:eye_appointment_list')
 
@@ -407,8 +618,33 @@ def delete_eye_medical_record(request, record_id):
 @login_required
 def begin_eye_consultation(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id)
-    # Optionally create or get an appointment here
+    
+    # Get latest appointment
     appointment = EyeAppointment.objects.filter(patient=patient).order_by('-date').first()
+    
+    clinic_id = request.session.get('clinic_id')
+    if clinic_id and appointment:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
+        
+        # Get existing notifications for this appointment
+        existing_notifications = Notification.objects.filter(
+            clinic_id=clinic_id,
+            object_id=str(appointment.id)
+        ).values_list('user_id', flat=True)
+        
+        for user in staff_users:
+            # Only create notification if one doesn't already exist for this user
+            if user.id not in existing_notifications:
+                Notification.objects.create(
+                    user=user,
+                    message=f"Consultation began with {appointment.patient.full_name} on {appointment.date}",
+                    link=reverse('DurielEyeApp:appointment_list'),
+                    clinic_id=clinic_id,
+                    object_id=str(appointment.id),
+                    app_name='eye'  # Add app_name to identify the source
+                )
 
     context = {
         'patient': patient,
@@ -417,15 +653,24 @@ def begin_eye_consultation(request, patient_id):
     return render(request, 'eye/consultation/begin_consultation.html', context)
 
 
+
+
+
 @login_required
 def complete_eye_consultation(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id)
     
-    # Optionally mark the last appointment as completed
     appointment = EyeAppointment.objects.filter(patient=patient).order_by('-date').first()
     if appointment:
         appointment.status = 'COMPLETED'
         appointment.save()
+        # ✅ Add logging
+        log_action(
+            request,
+            'UPDATE',
+            appointment,
+            details=f"Completed consultation for {patient.full_name}"
+        )
         messages.success(request, f"Consultation for {patient.full_name} marked as completed.")
     else:
         messages.warning(request, f"No active appointment found for {patient.full_name}.")
@@ -504,8 +749,15 @@ def complete_eye_follow_up(request, pk):
 
     if not followup.completed:
         followup.completed = True
-        followup.completed_at = timezone.now()  # if you have a completed_at field
+        followup.completed_at = timezone.now()
         followup.save()
+        # ✅ Add logging
+        log_action(
+            request,
+            'UPDATE',
+            followup,
+            details=f"Completed follow-up for {followup.patient.full_name}"
+        )
         messages.success(request, f"Follow-up for {followup.patient.full_name} marked as completed.")
     else:
         messages.info(request, "Follow-up is already completed.")
@@ -516,31 +768,31 @@ def complete_eye_follow_up(request, pk):
 # --------------------
 # Notifications
 # --------------------
-@login_required
-def mark_eye_notification_read(request, pk):
-    clinic_id = request.session.get('clinic_id')
-    notification = get_object_or_404(EyeNotification, pk=pk, clinic_id=clinic_id)
-    if notification.user == request.user:
-        notification.is_read = True
-        notification.save()
-    elif notification.user is None:
-        EyeNotificationRead.objects.get_or_create(user=request.user, notification=notification)
-    return redirect(request.META.get('HTTP_REFERER', 'DurielEyeApp:dashboard'))
+# @login_required
+# def mark_eye_notification_read(request, pk):
+#     clinic_id = request.session.get('clinic_id')
+#     notification = get_object_or_404(EyeNotification, pk=pk, clinic_id=clinic_id)
+#     if notification.user == request.user:
+#         notification.is_read = True
+#         notification.save()
+#     elif notification.user is None:
+#         EyeNotificationRead.objects.get_or_create(user=request.user, notification=notification)
+#     return redirect(request.META.get('HTTP_REFERER', 'DurielEyeApp:dashboard'))
 
 
-@login_required
-def clear_eye_notifications(request):
-    clinic_id = request.session.get('clinic_id')
-    request.user.eye_notifications.filter(clinic_id=clinic_id).delete()
-    unread_globals = EyeNotification.objects.filter(user__isnull=True, clinic_id=clinic_id).exclude(
-        id__in=EyeNotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-    )
-    EyeNotificationRead.objects.bulk_create(
-        [EyeNotificationRead(user=request.user, notification=n) for n in unread_globals],
-        ignore_conflicts=True
-    )
-    messages.success(request, "Notifications cleared")
-    return redirect(request.META.get('HTTP_REFERER', 'DurielEyeApp:dashboard'))
+# @login_required
+# def clear_eye_notifications(request):
+#     clinic_id = request.session.get('clinic_id')
+#     request.user.eye_notifications.filter(clinic_id=clinic_id).delete()
+#     unread_globals = EyeNotification.objects.filter(user__isnull=True, clinic_id=clinic_id).exclude(
+#         id__in=EyeNotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+#     )
+#     EyeNotificationRead.objects.bulk_create(
+#         [EyeNotificationRead(user=request.user, notification=n) for n in unread_globals],
+#         ignore_conflicts=True
+#     )
+#     messages.success(request, "Notifications cleared")
+#     return redirect(request.META.get('HTTP_REFERER', 'DurielEyeApp:dashboard'))
 
 
 #--------------------
@@ -809,3 +1061,67 @@ def generate_eye_financial_report(start_date, end_date, clinic_id):
         writer.writerow([f'Error: {str(e)}', '', '', '', '', ''])
         writer.writerow([f'No financial data available for clinic {clinic_id}', '', '', '', '', ''])
         return response
+    
+    
+    
+    
+from django.core.mail import send_mail
+from datetime import date
+from django.urls import reverse
+from django.conf import settings
+from core.models import Notification, Patient
+
+
+def check_birthdays(clinic_id=None):
+    today = date.today()
+    patients = Patient.objects.filter(
+        date_of_birth__month=today.month,
+        date_of_birth__day=today.day
+    )
+    if clinic_id:
+        patients = patients.filter(clinic_id=clinic_id)
+
+    for patient in patients:
+        # Ensure we don't send duplicate notifications/emails per patient per day
+        already_sent = Notification.objects.filter(
+            object_id=str(patient.pk),
+            clinic_id=patient.clinic_id,
+            created_at__date=today,
+            app_name='core'
+        ).exists()
+
+        if not already_sent:
+            # ✅ Create notifications for staff
+            staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
+            for user in staff_users:
+                Notification.objects.create(
+                    user=user,
+                    message=f"Today is {patient.full_name}'s birthday!",
+                    link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+                    clinic_id=patient.clinic_id,
+                    object_id=str(patient.pk),
+                    app_name='core'
+                )
+
+            # ✅ Send email to patient if email exists
+            if getattr(patient, 'email', None):
+                clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
+                try:
+                    send_mail(
+                        'Happy Birthday!',
+                        f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
+                        settings.DEFAULT_FROM_EMAIL,
+                        [patient.email],
+                        fail_silently=False
+                    )
+                    # Log a notification (global) that email was sent
+                    Notification.objects.create(
+                        user=None,
+                        message=f"Birthday email sent to {patient.full_name}",
+                        clinic_id=patient.clinic_id,
+                        object_id=str(patient.pk),
+                        app_name='core'
+                    )
+                except Exception as e:
+                    print(f"Error sending birthday email: {str(e)}")
+

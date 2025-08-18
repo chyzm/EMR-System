@@ -35,6 +35,8 @@ from .utils import log_action
 from django import forms
 from django.urls import reverse
 from DurielEyeApp.models import EyeAppointment
+from .models import Notification, NotificationRead
+
 
 
 
@@ -457,6 +459,19 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         
         context['medical_records'] = medical_records
 
+        # Eye Medical Records Pagination (for EYE clinic)
+        if self.request.session.get('clinic_type') == 'EYE':
+            eye_medical_records_list = patient.eye_medical_records.all().order_by('-created_at')
+            eye_medical_paginator = Paginator(eye_medical_records_list, items_per_page)
+            eye_medical_page = self.request.GET.get('eye_medical_page', 1)
+            try:
+                eye_medical_records = eye_medical_paginator.page(eye_medical_page)
+            except PageNotAnInteger:
+                eye_medical_records = eye_medical_paginator.page(1)
+            except EmptyPage:
+                eye_medical_records = eye_medical_paginator.page(eye_medical_paginator.num_pages)
+            context['eye_medical_records'] = eye_medical_records
+
         # Eye Exams Pagination (only for EYE clinic)
         if self.request.session.get('clinic_type') == 'EYE':
             eye_exams_list = patient.eye_exams.all().order_by('-created_at')
@@ -470,7 +485,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                 eye_exams = exams_paginator.page(exams_paginator.num_pages)
             context['eye_exams'] = eye_exams
 
-        # Appointments Pagination (Regular)
+        # Appointments Pagination (Regular) - Most recent first
         appointments_list = Appointment.objects.filter(patient=patient).order_by('-date', '-start_time')
         appointments_paginator = Paginator(appointments_list, items_per_page)
         appointments_page = self.request.GET.get('appointments_page', 1)
@@ -482,7 +497,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             appointments = appointments_paginator.page(appointments_paginator.num_pages)
         context['appointments'] = appointments
 
-        # Eye Appointments Pagination
+        # Eye Appointments Pagination - Most recent first
         eye_appointments_list = EyeAppointment.objects.filter(patient=patient).order_by('-date', '-start_time')
         eye_appointments_paginator = Paginator(eye_appointments_list, items_per_page)
         eye_appointments_page = self.request.GET.get('eye_appointments_page', 1)
@@ -494,7 +509,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             eye_appointments = eye_appointments_paginator.page(eye_appointments_paginator.num_pages)
         context['eye_appointments'] = eye_appointments
 
-        # Prescriptions Pagination (Active)
+        # Prescriptions Pagination (Active) - Most recent first
         prescriptions_list = Prescription.objects.filter(patient=patient, is_active=True).order_by('-date_prescribed')
         prescriptions_paginator = Paginator(prescriptions_list, items_per_page)
         prescriptions_page = self.request.GET.get('prescriptions_page', 1)
@@ -506,7 +521,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             prescriptions = prescriptions_paginator.page(prescriptions_paginator.num_pages)
         context['prescriptions'] = prescriptions
 
-        # Deactivated Prescriptions Pagination
+        # Deactivated Prescriptions Pagination - Most recent first
         deactivated_prescriptions_list = Prescription.objects.filter(patient=patient, is_active=False).order_by('-date_prescribed')
         deactivated_prescriptions_paginator = Paginator(deactivated_prescriptions_list, items_per_page)
         deactivated_prescriptions_page = self.request.GET.get('deactivated_prescriptions_page', 1)
@@ -518,7 +533,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             deactivated_prescriptions = deactivated_prescriptions_paginator.page(deactivated_prescriptions_paginator.num_pages)
         context['deactivated_prescriptions'] = deactivated_prescriptions
 
-        # Bills Pagination
+        # Bills Pagination - Most recent first
         bills_list = Billing.objects.filter(patient=patient).order_by('-service_date')
         bills_paginator = Paginator(bills_list, items_per_page)
         bills_page = self.request.GET.get('bills_page', 1)
@@ -952,7 +967,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Count, Sum
 from .models import Patient, Clinic, CustomUser, Billing
-from DurielMedicApp.models import Appointment, Notification
+from DurielMedicApp.models import Appointment
 from .forms import ClinicForm
 
 from django.core.paginator import Paginator
@@ -1405,13 +1420,19 @@ def prescription_list(request):
     return render(request, 'prescription/prescription_list.html', context)
 
 
+
+from django import shortcuts
+from django.utils import timezone
+
 @login_required
+@user_passes_test(lambda u: u.role in ['ADMIN', 'DOCTOR', 'OPERATOR'])  
 def deactivate_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk)
     patient = prescription.patient
 
     if request.method == 'POST':
         prescription.is_active = False
+        prescription.deactivated_at = timezone.now()  # Add this line
         prescription.save()
         
         # ✅ Manual logging
@@ -1422,8 +1443,7 @@ def deactivate_prescription(request, pk):
             details=f"Deactivated prescription for {patient.full_name}"
         )
         
-        
-        
+        messages.success(request, "Prescription has been deactivated.")
         return redirect('core:patient_detail', pk=patient.patient_id)
 
     return render(request, 'prescription/deactivate_prescription.html', {
@@ -1432,9 +1452,6 @@ def deactivate_prescription(request, pk):
     })
     
     
-    from django.shortcuts import get_object_or_404, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
 
 @login_required
 @user_passes_test(lambda u: u.role in ['ADMIN', 'DOCTOR'])  # adjust roles as needed
@@ -1456,3 +1473,48 @@ def delete_prescription(request, pk):
         return redirect('core:prescription_list')
 
     return render(request, 'prescription/confirm_delete.html', {'prescription': prescription})
+
+
+
+
+
+
+@login_required
+def mark_notification_read(request, pk):
+    clinic_id = request.session.get('clinic_id')
+    notification = get_object_or_404(Notification, pk=pk, clinic_id=clinic_id)
+    
+    if notification.user == request.user:
+        notification.is_read = True
+        notification.save()
+    elif notification.user is None:
+        NotificationRead.objects.get_or_create(
+            user=request.user,
+            notification=notification
+        )
+    
+    return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
+
+@login_required
+def clear_notifications(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected")
+        return redirect('core:select_clinic')
+    
+    # Delete user-specific notifications for this clinic
+    request.user.notifications.filter(clinic_id=clinic_id).delete()
+
+    # Mark global clinic notifications as read
+    unread_globals = Notification.objects.filter(
+        user__isnull=True,
+        clinic_id=clinic_id
+    ).exclude(
+        id__in=NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+    )
+    NotificationRead.objects.bulk_create([
+        NotificationRead(user=request.user, notification=n) for n in unread_globals
+    ], ignore_conflicts=True)
+
+    messages.success(request, "Notifications cleared")
+    return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))

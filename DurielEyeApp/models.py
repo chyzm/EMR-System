@@ -64,6 +64,7 @@ class EyeAppointment(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='SCHEDULED')
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
@@ -135,38 +136,4 @@ class EyeFollowUp(models.Model):
         return f"Follow-up for {self.patient.full_name} on {self.scheduled_date}"
 
 
-class EyeNotification(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='eye_notifications',
-        null=True,
-        blank=True
-    )
-    clinic = models.ForeignKey(
-        Clinic,
-        on_delete=models.CASCADE,
-        related_name='eye_notifications',
-        null=True,
-        blank=True,
-        limit_choices_to={'clinic_type': 'EYE'}
-    )
-    message = models.TextField()
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    link = models.URLField(blank=True, null=True)
-    
-    class Meta:
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"Notification for {self.user.username if self.user else 'All'} - {self.message[:50]}"
 
-
-class EyeNotificationRead(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    notification = models.ForeignKey(EyeNotification, on_delete=models.CASCADE)
-    read_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'notification')

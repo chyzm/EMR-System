@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from core.models import Patient, Clinic, Billing
 from .models import (
     Appointment, Vitals, Admission, FollowUp,
-    Prescription, MedicalRecord, Notification, NotificationRead
+    Prescription, MedicalRecord
 )
 from core.views import PatientDetailView
 from .forms import (
@@ -46,6 +46,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.mail import send_mail
 from core.utils import log_action
 from core.models import Clinic
+from core.models import Notification, NotificationRead
 
 User = get_user_model()
 
@@ -427,24 +428,24 @@ def patient_search_api(request):
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
-@login_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST')
-def mark_notification_read(request, pk):
-    clinic_id = request.session.get('clinic_id')
-    notification = get_object_or_404(Notification, pk=pk, clinic_id=clinic_id)
+# @login_required
+# @role_required('ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST')
+# def mark_notification_read(request, pk):
+#     clinic_id = request.session.get('clinic_id')
+#     notification = get_object_or_404(Notification, pk=pk, clinic_id=clinic_id)
     
-    # Mark as read for personal notifications
-    if notification.user == request.user:
-        notification.is_read = True
-        notification.save()
-    # Mark as read for global notifications (user=None)
-    elif notification.user is None:
-        NotificationRead.objects.get_or_create(
-            user=request.user,
-            notification=notification
-        )
+#     # Mark as read for personal notifications
+#     if notification.user == request.user:
+#         notification.is_read = True
+#         notification.save()
+#     # Mark as read for global notifications (user=None)
+#     elif notification.user is None:
+#         NotificationRead.objects.get_or_create(
+#             user=request.user,
+#             notification=notification
+#         )
     
-    return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
+#     return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
 
 
 
@@ -790,25 +791,29 @@ def check_birthdays(clinic_id=None):
         patients = patients.filter(clinic_id=clinic_id)
 
     for patient in patients:
-        # Check if we've already sent a birthday email today
+        # Ensure we don't send duplicate notifications/emails per patient per day
         already_sent = Notification.objects.filter(
-            message__icontains=f"{patient.full_name}'s birthday",
-            created_at__date=today
+            object_id=str(patient.pk),
+            clinic_id=patient.clinic_id,
+            created_at__date=today,
+            app_name='core'
         ).exists()
-        
+
         if not already_sent:
-            # Create notifications for staff
+            # ✅ Create notifications for staff
             staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
             for user in staff_users:
                 Notification.objects.create(
                     user=user,
                     message=f"Today is {patient.full_name}'s birthday!",
                     link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
-                    clinic_id=patient.clinic_id
+                    clinic_id=patient.clinic_id,
+                    object_id=str(patient.pk),
+                    app_name='core'
                 )
-            
-            # Send email to patient if email exists
-            if hasattr(patient, 'email') and patient.email:
+
+            # ✅ Send email to patient if email exists
+            if getattr(patient, 'email', None):
                 clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
                 try:
                     send_mail(
@@ -816,16 +821,66 @@ def check_birthdays(clinic_id=None):
                         f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
                         settings.DEFAULT_FROM_EMAIL,
                         [patient.email],
-                        fail_silently=True
+                        fail_silently=False
                     )
-                    # Create a notification to mark that we've sent the email
+                    # Log a notification (global) that email was sent
                     Notification.objects.create(
-                        user=None,  # Global notification
+                        user=None,
                         message=f"Birthday email sent to {patient.full_name}",
-                        clinic_id=patient.clinic_id
+                        clinic_id=patient.clinic_id,
+                        object_id=str(patient.pk),
+                        app_name='core'
                     )
                 except Exception as e:
                     print(f"Error sending birthday email: {str(e)}")
+
+
+# def check_birthdays(clinic_id=None):
+#     today = date.today()
+#     patients = Patient.objects.filter(
+#         date_of_birth__month=today.month,
+#         date_of_birth__day=today.day
+#     )
+#     if clinic_id:
+#         patients = patients.filter(clinic_id=clinic_id)
+
+#     for patient in patients:
+#         # Check if we've already sent a birthday email today
+#         already_sent = Notification.objects.filter(
+#             message__icontains=f"{patient.full_name}'s birthday",
+#             created_at__date=today
+#         ).exists()
+        
+#         if not already_sent:
+#             # Create notifications for staff
+#             staff_users = patient.clinic.staff.all() if hasattr(patient.clinic, 'staff') else []
+#             for user in staff_users:
+#                 Notification.objects.create(
+#                     user=user,
+#                     message=f"Today is {patient.full_name}'s birthday!",
+#                     link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+#                     clinic_id=patient.clinic_id
+#                 )
+            
+#             # Send email to patient if email exists
+#             if hasattr(patient, 'email') and patient.email:
+#                 clinic_name = patient.clinic.name if patient.clinic else "Your Clinic"
+#                 try:
+#                     send_mail(
+#                         'Happy Birthday!',
+#                         f'Dear {patient.full_name},\n\nHappy Birthday from {clinic_name}!',
+#                         settings.DEFAULT_FROM_EMAIL,
+#                         [patient.email],
+#                         fail_silently=True
+#                     )
+#                     # Create a notification to mark that we've sent the email
+#                     Notification.objects.create(
+#                         user=None,  # Global notification
+#                         message=f"Birthday email sent to {patient.full_name}",
+#                         clinic_id=patient.clinic_id
+#                     )
+#                 except Exception as e:
+#                     print(f"Error sending birthday email: {str(e)}")
 
 
 

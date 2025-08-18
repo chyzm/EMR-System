@@ -368,12 +368,14 @@ li ul[id*="_error"] {
                       {% endfor %}
                     </div>
                     <div class="border-t border-gray-200">
-                      <a href="{% url 'DurielMedicApp:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
+                      <a href="{% url 'core:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
                         Clear All Notifications
                       </a>
                     </div>
                   </div>
                 </div>
+
+                
                 
                 <!-- Profile dropdown -->
                 <div class="relative">
@@ -385,12 +387,12 @@ li ul[id*="_error"] {
                         <div class="hidden md:block text-sm font-medium text-gray-700 mr-1">
                           {{ request.session.clinic_name }}
                         </div>
-                        {% if request.session.clinic_logo %}
-                          {% comment %} <img class="h-8 w-8 rounded-full object-cover" src="{{ request.session.clinic_logo.url }}" alt="Clinic Logo"> {% endcomment %}
-                          <img class="h-8 w-8 rounded-full object-cover" src="{{ MEDIA_URL }}{{ request.session.clinic_logo }}" alt="Clinic Logo">
-                        {% comment %} {% else %}
-                          <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Company Logo"> {% endcomment %}
+                       {% if clinic_logo_url %}
+                          <img class="h-8 w-8 rounded-full object-cover" src="{{ clinic_logo_url }}" alt="Clinic Logo">
+                        {% else %}
+                          <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Default Logo">
                         {% endif %}
+
                       </div>
                     </button>
                   </div>
@@ -472,7 +474,7 @@ li ul[id*="_error"] {
     
       if (!dropdown.classList.contains('hidden')) {
         // Send request to mark all as read
-        fetch("{% url 'DurielMedicApp:mark_notification_read' 0 %}".replace('0', notificationId), {
+        fetch("{% url 'core:mark_notification_read' 0 %}".replace('0', notificationId), {
           method: 'POST',
           headers: {
             'X-CSRFToken': '{{ csrf_token }}',

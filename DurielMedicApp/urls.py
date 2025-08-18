@@ -30,10 +30,8 @@ urlpatterns = [
     path('api/appointments/check/', views.check_appointment_availability, name='check_appointment_availability'),
 
     # Notifications
-    # path('notifications/mark-read/', views.mark_notification_read, name='mark_notification_read'),
-    path('notifications/mark-read/<int:pk>/', views.mark_notification_read, name='mark_notification_read'),
-    # path('notifications/mark-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
-    path('notifications/clear/', views.clear_notifications, name='clear_notifications'),
+    # path('notifications/mark-read/<int:pk>/', views.mark_notification_read, name='mark_notification_read'),
+    # path('notifications/clear/', views.clear_notifications, name='clear_notifications'),
     
     
     

@@ -74,6 +74,7 @@ class Patient(models.Model):
     )
     STATUS_CHOICES = (
         ('REGISTERED', 'Registered at Front Desk'),
+        ('INSURANCE', 'HMO'),
         ('VITALS_TAKEN', 'Vitals Recorded'),
         ('IN_CONSULTATION', 'In Consultation'),
         ('ADMITTED', 'Admitted'),
@@ -87,7 +88,8 @@ class Patient(models.Model):
     patient_id = models.CharField(max_length=10, primary_key=True, unique=True, editable=False)
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
-    full_name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
     email = models.EmailField(blank=True, null=True)
     date_of_birth = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
@@ -101,6 +103,11 @@ class Patient(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_patients')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
 
     # def save(self, *args, **kwargs):
     #     if not self.clinic:
@@ -243,6 +250,44 @@ class Prescription(models.Model):
     instructions = models.TextField(blank=True, null=True)
     date_prescribed = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.medication} for {self.patient.full_name}"
+    
+
+class Notification(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='notifications', 
+        null=True, 
+        blank=True
+    )
+    clinic = models.ForeignKey(
+        'Clinic', 
+        on_delete=models.CASCADE, 
+        related_name='notifications', 
+        null=True, 
+        blank=True
+    )
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    link = models.URLField(blank=True, null=True)
+    object_id = models.CharField(max_length=50, blank=True, null=True)
+    app_name = models.CharField(max_length=20, blank=True)  # 'medic', 'eye', etc.
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Notification for {self.user.username if self.user else 'All'} - {self.message[:50]}"
+
+class NotificationRead(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    notification = models.ForeignKey('Notification', on_delete=models.CASCADE)
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'notification')

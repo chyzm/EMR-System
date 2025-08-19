@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden slide-in">
+        <div class="p-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
+            <h2 class="text-2xl font-bold">{{ medication.display_name }}</h2>
+            <div class="flex items-center mt-2 space-x-4 text-sm">
+                <span class="bg-white/20 px-2 py-1 rounded-full">
+                    <i class="fas fa-tag mr-1"></i> {{ medication.category.name }}
+                </span>
+                <span class="bg-white/20 px-2 py-1 rounded-full">
+                    <i class="fas fa-barcode mr-1"></i> {{ medication.sku|default:"No SKU" }}
+                </span>
+            </div>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Basic Information</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Generic Name:</span>
+                            <span class="font-medium">{{ medication.generic_name|default:"—" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Manufacturer:</span>
+                            <span class="font-medium">{{ medication.manufacturer|default:"—" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Unit of Measure:</span>
+                            <span class="font-medium">{{ medication.unit_of_measure }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Minimum Stock Level:</span>
+                            <span class="font-medium">{{ medication.minimum_stock_level }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Stock Information</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Current Stock:</span>
+                            <span class="font-medium">{{ medication.quantity_in_stock }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Last Updated:</span>
+                            <span class="font-medium">{{ medication.updated_at|date:"M d, Y H:i" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Expiry Date:</span>
+                            <span class="font-medium {% if medication.is_expired or medication.expires_soon %}text-red-600{% endif %}">
+                                {{ medication.expiry_date|date:"M d, Y"|default:"—" }}
+                                {% if medication.is_expired %}
+                                    <span class="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full ml-2">Expired</span>
+                                {% elif medication.expires_soon %}
+                                    <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full ml-2">Expires soon</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Batch Number:</span>
+                            <span class="font-medium">{{ medication.batch_number|default:"—" }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Recent Stock Movements</h3>
+                    {% if recent_movements %}
+                        <div class="space-y-3">
+                            {% for move in recent_movements %}
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <span class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <i class="fas fa-{% if move.movement_type == 'IN' %}plus text-green-500{% else %}minus text-red-500{% endif %} text-sm"></i>
+                                        </span>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-900">
+                                            {{ move.movement_type }} ({{ move.quantity }})
+                                            <span class="text-xs text-gray-500 ml-2">{{ move.created_at|timesince }} ago</span>
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            New stock: {{ move.new_stock }} • By: {{ move.user.get_full_name }}
+                                        </p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-gray-500">No stock movements recorded.</p>
+                    {% endif %}
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-medium text-gray-900 mb-3 border-b pb-2">Recent Prescriptions</h3>
+                    {% if recent_prescriptions %}
+                        <div class="space-y-3">
+                            {% for pres in recent_prescriptions %}
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0 mt-1">
+                                        <span class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                            <i class="fas fa-prescription text-purple-500 text-sm"></i>
+                                        </span>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-900">
+                                            {{ pres.patient.full_name }}
+                                            <span class="text-xs text-gray-500 ml-2">{{ pres.date_prescribed|date:"M d, Y" }}</span>
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            Quantity: {{ pres.quantity_prescribed }} • By: {{ pres.prescribed_by.get_full_name }}
+                                        </p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-gray-500">No prescriptions found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
+            <a href="{% url 'core:adjust_stock' medication.id %}" class="btn btn-primary px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                <i class="fas fa-adjust mr-2"></i>Adjust Stock
+            </a>
+            <a href="{% url 'core:edit_medication' medication.id %}" class="btn btn-secondary px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors">
+                <i class="fas fa-edit mr-2"></i>Edit Medication
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

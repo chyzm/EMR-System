@@ -694,7 +694,7 @@ class EyeFollowUpListView(ListView):
 class EyeFollowUpCreateView(CreateView):
     model = EyeFollowUp
     form_class = EyeFollowUpForm
-    template_name = 'eye/followup/followup_form.html'
+    template_name = 'eye/follow_up/schedule_follow_up.html'
     success_url = reverse_lazy('DurielEyeApp:followup_list')
 
     def form_valid(self, form):
@@ -718,7 +718,7 @@ class EyeFollowUpCreateView(CreateView):
 class EyeFollowUpUpdateView(UpdateView):
     model = EyeFollowUp
     form_class = EyeFollowUpForm
-    template_name = 'eye/follow_up/followup_form.html'
+    template_name = 'eye/follow_up/schedule_follow_up.html'
     
 
 @login_required

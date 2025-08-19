@@ -12,7 +12,7 @@ from django.http import Http404, HttpResponse
 import csv
 
 from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription 
-from .forms import CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm
+from .forms import CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm
 from DurielMedicApp.decorators import role_required
 from django.http import JsonResponse
 from .models import Patient
@@ -36,6 +36,7 @@ from django import forms
 from django.urls import reverse
 from DurielEyeApp.models import EyeAppointment
 from .models import Notification, NotificationRead
+from django.http import HttpResponseForbidden
 
 
 
@@ -1332,51 +1333,60 @@ def bulk_delete_logs(request):
 
 
 @login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'OPTOMETRIST')
 def add_prescription(request, patient_id):
+    """Add prescription with inventory integration and logging."""
     patient = get_object_or_404(Patient, patient_id=patient_id)
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+
+    # Get active medications for this clinic
+    medications = ClinicMedication.objects.filter(
+        clinic=clinic,
+        status='ACTIVE'
+    ).order_by('name')
 
     if request.method == 'POST':
-        medication = request.POST.get('medication')
-        dosage = request.POST.get('dosage')
-        instructions = request.POST.get('instructions')
-        # frequency = request.POST.get('frequency')
-        # duration = request.POST.get('duration')
-        
+        # Use PrescriptionForm to handle validation
+        form = PrescriptionForm(request.POST, clinic=clinic)
+        if form.is_valid():
+            prescription = form.save(commit=False)
+            prescription.patient = patient
+            prescription.clinic = clinic
+            prescription.prescribed_by = request.user
+            prescription.save()
 
-        # Validation (optional)
-        if not medication or not dosage:
-            messages.error(request, "Please fill in all required fields.")
-        else:
-            prescription = Prescription.objects.create(
-                patient=patient,
-                medication=medication,
-                dosage=dosage,
-                clinic=patient.clinic,
-                # frequency=frequency,
-                # duration=duration,
-                instructions=instructions,
-                prescribed_by=request.user
-            )
-
-            
-            # ✅ Manual logging
             log_action(
                 request,
                 'CREATE',
                 prescription,
-                details=f"Added prescription for {patient.full_name}"
+                details=f"Added prescription for {patient.full_name}: "
+                        f"{prescription.clinic_medication.name if prescription.clinic_medication else prescription.custom_medication}"
             )
-            
-            
-            Notification.objects.create(
-                user=prescription.patient.created_by,
-                message=f"New prescription for {prescription.patient.full_name}",
-                link=reverse('core:patient_detail', kwargs={'pk': prescription.patient.pk})
-            )
-            messages.success(request, "Prescription saved successfully.")
-            return redirect('core:patient_detail', pk=patient.patient_id)
 
-    return render(request, 'prescription/add_prescription.html', {'patient': patient})
+            messages.success(request, "Prescription saved successfully!")
+
+            # Optional: notify about stock if clinic medication is used
+            if prescription.clinic_medication:
+                messages.info(
+                    request,
+                    f"Would you like to dispense this medication now? "
+                    f"Available stock: {prescription.clinic_medication.quantity_in_stock}"
+                )
+
+            return redirect('core:patient_detail', pk=patient.patient_id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = PrescriptionForm(clinic=clinic, initial={'patient': patient})
+
+    return render(request, 'prescription/add_prescription.html', {
+        'form': form,
+        'patient': patient,
+        'clinic': clinic,
+        'medications': medications
+    })
 
 
 
@@ -1385,14 +1395,77 @@ def edit_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk)
     patient = prescription.patient
 
+    # Ensure the user belongs to the clinic of this prescription
+    if prescription.clinic not in request.user.clinic.all():
+        return HttpResponseForbidden("You do not have permission to access this page.")
+
+    # Get medications for the current clinic to populate the dropdown
+    user_clinics = request.user.clinic.all()
+    medications = ClinicMedication.objects.filter(
+        clinic__in=user_clinics,
+        status='ACTIVE'
+    ).order_by('name')
+
+    # Pass the current medication ID to template for pre-selection
+    current_medication_id = prescription.clinic_medication.id if prescription.clinic_medication else None
+
     if request.method == 'POST':
-        prescription.medication = request.POST.get('medication')
+        medication_id = request.POST.get('medication')
+        
+        try:
+            medication = ClinicMedication.objects.get(id=medication_id, clinic__in=user_clinics)
+        except ClinicMedication.DoesNotExist:
+            messages.error(request, "Invalid medication selected.")
+            return redirect('core:patient_detail', pk=patient.patient_id)
+        
+        # Update prescription
+        prescription.clinic_medication = medication
         prescription.dosage = request.POST.get('dosage')
         prescription.instructions = request.POST.get('instructions')
         prescription.save()
+
+        log_action(
+            request,
+            'UPDATE',
+            prescription,
+            details=f"Updated prescription for {patient.full_name}"
+        )
+        messages.success(request, "Prescription updated successfully.")
         return redirect('core:patient_detail', pk=patient.patient_id)
 
-    return render(request, 'prescription/edit_prescription.html', {'prescription': prescription, 'patient': patient})
+    return render(request, 'prescription/edit_prescription.html', {
+        'prescription': prescription,
+        'patient': patient,
+        'medications': medications,
+        'current_medication_id': current_medication_id,
+    })
+
+
+# @login_required
+# def prescription_list(request):
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id:
+#         messages.error(request, "No clinic selected. Please select a clinic first.")
+#         return redirect('core:select_clinic')
+
+#     query = request.GET.get('q', '')
+#     prescriptions = Prescription.objects.filter(patient__clinic_id=clinic_id).select_related('patient', 'prescribed_by')
+
+#     if query:
+#         prescriptions = prescriptions.filter(
+#             Q(patient__full_name__icontains=query) |
+#             Q(prescribed_by__first_name__icontains=query) |
+#             Q(prescribed_by__last_name__icontains=query) |
+#             Q(medication__icontains=query) |
+#             Q(date_prescribed__icontains=query)
+#         )
+
+#     context = {
+#         'prescriptions': prescriptions.order_by('-date_prescribed'),
+#         'query': query,
+#     }
+#     return render(request, 'prescription/prescription_list.html', context)
+
 
 @login_required
 def prescription_list(request):
@@ -1402,22 +1475,54 @@ def prescription_list(request):
         return redirect('core:select_clinic')
 
     query = request.GET.get('q', '')
-    prescriptions = Prescription.objects.filter(patient__clinic_id=clinic_id).select_related('patient', 'prescribed_by')
+    # Explicitly order by date_prescribed in descending order (newest first)
+    prescriptions = Prescription.objects.filter(
+        patient__clinic_id=clinic_id
+    ).select_related(
+        'patient', 'prescribed_by', 'clinic_medication'
+    ).order_by('-date_prescribed', '-id')  # Added secondary ordering by ID for consistency
 
     if query:
         prescriptions = prescriptions.filter(
             Q(patient__full_name__icontains=query) |
             Q(prescribed_by__first_name__icontains=query) |
             Q(prescribed_by__last_name__icontains=query) |
-            Q(medication__icontains=query) |
+            Q(clinic_medication__name__icontains=query) |
             Q(date_prescribed__icontains=query)
         )
 
+    # Pagination - 25 items per page
+    paginator = Paginator(prescriptions, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'prescriptions': prescriptions.order_by('-date_prescribed'),
+        'prescriptions': page_obj,
         'query': query,
     }
     return render(request, 'prescription/prescription_list.html', context)
+
+
+@login_required
+def prescription_menu(request):
+    buttons = [
+        # {"name": "Add Prescription", "url": "add_prescription"},
+        # {"name": "Edit Prescription", "url": "edit_prescription"},
+        {"name": "Prescription List", "url": "core:prescription_list"},
+        # {"name": "Deactivate Prescription", "url": "deactivate_prescription"},
+        # {"name": "Delete Prescription", "url": "delete_prescription"},
+        # {"name": "Enhanced Add Prescription", "url": "enhanced_add_prescription"},
+        # {"name": "Dispense Prescription", "url": "dispense_prescription"},
+        {"name": "Inventory Dashboard", "url": "core:inventory_dashboard"},
+        {"name": "Medications List", "url": "core:medication_list"},
+        {"name": "Add Medication", "url": "core:add_medication"},
+        # {"name": "Edit Medication", "url": "edit_medication"},
+        # {"name": "Medication Detail", "url": "medication_detail"},
+        # {"name": "Adjust Stock", "url": "adjust_stock"},
+        # {"name": "Stock Movements", "url": "stock_movements"},
+        {"name": "Manage Categories", "url": "core:manage_categories"},
+    ]
+    return render(request, "prescription/prescription_menu.html", {"buttons": buttons})
 
 
 
@@ -1473,6 +1578,836 @@ def delete_prescription(request, pk):
         return redirect('core:prescription_list')
 
     return render(request, 'prescription/confirm_delete.html', {'prescription': prescription})
+
+
+
+# Add these views to your existing views.py
+
+import csv
+from io import TextIOWrapper
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.urls import reverse_lazy
+from django.db.models import Q, Sum
+from django.http import JsonResponse
+from datetime import date, timedelta
+from .models import ClinicMedication, MedicationCategory, StockMovement
+from .forms import ClinicMedicationForm, StockAdjustmentForm, BulkStockUploadForm, MedicationCategoryForm
+from core.decorators import clinic_selected_required
+from .utils import log_action
+from django.db.models import F
+
+
+# ---------- INVENTORY MANAGEMENT ----------
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def inventory_dashboard(request):
+    """Main inventory dashboard with key metrics"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    # Get inventory statistics
+    total_medications = ClinicMedication.objects.filter(clinic=clinic, status='ACTIVE').count()
+    out_of_stock = ClinicMedication.objects.filter(clinic=clinic, quantity_in_stock=0, status='ACTIVE').count()
+    low_stock = ClinicMedication.objects.filter(
+        clinic=clinic, 
+        quantity_in_stock__lte=F('minimum_stock_level'),
+        quantity_in_stock__gt=0,
+        status='ACTIVE'
+    ).count()
+    
+    # Low stock alerts
+    low_stock_items = ClinicMedication.objects.filter(
+        clinic=clinic,
+        quantity_in_stock__lte=F('minimum_stock_level'),
+        status='ACTIVE'
+    ).order_by('quantity_in_stock')[:10]
+    
+    # Expiring soon (within 30 days)
+    expiring_soon = ClinicMedication.objects.filter(
+        clinic=clinic,
+        expiry_date__lte=date.today() + timedelta(days=30),
+        expiry_date__gte=date.today(),
+        status='ACTIVE'
+    ).order_by('expiry_date')[:10]
+    
+    # Recent stock movements
+    recent_movements = StockMovement.objects.filter(
+        medication__clinic=clinic
+    ).select_related('medication', 'created_by').order_by('-created_at')[:10]
+    
+    context = {
+        'clinic': clinic,
+        'total_medications': total_medications,
+        'out_of_stock_count': out_of_stock,
+        'low_stock_count': low_stock,
+        'low_stock_items': low_stock_items,
+        'expiring_soon': expiring_soon,
+        'recent_movements': recent_movements,
+    }
+    
+    return render(request, 'inventory/dashboard.html', context)
+
+
+
+
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+# def inventory_dashboard(request):
+#     """Main inventory dashboard with key metrics"""
+#     clinic_id = request.session.get('clinic_id')
+#     clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+#     # Get inventory statistics
+#     total_medications = ClinicMedication.objects.filter(clinic=clinic, status='ACTIVE').count()
+#     out_of_stock = ClinicMedication.objects.filter(clinic=clinic, quantity_in_stock=0, status='ACTIVE').count()
+#     low_stock = ClinicMedication.objects.filter(
+#         clinic=clinic, 
+#         # quantity_in_stock__lte=models.F('minimum_stock_level'),
+#         quantity_in_stock__lte=F('minimum_stock_level'),
+#         quantity_in_stock__gt=0,
+#         status='ACTIVE'
+#     ).count()
+    
+#     # Recently added medications
+#     recent_medications = ClinicMedication.objects.filter(clinic=clinic).order_by('-created_at')[:5]
+    
+#     # Low stock alerts
+#     low_stock_items = ClinicMedication.objects.filter(
+#         clinic=clinic,
+#         quantity_in_stock__lte=F('minimum_stock_level'),
+#         status='ACTIVE'
+#     ).order_by('quantity_in_stock')[:10]
+    
+#     # Expiring soon (within 30 days)
+#     expiring_soon = ClinicMedication.objects.filter(
+#         clinic=clinic,
+#         expiry_date__lte=date.today() + timedelta(days=30),
+#         expiry_date__gte=date.today(),
+#         status='ACTIVE'
+#     ).order_by('expiry_date')[:10]
+    
+#     context = {
+#         'clinic': clinic,
+#         'total_medications': total_medications,
+#         'out_of_stock_count': out_of_stock,
+#         'low_stock_count': low_stock,
+#         'recent_medications': recent_medications,
+#         'low_stock_items': low_stock_items,
+#         'expiring_soon': expiring_soon,
+#     }
+    
+#     return render(request, 'inventory/dashboard.html', context)
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def medication_list(request):
+    """List all medications for the current clinic"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    medications = ClinicMedication.objects.filter(clinic=clinic).order_by('name')
+    
+    # Search and filtering
+    search = request.GET.get('search', '')
+    category_filter = request.GET.get('category', '')
+    stock_filter = request.GET.get('stock_status', '')
+    
+    if search:
+        medications = medications.filter(
+            Q(name__icontains=search) |
+            Q(generic_name__icontains=search) |
+            Q(manufacturer__icontains=search)
+        )
+    
+    if category_filter:
+        medications = medications.filter(category_id=category_filter)
+    
+    if stock_filter == 'out_of_stock':
+        medications = medications.filter(quantity_in_stock=0)
+    elif stock_filter == 'low_stock':
+        medications = medications.filter(
+            quantity_in_stock__lte=models.F('minimum_stock_level'),
+            quantity_in_stock__gt=0
+        )
+    elif stock_filter == 'in_stock':
+        medications = medications.filter(quantity_in_stock__gt=models.F('minimum_stock_level'))
+    
+    categories = MedicationCategory.objects.all()
+    
+    context = {
+        'medications': medications,
+        'categories': categories,
+        'search': search,
+        'category_filter': category_filter,
+        'stock_filter': stock_filter,
+        'clinic': clinic,
+    }
+    
+    return render(request, 'inventory/medication_list.html', context)
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def add_medication(request):
+    """Add new medication to clinic inventory"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    if request.method == 'POST':
+        form = ClinicMedicationForm(request.POST, clinic=clinic)
+        if form.is_valid():
+            medication = form.save(commit=False)
+            medication.clinic = clinic
+            medication.added_by = request.user
+            medication.save()
+            
+            # Log initial stock if any
+            if medication.quantity_in_stock > 0:
+                StockMovement.objects.create(
+                    medication=medication,
+                    movement_type='IN',
+                    quantity=medication.quantity_in_stock,
+                    previous_stock=0,
+                    new_stock=medication.quantity_in_stock,
+                    created_by=request.user,
+                    notes="Initial stock entry"
+                )
+            
+            log_action(
+                request,
+                'CREATE',
+                medication,
+                details=f"Added medication: {medication.display_name}"
+            )
+            
+            messages.success(request, f"Medication '{medication.display_name}' added successfully!")
+            return redirect('core:medication_list')
+    else:
+        form = ClinicMedicationForm(clinic=clinic)
+    
+    return render(request, 'inventory/add_medication.html', {'form': form, 'clinic': clinic})
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def edit_medication(request, pk):
+    """Edit existing medication"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    
+    if request.method == 'POST':
+        form = ClinicMedicationForm(request.POST, instance=medication, clinic=medication.clinic)
+        if form.is_valid():
+            form.save()
+            
+            log_action(
+                request,
+                'UPDATE',
+                medication,
+                details=f"Updated medication: {medication.display_name}"
+            )
+            
+            messages.success(request, f"Medication '{medication.display_name}' updated successfully!")
+            return redirect('core:medication_list')
+    else:
+        form = ClinicMedicationForm(instance=medication, clinic=medication.clinic)
+    
+    return render(request, 'inventory/edit_medication.html', {
+        'form': form, 
+        'medication': medication
+    })
+    
+    
+    
+import csv
+from django.http import HttpResponse
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def export_medications_csv(request):
+    clinic_id = request.session.get('clinic_id')
+    medications = ClinicMedication.objects.filter(clinic_id=clinic_id)
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="medications_report.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Name', 'Category', 'Stock', 'Unit Price (₦)', 'Total Price (₦)', 'Expiry'])
+
+    for med in medications:
+        total_price = (med.selling_price or 0) * (med.quantity_in_stock or 0)
+        writer.writerow([
+            med.display_name,
+            med.category.name if med.category else '',
+            med.quantity_in_stock,
+            f"{med.selling_price:.2f}" if med.selling_price else "0.00",
+            f"{total_price:.2f}",
+            med.expiry_date.strftime("%Y-%m-%d") if med.expiry_date else ''
+        ])
+
+    return response
+
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def adjust_stock(request, pk):
+    """Adjust stock levels for a medication"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    
+    if request.method == 'POST':
+        form = StockAdjustmentForm(request.POST)
+        if form.is_valid():
+            adjustment_type = form.cleaned_data['adjustment_type']
+            quantity = form.cleaned_data['quantity']
+            notes = form.cleaned_data['notes']
+            
+            old_stock = medication.quantity_in_stock
+            
+            if adjustment_type == 'ADD':
+                new_stock = old_stock + quantity
+                movement_type = 'IN'
+                movement_quantity = quantity
+            elif adjustment_type == 'REMOVE':
+                new_stock = max(0, old_stock - quantity)
+                movement_type = 'OUT'
+                movement_quantity = -min(quantity, old_stock)
+            else:  # SET
+                new_stock = quantity
+                movement_type = 'ADJUSTMENT'
+                movement_quantity = new_stock - old_stock
+            
+            medication.quantity_in_stock = new_stock
+            medication.save()
+            
+            # Create stock movement record
+            StockMovement.objects.create(
+                medication=medication,
+                movement_type=movement_type,
+                quantity=movement_quantity,
+                previous_stock=old_stock,
+                new_stock=new_stock,
+                created_by=request.user,
+                notes=notes or f"Stock {adjustment_type.lower()}"
+            )
+            
+            log_action(
+                request,
+                'UPDATE',
+                medication,
+                details=f"Stock adjustment for {medication.display_name}: {old_stock} → {new_stock}"
+            )
+            
+            messages.success(request, f"Stock adjusted successfully! New stock: {new_stock}")
+            return redirect('core:medication_list')
+    else:
+        form = StockAdjustmentForm()
+    
+    return render(request, 'inventory/adjust_stock.html', {
+        'form': form,
+        'medication': medication
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def stock_movements(request, pk):
+    """View stock movement history for a medication"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    movements = medication.stock_movements.all().order_by('-created_at')
+    
+    return render(request, 'inventory/stock_movements.html', {
+        'medication': medication,
+        'movements': movements
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def bulk_upload_stock(request):
+    """Bulk upload medications via CSV"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    if request.method == 'POST':
+        form = BulkStockUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            csv_file = request.FILES['csv_file']
+            overwrite = form.cleaned_data['overwrite_existing']
+            
+            try:
+                # Process CSV file
+                file_data = TextIOWrapper(csv_file.file, encoding='utf-8')
+                csv_reader = csv.DictReader(file_data)
+                
+                created_count = 0
+                updated_count = 0
+                errors = []
+                
+                for row_num, row in enumerate(csv_reader, start=2):
+                    try:
+                        name = row.get('name', '').strip()
+                        strength = row.get('strength', '').strip()
+                        
+                        if not name:
+                            errors.append(f"Row {row_num}: Missing medication name")
+                            continue
+                        
+                        # Check if medication exists
+                        medication, created = ClinicMedication.objects.get_or_create(
+                            clinic=clinic,
+                            name=name,
+                            strength=strength,
+                            defaults={
+                                'quantity_in_stock': int(row.get('quantity', 0) or 0),
+                                'cost_price': float(row.get('cost_price', 0) or 0),
+                                'selling_price': float(row.get('selling_price', 0) or 0),
+                                'expiry_date': row.get('expiry_date') or None,
+                                'added_by': request.user,
+                            }
+                        )
+                        
+                        if created:
+                            created_count += 1
+                            # Log initial stock
+                            if medication.quantity_in_stock > 0:
+                                StockMovement.objects.create(
+                                    medication=medication,
+                                    movement_type='IN',
+                                    quantity=medication.quantity_in_stock,
+                                    previous_stock=0,
+                                    new_stock=medication.quantity_in_stock,
+                                    created_by=request.user,
+                                    notes="Bulk upload"
+                                )
+                        elif overwrite:
+                            # Update existing medication
+                            old_stock = medication.quantity_in_stock
+                            new_quantity = int(row.get('quantity', 0) or 0)
+                            
+                            medication.quantity_in_stock = new_quantity
+                            medication.cost_price = float(row.get('cost_price', 0) or 0)
+                            medication.selling_price = float(row.get('selling_price', 0) or 0)
+                            if row.get('expiry_date'):
+                                medication.expiry_date = row.get('expiry_date')
+                            medication.save()
+                            
+                            # Log stock change
+                            if old_stock != new_quantity:
+                                StockMovement.objects.create(
+                                    medication=medication,
+                                    movement_type='ADJUSTMENT',
+                                    quantity=new_quantity - old_stock,
+                                    previous_stock=old_stock,
+                                    new_stock=new_quantity,
+                                    created_by=request.user,
+                                    notes="Bulk upload update"
+                                )
+                            
+                            updated_count += 1
+                    
+                    except (ValueError, KeyError) as e:
+                        errors.append(f"Row {row_num}: {str(e)}")
+                        continue
+                
+                # Show results
+                if created_count or updated_count:
+                    success_msg = f"Bulk upload completed! Created: {created_count}, Updated: {updated_count}"
+                    if errors:
+                        success_msg += f". {len(errors)} errors occurred."
+                    messages.success(request, success_msg)
+                
+                if errors:
+                    for error in errors[:5]:  # Show first 5 errors
+                        messages.error(request, error)
+                    if len(errors) > 5:
+                        messages.error(request, f"... and {len(errors) - 5} more errors")
+                
+                return redirect('core:medication_list')
+                
+            except Exception as e:
+                messages.error(request, f"Error processing CSV file: {str(e)}")
+    else:
+        form = BulkStockUploadForm()
+    
+    return render(request, 'inventory/bulk_upload.html', {'form': form})
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def dispense_prescription(request, pk):
+    """Dispense prescription, deduct stock, and add to billing."""
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if not prescription.clinic_medication:
+        messages.error(request, "This prescription is not from clinic inventory and cannot be dispensed.")
+        # return redirect('core:patient_detail', pk=patient.patient_id)   
+        return redirect('core:prescription_list')
+    if prescription.stock_deducted:
+        messages.info(request, "This prescription has already been dispensed.")
+        # return redirect('core:patient_detail', pk=patient.patient_id)
+        return redirect('core:prescription_list')
+
+    if request.method == 'POST':
+        # Deduct stock
+        success = prescription.deduct_stock()
+        if success:
+            # Ensure selling_price exists
+            price = (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
+            
+            # Collect description lines first
+            description_lines.append(
+                f"Dispensed: {pres.medication_name} x{pres.quantity_prescribed} "
+                f"(₦{pres.clinic_medication.selling_price})"
+            )
+
+            # Create a Billing record
+            Billing.objects.create(
+                patient=patient,
+                clinic=prescription.clinic,
+                amount=price,
+                service_date=timezone.now().date(),
+                # description=f"Dispensed: {prescription.medication_name} x{prescription.quantity_prescribed}",
+                description=f"Dispensed: {pres.medication_name} x{pres.quantity_prescribed} "
+                f"(₦{pres.clinic_medication.selling_price})",
+                created_by=request.user
+            )
+
+            log_action(
+                request,
+                'UPDATE',
+                prescription,
+                details=f"Dispensed prescription for {patient.full_name}: "
+                        f"{prescription.medication_name} x{prescription.quantity_prescribed} (₦{price})"
+            )
+
+            messages.success(request, f"Prescription dispensed! Stock deducted, ₦{price} added to billing.")
+        else:
+            messages.error(request, "Insufficient stock to dispense this prescription.")
+
+        # FINAL CHECK: reload prescription from DB to verify stock_deducted
+        prescription.refresh_from_db()
+        if prescription.stock_deducted:
+            messages.info(request, "Dispense confirmed and stock updated.")
+
+        # return redirect('core:patient_detail', pk=patient.patient_id)
+        return redirect('core:prescription_list')
+
+    # Render confirmation page
+    return render(request, 'prescription/dispense_prescription.html', {
+        'prescription': prescription,
+        'total_price': (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
+    })
+
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def dispense_prescription(request, pk):
+    """Dispense prescription, deduct stock, and add to billing."""
+    prescription = get_object_or_404(Prescription, pk=pk)
+    patient = prescription.patient
+
+    if not prescription.clinic_medication:
+        messages.error(request, "This prescription is not from clinic inventory and cannot be dispensed.")
+        return redirect('core:patient_detail', pk=patient.patient_id)
+    
+    if prescription.stock_deducted:
+        messages.info(request, "This prescription has already been dispensed.")
+        return redirect('core:patient_detail', pk=patient.patient_id)
+
+    if request.method == 'POST':
+        # Deduct stock
+        if prescription.deduct_stock():
+            # Add billing
+            price = (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
+            patient.billing_total += price
+            patient.save()
+
+            log_action(
+                request,
+                'UPDATE',
+                prescription,
+                details=f"Dispensed prescription for {patient.full_name}: "
+                        f"{prescription.clinic_medication.name} x{prescription.quantity_prescribed} (₦{price})"
+            )
+
+            messages.success(request, f"Prescription dispensed! Stock deducted, ₦{price} added to billing.")
+        else:
+            messages.error(request, "Insufficient stock to dispense this prescription.")
+        
+        return redirect('core:patient_list', pk=patient.patient_id)
+
+    # Render confirmation page
+    return render(request, 'prescription/dispense_prescription.html', {
+    'prescription': prescription,
+    'total_price': prescription.clinic_medication.selling_price * prescription.quantity_prescribed
+})
+
+
+
+
+
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+def bulk_dispense(request):
+    if request.method == 'POST':
+        selected_ids = request.POST.getlist('selected_prescriptions')
+        if not selected_ids:
+            messages.error(request, "No prescriptions selected.")
+            return redirect(request.META.get('HTTP_REFERER'))
+
+        prescriptions = Prescription.objects.filter(
+            id__in=selected_ids, stock_deducted=False
+        )
+        
+        if not prescriptions.exists():
+            messages.info(request, "Selected prescriptions are already dispensed or invalid.")
+            return redirect(request.META.get('HTTP_REFERER'))
+
+        # Ensure all prescriptions are for the same patient and appointment
+        patient_ids = set(p.patient_id for p in prescriptions)
+        appointment_ids = set(
+            p.appointment_id for p in prescriptions if hasattr(p, 'appointment')
+        )
+
+        if len(patient_ids) > 1 or len(appointment_ids) > 1:
+            messages.error(
+                request,
+                "All selected prescriptions must belong to the same patient and appointment."
+            )
+            return redirect(request.META.get('HTTP_REFERER'))
+
+        patient = prescriptions.first().patient
+        clinic = prescriptions.first().clinic
+        appointment = getattr(prescriptions.first(), 'appointment', None)
+
+        total_amount = 0
+        description_lines = []
+
+        for pres in prescriptions:
+            if pres.deduct_stock(bulk=True):  # 🚀 skip individual billing
+                price = (pres.clinic_medication.selling_price or 0) * pres.quantity_prescribed
+                total_amount += price
+                description_lines.append(f"{pres.medication_name} x{pres.quantity_prescribed}")
+            else:
+                messages.warning(request, f"Insufficient stock for {pres.medication_name}. Skipped.")
+
+        # Create single billing record
+        if total_amount > 0:
+            Billing.objects.create(
+                patient=patient,
+                clinic=clinic,
+                appointment=appointment,
+                amount=total_amount,
+                service_date=timezone.now().date(),
+                due_date=timezone.now().date(),
+                description="; ".join(description_lines),
+                created_by=request.user,
+            )
+
+            messages.success(request, f"Bulk dispense completed! ₦{total_amount} added to billing.")
+
+        return redirect('core:prescription_list')
+
+
+    else:
+        messages.error(request, "Invalid request method.")
+        return redirect(request.META.get('HTTP_REFERER'))
+
+
+
+
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def low_stock_report(request):
+    """Report of medications with low or no stock"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    out_of_stock = ClinicMedication.objects.filter(
+        clinic=clinic,
+        quantity_in_stock=0,
+        status='ACTIVE'
+    ).order_by('name')
+    
+    low_stock = ClinicMedication.objects.filter(
+        clinic=clinic,
+        quantity_in_stock__lte=models.F('minimum_stock_level'),
+        quantity_in_stock__gt=0,
+        status='ACTIVE'
+    ).order_by('quantity_in_stock')
+    
+    context = {
+        'clinic': clinic,
+        'out_of_stock': out_of_stock,
+        'low_stock': low_stock,
+    }
+    
+    return render(request, 'inventory/low_stock_report.html', context)
+
+
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def medication_detail(request, pk):
+    """Detailed view of a medication with stock history"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    
+    # Get recent stock movements
+    recent_movements = medication.stock_movements.all().order_by('-created_at')[:20]
+    
+    # Get prescriptions using this medication
+    recent_prescriptions = medication.prescriptions.filter(
+        is_active=True
+    ).order_by('-date_prescribed')[:10]
+    
+    context = {
+        'medication': medication,
+        'recent_movements': recent_movements,
+        'recent_prescriptions': recent_prescriptions,
+    }
+    
+    return render(request, 'inventory/medication_detail.html', context)
+
+
+# ---------- API ENDPOINTS ----------
+
+@login_required
+def medication_search_api(request):
+    """API endpoint for searching medications (for AJAX)"""
+    clinic_id = request.session.get('clinic_id')
+    query = request.GET.get('q', '')
+    
+    if not clinic_id or not query:
+        return JsonResponse({'results': []})
+    
+    medications = ClinicMedication.objects.filter(
+        clinic_id=clinic_id,
+        name__icontains=query,
+        status='ACTIVE'
+    )[:10]
+    
+    results = []
+    for med in medications:
+        stock_status = ""
+        if med.is_out_of_stock:
+            stock_status = " (OUT OF STOCK)"
+        elif med.is_low_stock:
+            stock_status = f" (LOW: {med.quantity_in_stock})"
+        
+        results.append({
+            'id': med.id,
+            'name': med.display_name + stock_status,
+            'stock': med.quantity_in_stock,
+            'is_out_of_stock': med.is_out_of_stock,
+            'is_low_stock': med.is_low_stock
+        })
+    
+    return JsonResponse({'results': results})
+
+
+@login_required
+def check_medication_stock(request, pk):
+    """API to check current stock of a medication"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    
+    return JsonResponse({
+        'stock': medication.quantity_in_stock,
+        'minimum_level': medication.minimum_stock_level,
+        'is_out_of_stock': medication.is_out_of_stock,
+        'is_low_stock': medication.is_low_stock,
+        'stock_status': medication.stock_status
+    })
+
+
+# ---------- CATEGORY MANAGEMENT ----------
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def manage_categories(request):
+    """Manage medication categories"""
+    categories = MedicationCategory.objects.all().order_by('name')
+    
+    if request.method == 'POST':
+        form = MedicationCategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save()
+            messages.success(request, f"Category '{category.name}' created successfully!")
+            return redirect('core:prescription_menu')
+    else:
+        form = MedicationCategoryForm()
+    
+    return render(request, 'inventory/manage_categories.html', {
+        'categories': categories,
+        'form': form
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def delete_medication(request, pk):
+    """Delete a medication from inventory"""
+    clinic_id = request.session.get('clinic_id')
+    medication = get_object_or_404(ClinicMedication, pk=pk, clinic_id=clinic_id)
+    
+    if request.method == 'POST':
+        # Check if medication has active prescriptions
+        active_prescriptions = medication.prescriptions.filter(is_active=True).count()
+        if active_prescriptions > 0:
+            messages.error(request, 
+                f"Cannot delete medication with {active_prescriptions} active prescriptions. "
+                "Deactivate prescriptions first or set medication status to inactive."
+            )
+            return redirect('core:medication_list')
+        
+        medication_name = medication.display_name
+        
+        log_action(
+            request,
+            'DELETE',
+            medication,
+            details=f"Deleted medication: {medication_name}"
+        )
+        
+        medication.delete()
+        messages.success(request, f"Medication '{medication_name}' deleted successfully!")
+        return redirect('core:medication_list')
+    
+    return render(request, 'inventory/confirm_delete_medication.html', {
+        'medication': medication
+    })
 
 
 

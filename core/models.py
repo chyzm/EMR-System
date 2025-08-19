@@ -1,4 +1,6 @@
-from time import timezone as tz
+# from time import timezone as tz
+from django.utils import timezone as tz
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinLengthValidator
@@ -8,6 +10,9 @@ from django.forms import ValidationError
 from django.db import models
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+
+
+
 
 
 
@@ -236,25 +241,235 @@ class ActionLog(models.Model):
     def __str__(self):
         full_name = self.user.get_full_name() if self.user else "Unknown User"
         return f"{full_name} {self.action} {self.content_type} at {self.timestamp}"
+    
+    
+
+class MedicationCategory(models.Model):
+    """Categories for organizing medications"""
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        verbose_name_plural = "Medication Categories"
+    
+    def __str__(self):
+        return self.name
+
+    
+    
+    
+class ClinicMedication(models.Model):
+    """Clinic-specific medication inventory"""
+    MEDICATION_TYPES = (
+        ('TABLET', 'Tablet'),
+        ('CAPSULE', 'Capsule'),
+        ('SYRUP', 'Syrup'),
+        ('INJECTION', 'Injection'),
+        ('DROPS', 'Drops'),
+        ('CREAM', 'Cream/Ointment'),
+        ('LENS', 'Contact Lens'),
+        ('GLASSES', 'Prescription Glasses'),
+        ('OTHER', 'Other'),
+    )
+    
+    STATUS_CHOICES = (
+        ('ACTIVE', 'Active'),
+        ('INACTIVE', 'Inactive'),
+        ('DISCONTINUED', 'Discontinued'),
+    )
+    
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='medications')
+    name = models.CharField(max_length=200)
+    generic_name = models.CharField(max_length=200, blank=True, null=True)
+    category = models.ForeignKey(MedicationCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    medication_type = models.CharField(max_length=15, choices=MEDICATION_TYPES, default='TABLET')
+    strength = models.CharField(max_length=50, blank=True, null=True)  # e.g., "500mg", "10ml"
+    manufacturer = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Inventory fields
+    quantity_in_stock = models.PositiveIntegerField(default=0)
+    minimum_stock_level = models.PositiveIntegerField(default=10)
+    cost_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    
+    # Status and tracking
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='ACTIVE')
+    expiry_date = models.DateField(blank=True, null=True)
+    batch_number = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Metadata
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('clinic', 'name', 'strength')  # Prevent duplicate medications per clinic
+        ordering = ['name']
+    
+    @property
+    def is_out_of_stock(self):
+        return self.quantity_in_stock == 0
+    
+    @property
+    def is_low_stock(self):
+        return self.quantity_in_stock <= self.minimum_stock_level and self.quantity_in_stock > 0
+    
+    @property
+    def stock_status(self):
+        if self.is_out_of_stock:
+            return 'OUT_OF_STOCK'
+        elif self.is_low_stock:
+            return 'LOW_STOCK'
+        return 'IN_STOCK'
+    
+    
+    @property
+    def total_price(self):
+        """Unit price × stock quantity."""
+        price = self.selling_price or 0
+        qty = self.quantity_in_stock or 0
+        return price * qty
+    
+    @property
+    def display_name(self):
+        if self.strength:
+            return f"{self.name} ({self.strength})"
+        return self.name
+    
+    def __str__(self):
+        return f"{self.clinic.name} - {self.display_name}"
 
 
 
 class Prescription(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='prescriptions')
-    clinic = models.ForeignKey(Clinic,on_delete=models.CASCADE,related_name='prescriptions')
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='prescriptions')
     prescribed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='prescriptions')
-    medication = models.CharField(max_length=200)
+    
+    # Choice between clinic medication or custom entry
+    clinic_medication = models.ForeignKey(ClinicMedication, on_delete=models.SET_NULL, null=True, blank=True, related_name='prescriptions')
+    custom_medication = models.CharField(max_length=200, blank=True, null=True)  # For medications not in clinic inventory
+    
     dosage = models.CharField(max_length=100)
     frequency = models.CharField(max_length=100)
     duration = models.CharField(max_length=100)
+    quantity_prescribed = models.PositiveIntegerField(default=1)
     instructions = models.TextField(blank=True, null=True)
+    
     date_prescribed = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     
-    def __str__(self):
-        return f"{self.medication} for {self.patient.full_name}"
+    # Inventory tracking
+    stock_deducted = models.BooleanField(default=False)  # Track if stock was deducted
     
+    @property
+    def medication_name(self):
+        """Return either clinic medication or custom medication name"""
+        if self.clinic_medication:
+            return self.clinic_medication.display_name
+        return self.custom_medication
+    
+    @property
+    def is_from_inventory(self):
+        """Check if prescription is from clinic inventory"""
+        return self.clinic_medication is not None
+    
+    # @property
+    # def total_price(self):
+    #     """Return the total price (unit price * quantity)."""
+    #     price = self.clinic_medication.selling_price or 0
+    #     qty = self.quantity_prescribed or 0
+    #     return price * qty
+    
+    
+    def deduct_stock(self, bulk=False):
+        """Deduct stock when prescription is dispensed.
+        If bulk=True, skip creating individual billing."""
+        if self.clinic_medication and not self.stock_deducted:
+            if self.clinic_medication.quantity_in_stock >= self.quantity_prescribed:
+                old_stock = self.clinic_medication.quantity_in_stock
+                self.clinic_medication.quantity_in_stock -= self.quantity_prescribed
+                self.clinic_medication.save()
+
+                # Create stock movement record
+                StockMovement.objects.create(
+                    medication=self.clinic_medication,
+                    movement_type='OUT',
+                    quantity=-self.quantity_prescribed,
+                    previous_stock=old_stock,
+                    new_stock=self.clinic_medication.quantity_in_stock,
+                    reference=f"Prescription #{self.id}",
+                    created_by=self.prescribed_by,
+                    notes=f"Dispensed to {self.patient.full_name}"
+                )
+
+                # Mark as dispensed
+                self.stock_deducted = True
+                self.save()
+
+                # ✅ Only create billing if NOT bulk dispense
+                if not bulk and self.clinic_medication.selling_price:
+                    total_price = self.clinic_medication.selling_price * self.quantity_prescribed
+                    Billing.objects.create(
+                        patient=self.patient,
+                        clinic=self.clinic,
+                        appointment=None,  # or link to relevant appointment if exists
+                        amount=total_price,
+                        service_date=tz.now().date(),
+                        due_date=tz.now().date(),
+                        description=f"Dispensed {self.medication_name}",
+                        created_by=self.prescribed_by
+                    )
+
+                return True
+            else:
+                return False  # Insufficient stock
+        return None  # Not from inventory or already deducted
+
+
+        
+        def __str__(self):
+            return f"{self.medication_name} for {self.patient.full_name}"
+    
+    
+# Add these new models to your existing models.py
+
+
+
+
+
+
+class StockMovement(models.Model):
+    """Track stock movements for audit trail"""
+    MOVEMENT_TYPES = (
+        ('IN', 'Stock In'),
+        ('OUT', 'Stock Out'),
+        ('ADJUSTMENT', 'Stock Adjustment'),
+        ('EXPIRED', 'Expired Stock'),
+        ('DAMAGED', 'Damaged Stock'),
+    )
+    
+    medication = models.ForeignKey(ClinicMedication, on_delete=models.CASCADE, related_name='stock_movements')
+    movement_type = models.CharField(max_length=15, choices=MOVEMENT_TYPES)
+    quantity = models.IntegerField()  # Can be negative for OUT movements
+    previous_stock = models.PositiveIntegerField()
+    new_stock = models.PositiveIntegerField()
+    notes = models.TextField(blank=True, null=True)
+    reference = models.CharField(max_length=100, blank=True, null=True)  # e.g., prescription ID, supplier invoice
+    
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.medication.display_name} - {self.movement_type} ({self.quantity})"
+
+
+# Update your existing Prescription model
+
 
 class Notification(models.Model):
     user = models.ForeignKey(

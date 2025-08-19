@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-4xl">
+    <div class="bg-white rounded-xl shadow-md overflow-hidden slide-in">
+        <div class="p-6 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white">
+            <h2 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-prescription mr-2"></i> Add Prescription for {{ patient.full_name }}
+            </h2>
+            <div class="mt-2 text-sm">
+                <span class="bg-white/20 px-2 py-1 rounded-full">
+                    <i class="fas fa-id-card mr-1"></i> {{ patient.patient_id }}
+                </span>
+                <span class="bg-white/20 px-2 py-1 rounded-full ml-2">
+                    <i class="fas fa-birthday-cake mr-1"></i> {{ patient.date_of_birth|date:"M d, Y" }} ({{ patient.age }})
+                </span>
+            </div>
+        </div>
+        
+        <div class="p-6">
+            {% include "includes/form_base.html" with title="Prescription Details" form=form cancel_url=cancel_url %}
+        </div>
+    </div>
+</div>
+{% endblock %}

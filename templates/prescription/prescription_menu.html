@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto p-6">
+    <h2 class="text-2xl font-bold mb-6 text-center">Prescription & Inventory Menu</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {% for button in buttons %}
+            <a href="{% url button.url %}" 
+               class="block p-4 text-center rounded-xl shadow-md bg-blue-600 text-white hover:bg-blue-800 transition">
+                {{ button.name }}
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

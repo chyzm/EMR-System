@@ -10,8 +10,17 @@
 
     <div>
       <label for="medication" class="block text-sm font-medium text-gray-700">Medication</label>
-      <input type="text" name="medication" id="medication" value="{{ prescription.medication }}" required
+      <select name="medication" id="medication" required
              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+        <option value="">Select a medication</option>
+        {% for med in medications %}
+          <option value="{{ med.id }}" {% if med.id == prescription.medication.id %}selected{% endif %}>
+            {{ med.name }} ({{ med.manufacturer }}) - {{ med.strength }}
+          </option>
+        {% endfor %}
+      </select>
+      <input type="text" id="medication-search" placeholder="Start typing to search..." 
+             class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm hidden">
     </div>
 
     <div>
@@ -37,4 +46,46 @@
     </div>
   </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const select = document.getElementById('medication');
+  const searchInput = document.getElementById('medication-search');
+  
+  // Show search input when select is focused
+  select.addEventListener('focus', function() {
+    searchInput.classList.remove('hidden');
+    searchInput.focus();
+  });
+  
+  // Filter options based on search input
+  searchInput.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const options = select.options;
+    
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      if (option.text.toLowerCase().includes(searchTerm)) {
+        option.style.display = '';
+      } else {
+        option.style.display = 'none';
+      }
+    }
+  });
+  
+  // Hide search input when clicking outside
+  document.addEventListener('click', function(e) {
+    if (e.target !== select && e.target !== searchInput) {
+      searchInput.classList.add('hidden');
+    }
+  });
+  
+  // Update select when search input loses focus
+  searchInput.addEventListener('blur', function() {
+    setTimeout(() => {
+      this.classList.add('hidden');
+    }, 200);
+  });
+});
+</script>
 {% endblock %}

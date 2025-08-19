@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Dispense Prescription{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white shadow-md rounded-lg p-6">
+  <h2 class="text-2xl font-semibold text-blue-900 mb-4">Dispense Prescription</h2>
+
+  <p class="mb-4">
+    Prescription: <strong>{{ prescription.clinic_medication.name }}</strong><br>
+    Dosage: {{ prescription.dosage }}<br>
+    Quantity: {{ prescription.quantity_prescribed }}<br>
+    Total Price: ₦{{ total_price }}
+  </p>
+
+  <form method="POST">
+    {% csrf_token %}
+    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500">Confirm Dispense</button>
+    <a href="{% url 'core:patient_detail' prescription.patient.patient_id %}" 
+       class="ml-2 text-blue-900 hover:underline">Cancel</a>
+  </form>
+
+  
+</div>
+{% endblock %}

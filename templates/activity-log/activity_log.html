@@ -2,17 +2,17 @@
 {% block title %}Activity Log - {{ clinic_name }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gray-50 py-4 sm:py-8">
+    <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
         
-        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-8 shadow-xl">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-xl">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
                 <div>
-                    <h1 class="text-3xl font-bold text-white mb-2">Activity Log</h1>
-                    <p class="text-indigo-100">{{ clinic_name }}</p>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Activity Log</h1>
+                    <p class="text-indigo-100 text-sm sm:text-base">{{ clinic_name }}</p>
                 </div>
-                <button id="clearLogsBtn" class="inline-flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="clearLogsBtn" class="mt-2 sm:mt-0 inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white text-sm sm:text-base font-medium rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
                     Clear All
@@ -20,21 +20,21 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-            <form method="get" class="max-w-md">
+        <div class="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
+            <form method="get" class="w-full max-w-md">
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
                     </div>
                     <input type="text" name="search" 
-                           class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200" 
+                           class="block w-full pl-9 sm:pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm sm:text-base" 
                            placeholder="Search activities..." 
                            value="{{ request.GET.search }}">
                     <button type="submit" 
                             class="absolute inset-y-0 right-0 flex items-center pr-3">
-                        <span class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200">
+                        <span class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200">
                             Search
                         </span>
                     </button>
@@ -42,14 +42,14 @@
             </form>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <h2 class="text-lg font-semibold text-gray-900">Recent Activities</h2>
+        <div class="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
+                    <h2 class="text-base sm:text-lg font-semibold text-gray-900">Recent Activities</h2>
                     <div class="flex flex-wrap gap-2">
                         <button type="button" id="deleteSelectedBtn" 
-                                class="inline-flex items-center px-3 py-2 border border-red-300 text-red-700 bg-white hover:bg-red-50 rounded-md text-sm font-medium transition-colors duration-200">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-2 border border-red-300 text-red-700 bg-white hover:bg-red-50 rounded-md text-xs sm:text-sm font-medium transition-colors duration-200">
+                            <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                             </svg>
                             Delete Selected
@@ -63,23 +63,23 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-800">
                             <tr>
-                                <th class="px-6 py-3 text-left">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left">
                                     <input type="checkbox" id="selectAll" 
-                                           class="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2">
+                                           class="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2">
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                     Timestamp
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden sm:table-cell">
                                     User
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                     Action
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden md:table-cell">
                                     Staff
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                     Details
                                 </th>
                             </tr>
@@ -87,58 +87,58 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             {% for log in logs %}
                             <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <td class="px-3 sm:px-6 py-3 whitespace-nowrap">
                                     <input type="checkbox" name="log_ids" value="{{ log.id }}" 
-                                           class="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2">
+                                           class="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2">
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                                <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500 font-mono">
                                     {{ log.timestamp|date:"Y-m-d H:i" }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <td class="px-3 sm:px-6 py-3 whitespace-nowrap hidden sm:table-cell">
                                     <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-8 w-8">
-                                            <div class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                                                <span class="text-indigo-600 font-medium text-sm">
+                                        <div class="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8">
+                                            <div class="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                <span class="text-indigo-600 font-medium text-xs sm:text-sm">
                                                     {{ log.user.username|default:"S"|first|upper }}
                                                 </span>
                                             </div>
                                         </div>
-                                        <div class="ml-3">
-                                            <div class="text-sm font-medium text-gray-900">
+                                        <div class="ml-2 sm:ml-3">
+                                            <div class="text-xs sm:text-sm font-medium text-gray-900">
                                                 {{ log.user.username|default:"System" }}
                                             </div>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <td class="px-3 sm:px-6 py-3 whitespace-nowrap">
                                     {% if log.action == 'CREATE' %}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <span class="inline-flex px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                            <svg class="w-2 h-2 sm:w-3 sm:h-3 mr-0.5 sm:mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path>
                                             </svg>
                                             {{ log.get_action_display }}
                                         </span>
                                     {% elif log.action == 'UPDATE' %}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <span class="inline-flex px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            <svg class="w-2 h-2 sm:w-3 sm:h-3 mr-0.5 sm:mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
                                             </svg>
                                             {{ log.get_action_display }}
                                         </span>
                                     {% elif log.action == 'DELETE' %}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <span class="inline-flex px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                            <svg class="w-2 h-2 sm:w-3 sm:h-3 mr-0.5 sm:mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2v1a3 3 0 003 3h2a3 3 0 003-3V3a2 2 0 012 2v6.5l1.747 1.746A1 1 0 0118 13h-2.343l-2-2H5.343l-2 2H1a1 1 0 01-.253-1.754L2.5 9.5V5z"></path>
                                             </svg>
                                             {{ log.get_action_display }}
                                         </span>
                                     {% else %}
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-gray-800">
+                                        <span class="inline-flex px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-semibold rounded-full bg-green-100 text-gray-800">
                                             {{ log.get_action_display }}
                                         </span>
                                     {% endif %}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
                                     {% if log.user %}
                                         {{ log.user.first_name }} {{ log.user.last_name }}
                                     {% else %}
@@ -146,19 +146,19 @@
                                     {% endif %}
                                 </td>
 
-                                <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                                <td class="px-3 sm:px-6 py-3 text-xs sm:text-sm text-gray-500 max-w-[120px] sm:max-w-xs truncate">
                                     {{ log.details }}
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center">
+                                <td colspan="6" class="px-4 sm:px-6 py-8 sm:py-12 text-center">
                                     <div class="flex flex-col items-center">
-                                        <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mb-3 sm:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                         </svg>
-                                        <p class="text-gray-500 text-lg font-medium">No activity found</p>
-                                        <p class="text-gray-400 text-sm mt-1">Activity logs will appear here when actions are performed</p>
+                                        <p class="text-gray-500 text-sm sm:text-lg font-medium">No activity found</p>
+                                        <p class="text-gray-400 text-xs sm:text-sm mt-1">Activity logs will appear here when actions are performed</p>
                                     </div>
                                 </td>
                             </tr>
@@ -170,25 +170,25 @@
         </div>
 
         {% if is_paginated %}
-        <div class="mt-8">
+        <div class="mt-6 sm:mt-8">
             <nav class="flex items-center justify-between">
                 <div class="flex-1 flex justify-between sm:hidden">
                     {% if page_obj.has_previous %}
                     <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}" 
-                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                       class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                         Previous
                     </a>
                     {% endif %}
                     {% if page_obj.has_next %}
                     <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}" 
-                       class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                       class="ml-2 relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                         Next
                     </a>
                     {% endif %}
                 </div>
                 <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm text-gray-700">
+                        <p class="text-xs sm:text-sm text-gray-700">
                             Showing page <span class="font-medium">{{ page_obj.number }}</span> of 
                             <span class="font-medium">{{ page_obj.paginator.num_pages }}</span>
                         </p>
@@ -197,37 +197,37 @@
                         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                             {% if page_obj.has_previous %}
                             <a href="?page=1&search={{ request.GET.search }}" 
-                               class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                               class="relative inline-flex items-center px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-l-md border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 <span class="sr-only">First</span>
-                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"></path>
                                 </svg>
                             </a>
                             <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}" 
-                               class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                               class="relative inline-flex items-center px-1.5 sm:px-2 py-1.5 sm:py-2 border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 <span class="sr-only">Previous</span>
-                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                                 </svg>
                             </a>
                             {% endif %}
                             
-                            <span class="relative inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-sm font-medium text-indigo-600">
+                            <span class="relative inline-flex items-center px-3 py-1.5 sm:py-2 border border-indigo-500 bg-indigo-50 text-xs sm:text-sm font-medium text-indigo-600">
                                 {{ page_obj.number }}
                             </span>
                             
                             {% if page_obj.has_next %}
                             <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}" 
-                               class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                               class="relative inline-flex items-center px-1.5 sm:px-2 py-1.5 sm:py-2 border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 <span class="sr-only">Next</span>
-                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                 </svg>
                             </a>
                             <a href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}" 
-                               class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                               class="relative inline-flex items-center px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-r-md border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 <span class="sr-only">Last</span>
-                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                     <path fill-rule="evenodd" d="M4.293 15.707a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                 </svg>

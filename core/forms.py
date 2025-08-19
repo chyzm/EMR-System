@@ -288,14 +288,188 @@ class PaymentForm(forms.ModelForm):
     
     
     
-class PrescriptionForm(forms.ModelForm):
+# class PrescriptionForm(forms.ModelForm):
+#     class Meta:
+#         model = Prescription
+#         fields = ['patient', 'medication', 'dosage', 'frequency', 'duration', 'instructions']
+#         widgets = {
+#             'instructions': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+#         }
+
+
+# Add these forms to your existing forms.py
+
+from django import forms
+from .models import ClinicMedication, MedicationCategory, Prescription, StockMovement
+
+class ClinicMedicationForm(forms.ModelForm):
     class Meta:
-        model = Prescription
-        fields = ['patient', 'medication', 'dosage', 'frequency', 'duration', 'instructions']
+        model = ClinicMedication
+        fields = [
+            'name', 'generic_name', 'category', 'medication_type', 
+            'strength', 'manufacturer', 'quantity_in_stock', 
+            'minimum_stock_level', 'cost_price', 'selling_price', 
+            'expiry_date', 'batch_number', 'status'
+        ]
         widgets = {
-            'instructions': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Medication name'}),
+            'generic_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Generic name (optional)'}),
+            'strength': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 500mg, 10ml'}),
+            'manufacturer': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Manufacturer name'}),
+            'quantity_in_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'minimum_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'value': '10'}),
+            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'expiry_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'batch_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Batch/Lot number'}),
+            'category': forms.Select(attrs={'class': 'form-control'}),
+            'medication_type': forms.Select(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
         }
     
+    def __init__(self, *args, **kwargs):
+        self.clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+        
+        # Set clinic automatically if provided
+        if self.clinic:
+            self.instance.clinic = self.clinic
+
+
+class StockAdjustmentForm(forms.Form):
+    """Form for adjusting stock levels"""
+    ADJUSTMENT_TYPES = (
+        ('ADD', 'Add Stock'),
+        ('REMOVE', 'Remove Stock'),
+        ('SET', 'Set Stock Level'),
+    )
+    
+    adjustment_type = forms.ChoiceField(
+        choices=ADJUSTMENT_TYPES,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    quantity = forms.IntegerField(
+        min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Reason for adjustment'})
+    )
+
+
+class PrescriptionForm(forms.ModelForm):
+    """Enhanced prescription form with clinic medication support and Tailwind styling"""
+    
+    class Meta:
+        model = Prescription
+        fields = [
+            'patient', 'clinic_medication', 'custom_medication', 
+            'dosage', 'frequency', 'duration', 'quantity_prescribed', 'instructions'
+        ]
+        widgets = {
+            'patient': forms.Select(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+            }),
+            'clinic_medication': forms.Select(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+            }),
+            'custom_medication': forms.TextInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'placeholder': 'Enter custom medication name'
+            }),
+            'dosage': forms.TextInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'placeholder': 'e.g., 1 tablet'
+            }),
+            'frequency': forms.TextInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'placeholder': 'e.g., Twice daily'
+            }),
+            'duration': forms.TextInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'placeholder': 'e.g., 7 days'
+            }),
+            'quantity_prescribed': forms.NumberInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'min': '1',
+                'value': '1'
+            }),
+            'instructions': forms.Textarea(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'rows': 3,
+                'placeholder': 'Special instructions'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+
+        if self.clinic:
+            medications = ClinicMedication.objects.filter(
+                clinic=self.clinic, 
+                status='ACTIVE'
+            ).order_by('name')
+
+            choices = [('', 'Select from clinic inventory')]
+            for med in medications:
+                stock_info = ""
+                if med.is_out_of_stock:
+                    stock_info = " (OUT OF STOCK)"
+                elif med.is_low_stock:
+                    stock_info = f" (LOW STOCK: {med.quantity_in_stock})"
+                else:
+                    stock_info = f" (Stock: {med.quantity_in_stock})"
+                
+                # Display medication name + manufacturer + strength
+                choice_text = f"{med.name} ({med.manufacturer}) - {med.strength}{stock_info}"
+                choices.append((med.id, choice_text))
+            
+            self.fields['clinic_medication'].choices = choices
+            self.fields['patient'].queryset = Patient.objects.filter(clinic=self.clinic)
+
+
+    def clean(self):
+        cleaned_data = super().clean()
+        clinic_medication = cleaned_data.get('clinic_medication')
+        custom_medication = cleaned_data.get('custom_medication')
+
+        if not clinic_medication and not custom_medication:
+            raise forms.ValidationError("Please select a medication from inventory or enter a custom medication name.")
+        if clinic_medication and custom_medication:
+            raise forms.ValidationError("Please select either clinic medication OR enter custom medication, not both.")
+        if clinic_medication:
+            quantity = cleaned_data.get('quantity_prescribed', 1)
+            if clinic_medication.quantity_in_stock < quantity:
+                raise forms.ValidationError(
+                    f"Insufficient stock. Available: {clinic_medication.quantity_in_stock}, "
+                    f"Requested: {quantity}"
+                )
+        return cleaned_data
+
+
+class MedicationCategoryForm(forms.ModelForm):
+    class Meta:
+        model = MedicationCategory
+        fields = ['name', 'description']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class BulkStockUploadForm(forms.Form):
+    """Form for bulk uploading stock via CSV"""
+    csv_file = forms.FileField(
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.csv'}),
+        help_text="Upload a CSV file with columns: name, strength, quantity, cost_price, selling_price, expiry_date"
+    )
+    overwrite_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Check to update existing medications with new data"
+    )
     
     
 

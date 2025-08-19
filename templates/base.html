@@ -271,7 +271,7 @@ li ul[id*="_error"] {
               {% endif %}
           
               {% if request.user.role in 'ADMIN,DOCTOR,OPTOMETRIST' %}
-              <a href="{% url 'core:prescription_list' %}" 
+              <a href="{% url 'core:prescription_menu' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>
                 Prescriptions
@@ -413,28 +413,153 @@ li ul[id*="_error"] {
       </header>
       
       <!-- Mobile sidebar -->
-      <div class="md:hidden fixed inset-0 z-40 hidden" id="mobile-sidebar">
-        <div class="fixed inset-0 bg-gray-600 bg-opacity-75" onclick="toggleSidebar()"></div>
-        <div class="relative flex flex-col w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white h-full">
-          <div class="flex items-center justify-between h-16 px-4 border-b border-blue-800">
-            <h1 class="text-xl font-bold">DURIELMEDIC+</h1>
-            <button class="text-white hover:text-blue-200 focus:outline-none transition-colors" onclick="toggleSidebar()">
-              <i class="fas fa-times text-xl"></i>
-            </button>
+<!-- Mobile sidebar -->
+<div class="md:hidden fixed inset-0 z-40 hidden" id="mobile-sidebar">
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-75" onclick="toggleSidebar()"></div>
+  <div class="relative flex flex-col w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white h-full">
+    <div class="flex items-center justify-between h-16 px-4 border-b border-blue-800">
+      <h1 class="text-xl font-bold">DURIELMEDIC+</h1>
+      <button class="text-white hover:text-blue-200 focus:outline-none transition-colors" onclick="toggleSidebar()">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <div class="flex flex-col flex-grow px-4 py-4 overflow-y-auto">
+      <nav class="flex-1 space-y-2">
+        {% if request.session.clinic_type %}
+          <div class="text-sm text-white font-semibold bg-blue-800/50 p-2 rounded-lg">
+            Active Clinic: {{ request.session.clinic_type }}
           </div>
-          <div class="flex flex-col flex-grow px-4 py-4 overflow-y-auto">
-            <nav class="flex-1 space-y-2">
-              <!-- Same navigation links as desktop sidebar -->
-              <a href="{% url 'DurielMedicApp:dashboard' %}" 
-                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-                <i class="fas fa-tachometer-alt mr-3"></i>
-                Dashboard
-              </a>
-              <!-- Add other mobile menu items here -->
-            </nav>
+        {% endif %}
+
+        <!-- Dashboard link with same conditions as desktop -->
+        {% if request.session.clinic_id %}
+          {% if request.session.clinic_type == "EYE" %}
+            <a href="{% url 'DurielEyeApp:eye_dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'eye_dashboard' %}active{% endif %}">
+              <i class="fas fa-tachometer-alt mr-3"></i>
+              Dashboard
+            </a>
+          {% elif request.session.clinic_type == "GENERAL" %}
+            <a href="{% url 'DurielMedicApp:dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+              <i class="fas fa-tachometer-alt mr-3"></i>
+              Dashboard
+            </a>
+          {% else %}
+            <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
+              <i class="fas fa-tachometer-alt mr-3"></i>
+              Dashboard
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
+            <i class="fas fa-tachometer-alt mr-3"></i>
+            Dashboard
+          </div>
+        {% endif %}
+
+        <!-- Other menu items with same conditions as desktop -->
+        {% if request.session.clinic_id %}
+          {% if request.user.is_superuser or request.user.role == 'ADMIN' %} 
+          <a href="{% url 'core:manage_roles' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'manage_roles' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-tools mr-3"></i>
+            Administration
+          </a>
+          {% endif %}
+
+          {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+          <a href="{% url 'core:activity_log' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
+           <i class="fas fa-tasks mr-3"></i>
+            Activity Log
+          </a>
+          {% endif %}
+      
+          {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
+          <a href="{% url 'core:patient_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-users mr-3"></i>
+            Patients
+          </a>
+          {% endif %}
+      
+          {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
+          {% if request.session.clinic_type == "GENERAL" %}
+          <a href="{% url 'DurielMedicApp:appointment_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-calendar-alt mr-3"></i>
+            Appointments
+          </a>
+          {% elif request.session.clinic_type == "EYE" %}
+          <a href="{% url 'DurielEyeApp:appointment_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-calendar-alt mr-3"></i>
+            Appointments
+          </a>
+          {% endif %}
+          {% endif %}
+
+          {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST' %}
+          {% if request.session.clinic_type == "GENERAL" %}
+          <a href="{% url 'DurielMedicApp:followup_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-clock-rotate-left mr-3"></i>
+            Follow Ups
+          </a>
+
+          {% elif request.session.clinic_type == "EYE" %}
+          <a href="{% url 'DurielEyeApp:followup_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-clock-rotate-left mr-3"></i>
+            Follow Ups
+          </a>
+          {% endif %}
+          {% endif %}
+      
+          {% if request.user.role in 'ADMIN,DOCTOR,OPTOMETRIST' %}
+          <a href="{% url 'core:prescription_menu' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-prescription mr-3"></i>
+            Prescriptions
+          </a>
+          {% endif %}
+      
+          {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+          <a href="{% url 'core:billing_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-money-bill-wave mr-3"></i>
+            Billing
+          </a>
+          {% endif %}
+      
+          {% if request.user.role == 'ADMIN' %}
+          <a href="{% url 'DurielMedicApp:generate_report' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-chart-line mr-3"></i>
+            Reports
+          </a>
+          <a href="{% url 'core:settings' %}" 
+            class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-cog mr-3"></i>
+            Settings
+          </a>
+          {% endif %}
+        {% endif %}
+      </nav>
+      
+      <!-- User profile at bottom -->
+      <div class="mt-auto p-4 border-t border-blue-800">
+        <div class="flex items-center">
+          <div class="ml-3">
+            <p class="text-sm font-medium">{{ request.user.get_full_name }}</p>
+            <p class="text-xs text-blue-200">{{ request.user.get_role_display }}</p>
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
       
       <!-- Main content area -->
       <main class="flex-1 overflow-y-auto p-6">

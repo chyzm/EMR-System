@@ -26,9 +26,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = True
+DEBUG = True
 
-AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
 
 ALLOWED_HOSTS = [
     'durielmedic.pythonanywhere.com',
@@ -93,34 +93,36 @@ WSGI_APPLICATION = 'DurielMedic.wsgi.application'
 #Database
 #https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'duriel_med',
-#         'USER': 'postgres',
-#         'PASSWORD': 'Legacy@90',
-#         'HOST': 'localhost',
-#         'PORT': 5433,
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'duriel_med',
+        'USER': 'postgres',
+        'PASSWORD': 'Legacy@90',
+        'HOST': 'localhost',
+        'PORT': 5433,
+    }
+}
+
+
+
+
+# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+#     DATABASES = {
+#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+#          "default": dj_database_url.config(conn_max_age=600)
 #     }
-# }
-
-
-if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-    DATABASES = {
-        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-         "default": dj_database_url.config(conn_max_age=600)
-    }
-else:  # PythonAnywhere/MySQL
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
+# else:  # PythonAnywhere/MySQL
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DB_ENGINE'),
+#             'NAME': os.getenv('DB_NAME'),
+#             'USER': os.getenv('DB_USER'),
+#             'PASSWORD': os.getenv('DB_PASSWORD'),
+#             'HOST': os.getenv('DB_HOST'),
+#             'PORT': os.getenv('DB_PORT'),
+#         }
+#     }
 
 # LOGIN_REDIRECT_URL = '/DurielMedicApp/'  # or reverse('patient_list') if you're using named URLs
 LOGIN_URL = '/accounts/login/'
@@ -204,6 +206,9 @@ EMAIL_HOST_USER = 'suavedef@gmail.com'
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
 EMAIL_USE_TLS = True 
 DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <suavedef@gmail.com>'
+
+# AI Assist
+AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # Stripe settings for payments
 # STRIPE_PUBLIC_KEY = 'your_stripe_public_key'

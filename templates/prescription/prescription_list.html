@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mx-auto p-6">
+<div class="container mx-auto p-4 md:p-6">
   <h2 class="text-2xl font-semibold mb-4">Prescriptions</h2>
 
   <form method="get" class="mb-4">
@@ -8,37 +8,109 @@
            class="w-full p-2 border rounded" />
   </form>
 
-  <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        {% for prescription in prescriptions %}
-        <tr>  
-          <td class="px-6 py-4 whitespace-nowrap">{{ prescription.patient.full_name }}</td>
-          <td class="px-6 py-4 whitespace-nowrap">{{ prescription.prescribed_by.get_full_name }}</td>
-          <td class="px-6 py-4 whitespace-nowrap">{{ prescription.date_prescribed }}</td>
-          <td class="px-6 py-4 whitespace-nowrap">{{ prescription.medication|truncatewords:10 }}</td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <a href="{% url 'core:edit_prescription' prescription.id %}" class="text-blue-600 hover:text-blue-900">Edit</a>
-            <a href="{% url 'core:delete_prescription' prescription.id %}" class="text-red-600 hover:text-red-900">Delete</a>
-          </td>
-        </tr>
+  <form method="POST" action="{% url 'core:bulk_dispense' %}">
+    {% csrf_token %}
+    <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500">
+        Dispense Selected
+      </button>
+      <label class="text-gray-700 flex items-center">
+        <input type="checkbox" id="select_all" class="mr-2"> Select All
+      </label>
+    </div>
+
+    <div class="bg-white shadow overflow-x-auto sm:rounded-lg">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price (₦)</th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for prescription in prescriptions %}
+          <tr>
+            <td class="px-3 py-4 whitespace-nowrap">
+              <input type="checkbox" name="selected_prescriptions" value="{{ prescription.id }}" class="mx-auto"
+                     {% if prescription.stock_deducted %}disabled{% endif %}>
+            </td>
+            <td class="px-3 py-4 whitespace-nowrap">{{ prescription.patient.full_name }}</td>
+            <td class="px-3 py-4 whitespace-nowrap">{{ prescription.prescribed_by.get_full_name }}</td>
+            <td class="px-3 py-4 whitespace-nowrap hidden sm:table-cell">{{ prescription.date_prescribed }}</td>
+            <td class="px-3 py-4">
+              <div class="text-sm text-gray-900
+                          {% if prescription.stock_deducted %}bg-green-100 p-1 rounded{% elif prescription.returned_from_billing %}bg-purple-100{% elif prescription.clinic_medication.is_out_of_stock %}bg-gray-100 p-1 rounded{% elif prescription.clinic_medication.is_low_stock %}bg-yellow-50 p-1 rounded{% endif %}">
+                {{ prescription.clinic_medication.name }}
+                 <div class="text-sm text-gray-500">
+                {{ prescription.clinic_medication.manufacturer }} - 
+                {{ prescription.clinic_medication.strength }}
+                {% if prescription.clinic_medication.is_out_of_stock %}
+                  <span class="text-red-600 font-semibold ml-2">(OUT OF STOCK)</span>
+                {% elif prescription.clinic_medication.is_low_stock %}
+                  <span class="text-yellow-600 font-semibold ml-2">(LOW STOCK)</span>
+                {% endif %}
+              </div>
+                {% if prescription.stock_deducted %}
+                  <span class="text-green-600 font-semibold ml-2">(DISPENSED)</span>
+                {% endif %}
+              </div>
+            </td>
+            <td class="px-3 py-4 whitespace-nowrap">{{ prescription.quantity_prescribed }}</td>
+            <td class="px-3 py-4 whitespace-nowrap">{{ prescription.clinic_medication.selling_price|floatformat:2 }}</td>
+            <td class="px-3 py-4 whitespace-nowrap">
+              <div class="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                <a href="{% url 'core:edit_prescription' prescription.id %}" class="text-blue-600 hover:text-blue-900 text-sm">Edit</a>
+                <a href="{% url 'core:delete_prescription' prescription.id %}" class="text-red-600 hover:text-red-900 text-sm">Delete</a>
+                <a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="px-6 py-4 text-center text-gray-500">No prescriptions found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination controls -->
+    <div class="mt-4 flex justify-between items-center">
+      <div class="text-sm text-gray-500">
+        Showing {{ prescriptions.start_index }} to {{ prescriptions.end_index }} of {{ prescriptions.paginator.count }} prescriptions
+      </div>
+      <div class="flex space-x-2">
+        {% if prescriptions.has_previous %}
+          <a href="?page=1&q={{ query }}" class="px-3 py-1 border rounded text-sm">First</a>
+          <a href="?page={{ prescriptions.previous_page_number }}&q={{ query }}" class="px-3 py-1 border rounded text-sm">Previous</a>
+        {% endif %}
         
-        {% empty %}
-        <tr>
-          <td colspan="4" class="px-6 py-4 text-center text-gray-500">No prescriptions found.</td>
-        </tr>
+        {% for num in prescriptions.paginator.page_range %}
+          {% if prescriptions.number == num %}
+            <span class="px-3 py-1 border rounded bg-blue-500 text-white text-sm">{{ num }}</span>
+          {% elif num > prescriptions.number|add:'-3' and num < prescriptions.number|add:'3' %}
+            <a href="?page={{ num }}&q={{ query }}" class="px-3 py-1 border rounded text-sm">{{ num }}</a>
+          {% endif %}
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
+        
+        {% if prescriptions.has_next %}
+          <a href="?page={{ prescriptions.next_page_number }}&q={{ query }}" class="px-3 py-1 border rounded text-sm">Next</a>
+          <a href="?page={{ prescriptions.paginator.num_pages }}&q={{ query }}" class="px-3 py-1 border rounded text-sm">Last</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
 </div>
+
+<script>
+  document.getElementById('select_all').addEventListener('change', function() {
+    document.querySelectorAll('input[name="selected_prescriptions"]').forEach(cb => cb.checked = this.checked);
+  });
+</script>
 {% endblock %}

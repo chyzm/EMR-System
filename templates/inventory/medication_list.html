@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">💊 Medication Inventory</h2>
+            <p class="text-gray-600">{{ clinic.name }}</p>
+        </div>
+        <div class="flex flex-col md:flex-row gap-2 mt-4 md:mt-0">
+            <a href="{% url 'core:export_medications_csv' %}" 
+               class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
+                <i class="fas fa-file-csv mr-2"></i>Export CSV
+            </a>
+            <a href="{% url 'core:add_medication' %}" 
+               class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                <i class="fas fa-plus mr-2"></i>Add Medication
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6 slide-in">
+        <div class="p-4 bg-gray-50 border-b">
+            <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <input type="text" name="search" value="{{ search }}" placeholder="Search medications..." 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <select name="category" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Categories</option>
+                        {% for c in categories %}
+                            <option value="{{ c.id }}" {% if category_filter == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <select name="stock_status" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Stock</option>
+                        <option value="out_of_stock" {% if stock_filter == "out_of_stock" %}selected{% endif %}>Out of Stock</option>
+                        <option value="low_stock" {% if stock_filter == "low_stock" %}selected{% endif %}>Low Stock</option>
+                        <option value="in_stock" {% if stock_filter == "in_stock" %}selected{% endif %}>In Stock</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
+                        Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price (₦)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Price (₦)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for med in medications %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                        <i class="fas fa-pills text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <a href="{% url 'core:medication_detail' med.id %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                            {{ med.display_name }}
+                                        </a>
+                                        <div class="text-xs text-gray-500">SKU: {{ med.sku|default:"N/A" }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ med.category.name }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {% if med.is_out_of_stock %}bg-red-100 text-red-800
+                                    {% elif med.is_low_stock %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-green-100 text-green-800{% endif %}">
+                                    {{ med.quantity_in_stock }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ₦{{ med.selling_price|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ₦{{ med.total_price|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ med.expiry_date|date:"M d, Y"|default:"—" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                <a href="{% url 'core:edit_medication' med.id %}" class="text-blue-600 hover:text-blue-900">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'core:adjust_stock' med.id %}" class="text-indigo-600 hover:text-indigo-900">
+                                    <i class="fas fa-adjust"></i>
+                                </a>
+                                <a href="{% url 'core:delete_medication' med.id %}" class="text-red-600 hover:text-red-900">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                                No medications found.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

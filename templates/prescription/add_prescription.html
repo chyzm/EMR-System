@@ -4,38 +4,68 @@
 {% block content %}
 <div class="max-w-3xl mx-auto bg-white shadow-md rounded-lg p-6">
   <h2 class="text-2xl font-semibold text-blue-900 mb-4">Add Prescription for {{ patient.full_name }}</h2>
-  
+
+  {% if messages %}
+  <div class="mb-4">
+    {% for message in messages %}
+      <div class="p-2 rounded {{ message.tags }} bg-gray-100 text-gray-800">
+        {{ message }}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <form method="POST" class="space-y-4">
     {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.patient.label_tag }} {{ form.patient }}
+    {{ form.clinic_medication.label_tag }} {{ form.clinic_medication }}
+    {{ form.custom_medication.label_tag }} {{ form.custom_medication }}
+    {{ form.dosage.label_tag }} {{ form.dosage }}
+    {{ form.frequency.label_tag }} {{ form.frequency }}
+    {{ form.duration.label_tag }} {{ form.duration }}
+    {{ form.quantity_prescribed.label_tag }} {{ form.quantity_prescribed }}
+    {{ form.instructions.label_tag }} {{ form.instructions }}
 
-    <!-- Example fields -->
-    <div>
-      <label for="medication" class="block text-sm font-medium text-gray-700">Medication</label>
-      <input type="text" name="medication" id="medication" required
-             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-    </div>
+    <button type="submit" class="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800">Save Prescription</button>
+</form>
 
-    <div>
-      <label for="dosage" class="block text-sm font-medium text-gray-700">Dosage</label>
-      <input type="text" name="dosage" id="dosage" required
-             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-    </div>
-
-    <div>
-      <label for="instructions" class="block text-sm font-medium text-gray-700">Instructions</label>
-      <textarea name="instructions" id="instructions" rows="4"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="e.g., Take 1 tablet twice daily after meals."></textarea>
-    </div>
-
-    <div class="pt-4">
-      <button type="submit"
-              class="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
-        Save Prescription
-      </button>
-      <a href="{% url 'core:patient_detail' patient.patient_id %}"
-         class="ml-2 text-blue-900 hover:underline text-sm">Cancel</a>
-    </div>
-  </form>
 </div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const select = document.getElementById('medication');
+  const searchInput = document.getElementById('medication-search');
+
+  select.addEventListener('focus', function() {
+    searchInput.classList.remove('hidden');
+    searchInput.focus();
+  });
+
+  searchInput.addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const options = select.options;
+
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      if (option.text.toLowerCase().includes(searchTerm)) {
+        option.style.display = '';
+      } else {
+        option.style.display = 'none';
+      }
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (e.target !== select && e.target !== searchInput) {
+      searchInput.classList.add('hidden');
+    }
+  });
+
+  searchInput.addEventListener('blur', function() {
+    setTimeout(() => { this.classList.add('hidden'); }, 200);
+  });
+});
+</script>
 {% endblock %}

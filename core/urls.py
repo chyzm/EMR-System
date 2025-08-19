@@ -69,6 +69,7 @@ urlpatterns = [
     path('prescriptions/', views.prescription_list, name='prescription_list'),
     path('prescriptions/deactivate/<int:pk>/', views.deactivate_prescription, name='deactivate_prescription'),
     path('prescriptions/delete/<int:pk>/', views.delete_prescription, name='delete_prescription'),
+    path("prescriptions/menu/", views.prescription_menu, name="prescription_menu"),
 
     
     
@@ -106,4 +107,37 @@ urlpatterns = [
     # Notification
      path('notifications/mark-read/<int:pk>/', mark_notification_read, name='mark_notification_read'),
      path('notifications/clear/', clear_notifications, name='clear_notifications'),
+     
+     
+     # Inventory Dashboard
+    path('inventory/', views.inventory_dashboard, name='inventory_dashboard'),
+    
+    # Medication Management
+    path('inventory/medications/', views.medication_list, name='medication_list'),
+    path('inventory/medications/add/', views.add_medication, name='add_medication'),
+    path('inventory/medications/<int:pk>/edit/', views.edit_medication, name='edit_medication'),
+    path('inventory/medications/<int:pk>/detail/', views.medication_detail, name='medication_detail'),
+    path('inventory/medications/<int:pk>/delete/', views.delete_medication, name='delete_medication'),
+    
+    # Stock Management
+    path('inventory/medications/<int:pk>/adjust-stock/', views.adjust_stock, name='adjust_stock'),
+    path('inventory/medications/<int:pk>/movements/', views.stock_movements, name='stock_movements'),
+    path('inventory/bulk-upload/', views.bulk_upload_stock, name='bulk_upload_stock'),
+    path('inventory/low-stock-report/', views.low_stock_report, name='low_stock_report'),
+    
+    # Enhanced Prescriptions
+    # path('patients/<str:patient_id>/prescriptions/add-enhanced/', views.enhanced_add_prescription, name='enhanced_add_prescription'),
+    path('prescriptions/<int:pk>/dispense/', views.dispense_prescription, name='dispense_prescription'),
+    path("prescriptions/bulk-dispense/", views.bulk_dispense, name="bulk_dispense"),
+ 
+    
+    # Category Management
+    path('inventory/categories/', views.manage_categories, name='manage_categories'),
+    
+    # API Endpoints
+    path('api/medications/search/', views.medication_search_api, name='medication_search_api'),
+    path('api/medications/<int:pk>/stock/', views.check_medication_stock, name='check_medication_stock'),
+    
+    # Export stock to csv
+    path('medications/export/csv/', views.export_medications_csv, name='export_medications_csv'),
 ]

@@ -529,9 +529,14 @@
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
+                         <h3 class="font-medium text-blue-900">
+                        {{ prescription.clinic_medication.name }} 
+                        ({{ prescription.clinic_medication.manufacturer }}) - 
+                        {{ prescription.clinic_medication.strength }}
+                    </h3>
                         <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
                         {% if prescription.instructions %}
-                        <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>
+                        <p class="mt-2 text-gray-700">Instructions: {{ prescription.instructions }}</p>
                         {% endif %}
                     </div>
 
@@ -826,7 +831,11 @@
             <div class="p-4 hover:bg-gray-50">
                 <div class="flex justify-between items-start">
                     <div>
-                        <h3 class="font-medium text-blue-900">{{ prescription.medication }}</h3>
+                        <h3 class="font-medium text-blue-900">
+                        {{ prescription.clinic_medication.name }} 
+                        ({{ prescription.clinic_medication.manufacturer }}) - 
+                        {{ prescription.clinic_medication.strength }}
+                    </h3>
                         <p class="text-sm text-gray-600">Dosage: {{ prescription.dosage }}</p>
                         {% if prescription.instructions %}
                         <p class="mt-2 text-gray-700">{{ prescription.instructions }}</p>

@@ -1,0 +1,52 @@
+<!-- billing/_appointment_info.html -->
+<h2 class="text-lg font-medium text-gray-900 mb-4">Appointment Information</h2>
+{% if appointment %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-start space-x-3">
+            <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-blue-900">
+                    {{ appointment.date|date:"l, F j, Y" }} at {{ appointment.start_time|time:"h:i A" }}
+                </div>
+                <div class="text-sm text-blue-700 mt-1">
+                    <strong>Reason:</strong> {{ appointment.reason|default:"General consultation" }}
+                </div>
+                {% if appointment.doctor %}
+                <div class="text-sm text-blue-600 mt-1">
+                    <strong>Doctor:</strong> {{ appointment.doctor.get_full_name }}
+                </div>
+                {% endif %}
+                {% if appointment.notes %}
+                <div class="text-sm text-blue-600 mt-1">
+                    <strong>Notes:</strong> {{ appointment.notes|truncatechars:100 }}
+                </div>
+                {% endif %}
+                <div class="text-xs text-blue-500 mt-2">
+                    Appointment ID: {{ appointment.id }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hidden input to store appointment ID -->
+    <input type="hidden" name="appointment_id" value="{{ appointment.id }}" id="appointment_id_field">
+{% elif patient %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <span class="text-sm text-yellow-800">No appointments found for {{ patient.full_name }}</span>
+        </div>
+    </div>
+    <input type="hidden" name="appointment_id" value="" id="appointment_id_field">
+{% else %}
+    <div class="text-sm text-gray-500">Select a patient to view appointment information</div>
+    <input type="hidden" name="appointment_id" value="" id="appointment_id_field">
+{% endif %}

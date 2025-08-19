@@ -140,4 +140,12 @@ urlpatterns = [
     
     # Export stock to csv
     path('medications/export/csv/', views.export_medications_csv, name='export_medications_csv'),
+    
+    
+    # Service Price List Management
+    path('services/', views.service_list, name='service_list'),
+    path('services/add/', views.add_service, name='add_service'),
+    path('services/<int:pk>/edit/', views.edit_service, name='edit_service'),
+    path('services/<int:pk>/delete/', views.delete_service, name='delete_service'),
+    path('services/toggle/<int:pk>/', views.toggle_service_status, name='toggle_service_status'),
 ]

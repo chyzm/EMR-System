@@ -11,8 +11,9 @@ from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
 
-from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription 
-from .forms import CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm
+from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription, ServicePriceList 
+from .forms import (CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
+ServicePriceListForm)
 from DurielMedicApp.decorators import role_required
 from django.http import JsonResponse
 from .models import Patient
@@ -657,6 +658,125 @@ def billing_list(request):
 
 
 
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'RECEPTIONIST')
+# def create_bill(request, patient_id=None):
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id:
+#         messages.error(request, "No clinic selected.")
+#         return redirect('select_clinic')
+
+#     patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
+#     selected_patient_id = request.GET.get('patient')
+#     patient = None
+    
+#     if selected_patient_id:
+#         try:
+#             patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)
+#         except Patient.DoesNotExist:
+#             pass
+#     elif patient_id:
+#         try:
+#             patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)
+#         except Patient.DoesNotExist:
+#             patient = None
+
+#     if request.method == 'POST':
+#         form = BillingForm(request.POST, clinic_id=clinic_id)
+#         if form.is_valid():
+#             bill = form.save(commit=False)
+#             bill.created_by = request.user
+#             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
+            
+#             # Calculate total from selected services
+#             selected_services = form.cleaned_data.get('services', [])
+#             service_total = sum(service.price for service in selected_services)
+            
+#             # If amount was manually entered, add to service total
+#             manual_amount = form.cleaned_data.get('amount', 0)
+#             bill.amount = service_total + manual_amount
+            
+#             if not bill.paid_amount:
+#                 bill.paid_amount = 0
+                
+#             if bill.paid_amount == bill.amount:
+#                 bill.status = 'PAID'
+#             elif bill.paid_amount > 0:
+#                 bill.status = 'PARTIAL'
+#             else:
+#                 bill.status = 'PENDING'
+                
+#             bill.save()
+#             form.save_m2m()  # Save the many-to-many services
+            
+#             log_action(
+#                 request,
+#                 'CREATE',
+#                 bill,
+#                 details=f"Created bill #{bill.id} for {bill.patient.full_name} - Amount: {bill.amount}"
+#             )
+            
+#             messages.success(request, "Bill created successfully!")
+#             return redirect('core:billing_list')
+#     else:
+#         form = BillingForm(initial={'service_date': date.today()}, clinic_id=clinic_id)
+#         if patient:
+#             form.initial['patient'] = patient.patient_id
+
+#     appointment_id = request.GET.get('appointment_id')
+#     if appointment_id:
+#         appointment = Appointment.objects.filter(id=appointment_id, clinic_id=clinic_id).first()
+#     elif patient:
+#         appointment = Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time').first()
+#     else:
+#         appointment = None
+
+#     return render(request, 'billing/billing_form.html', {
+#         'form': form,
+#         'patient': patient,
+#         'patients_with_appointments': patients_with_appointments,
+#         'appointment': appointment,
+#         'selected_patient_id': selected_patient_id,
+#     })
+
+
+from datetime import date, timedelta
+
+def get_latest_patient_appointment(patient, clinic_id):
+    """Return the most recent appointment for a patient across all apps."""
+    recent_date = date.today() - timedelta(days=30)
+
+    from DurielEyeApp.models import EyeAppointment
+    # from DurielPhysioApp.models import PhysioAppointment
+    from DurielMedicApp.models import Appointment as GeneralAppointment
+
+    appointments = []
+
+    for model in [EyeAppointment, GeneralAppointment]:
+        qs = model.objects.filter(patient=patient, clinic_id=clinic_id)
+        today_appointments = qs.filter(date=date.today()).order_by('-start_time')
+        recent_appointments = qs.filter(date__gte=recent_date).order_by('-date', '-start_time')
+        any_appointment = qs.order_by('-date', '-start_time')
+
+        if today_appointments.exists():
+            appointments.append(today_appointments.first())
+        elif recent_appointments.exists():
+            appointments.append(recent_appointments.first())
+        elif any_appointment.exists():
+            appointments.append(any_appointment.first())
+
+    if not appointments:
+        return None
+
+    # Return the appointment with the most recent date & start_time
+    appointments.sort(key=lambda x: (x.date, getattr(x, 'start_time', 0)), reverse=True)
+    return appointments[0]
+
+
+
+
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
@@ -666,72 +786,261 @@ def create_bill(request, patient_id=None):
         messages.error(request, "No clinic selected.")
         return redirect('select_clinic')
 
-    # Only show patients from the current clinic
     patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
-
-    # Get selected patient from GET parameters
     selected_patient_id = request.GET.get('patient')
     patient = None
+
+    # Try to get patient by patient_id (not pk)
     if selected_patient_id:
         try:
-            patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)  # Filter by clinic
+            patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)
         except Patient.DoesNotExist:
-            pass
+            print(f"Patient with ID {selected_patient_id} not found")
     elif patient_id:
         try:
-            patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)  # Filter by clinic
+            patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)
         except Patient.DoesNotExist:
             patient = None
 
+    # Get appointment if specified
+    appointment_id = request.GET.get('appointment_id')
+    appointment = None
+    if appointment_id:
+        try:
+            appointment = GeneralAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+        except GeneralAppointment.DoesNotExist:
+            appointment = None
+
+    # If no specific appointment but we have a patient, find latest across apps
+    if patient and not appointment:
+        appointment = get_latest_patient_appointment(patient, clinic_id)
+
+    # Handle AJAX requests for patient selection
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        context = {
+            'appointment': appointment,
+            'patient': patient
+        }
+        return render(request, 'billing/_appointment_info.html', context)
+
+    # Handle form submission
     if request.method == 'POST':
-        form = BillingForm(request.POST)
+        form = BillingForm(request.POST, clinic_id=clinic_id)
         if form.is_valid():
             bill = form.save(commit=False)
             bill.created_by = request.user
             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
+
+            # appointment_id comes from hidden input
+            appointment_id_from_form = request.POST.get('appointment_id')
+            if appointment_id_from_form:
+                try:
+                    bill.appointment = GeneralAppointment.objects.get(
+                        id=appointment_id_from_form,
+                        clinic_id=clinic_id
+                    )
+                except GeneralAppointment.DoesNotExist:
+                    bill.appointment = None
+
+            bill.patient = form.cleaned_data['patient']
+
+            # calculate total from services if selected
+            selected_services = form.cleaned_data.get('services')
+            if selected_services:
+                bill.amount = sum(service.price for service in selected_services)
+            else:
+                bill.amount = form.cleaned_data.get('amount', 0)
+
             if not bill.paid_amount:
                 bill.paid_amount = 0
-            if bill.paid_amount == bill.amount:
+
+            # set status
+            if bill.paid_amount >= bill.amount and bill.amount > 0:
                 bill.status = 'PAID'
             elif bill.paid_amount > 0:
                 bill.status = 'PARTIAL'
             else:
                 bill.status = 'PENDING'
+
             bill.save()
-            
-            # ✅ Manual logging
+            form.save_m2m()
+
             log_action(
                 request,
                 'CREATE',
                 bill,
                 details=f"Created bill #{bill.id} for {bill.patient.full_name} - Amount: {bill.amount}"
             )
-        
-        
-            messages.success(request, "Bill created successfully!")
-            return redirect('core:billing_list')
+
+            messages.success(request, f"Bill created successfully! Bill ID: #{bill.id}")
+            return redirect('core:view_bill', pk=bill.pk)
     else:
-        form = BillingForm(initial={'service_date': date.today()})
+        initial_data = {'service_date': date.today()}
         if patient:
-            form.initial['patient'] = patient.patient_id
+            initial_data['patient'] = patient.patient_id
+        form = BillingForm(initial=initial_data, clinic_id=clinic_id)
 
-    # Get appointment
-    appointment_id = request.GET.get('appointment_id')
-    if appointment_id:
-        appointment = Appointment.objects.filter(id=appointment_id, clinic_id=clinic_id).first()
-    elif patient:
-        appointment = Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time').first()
-    else:
-        appointment = None
-
-    return render(request, 'billing/billing_form.html', {
+    context = {
         'form': form,
         'patient': patient,
         'patients_with_appointments': patients_with_appointments,
         'appointment': appointment,
         'selected_patient_id': selected_patient_id,
-    })
+        'title': 'Create New Bill'
+    }
 
+    return render(request, 'billing/billing_form.html', context)
+
+
+
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'RECEPTIONIST')
+# def create_bill(request, patient_id=None):
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id:
+#         messages.error(request, "No clinic selected.")
+#         return redirect('select_clinic')
+
+#     patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
+#     selected_patient_id = request.GET.get('patient')
+#     patient = None
+    
+#     # Try to get patient by patient_id (not pk)
+#     if selected_patient_id:
+#         try:
+#             patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)
+#         except Patient.DoesNotExist:
+#             print(f"Patient with ID {selected_patient_id} not found")
+#     elif patient_id:
+#         try:
+#             patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)
+#         except Patient.DoesNotExist:
+#             patient = None
+
+#     # Get appointment - improved logic
+#     appointment_id = request.GET.get('appointment_id')
+#     appointment = None
+    
+#     if appointment_id:
+#         try:
+#             appointment = Appointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+#         except Appointment.DoesNotExist:
+#             appointment = None
+    
+#     # If no specific appointment but we have a patient, find the most relevant appointment
+#     if patient and not appointment:
+#         from datetime import timedelta
+#         recent_date = date.today() - timedelta(days=30)
+        
+#         # First try today's appointments
+#         appointment = Appointment.objects.filter(
+#             patient=patient, 
+#             clinic_id=clinic_id,
+#             date=date.today()
+#         ).order_by('-start_time').first()
+        
+#         # If no appointment today, get the most recent one within 30 days
+#         if not appointment:
+#             appointment = Appointment.objects.filter(
+#                 patient=patient, 
+#                 clinic_id=clinic_id,
+#                 date__gte=recent_date
+#             ).order_by('-date', '-start_time').first()
+        
+#         # If still no appointment, get any appointment for this patient
+#         if not appointment:
+#             appointment = Appointment.objects.filter(
+#                 patient=patient,
+#                 clinic_id=clinic_id
+#             ).order_by('-date', '-start_time').first()
+
+#         print(f"Found appointment for {patient.full_name}: {appointment}")
+
+#     # Handle AJAX requests for patient selection
+#     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+#         print(f"AJAX request for patient: {patient.full_name if patient else None}")
+#         print(f"Found appointment: {appointment}")
+        
+#         context = {
+#             'appointment': appointment,
+#             'patient': patient
+#         }
+#         return render(request, 'billing/_appointment_info.html', context)
+
+#     # Rest of your view code...
+
+#     if request.method == 'POST':
+#         form = BillingForm(request.POST, clinic_id=clinic_id)
+#         if form.is_valid():
+#             bill = form.save(commit=False)
+#             bill.created_by = request.user
+#             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
+
+#             # appointment_id comes from hidden input
+#             appointment_id_from_form = request.POST.get('appointment_id')
+#             if appointment_id_from_form:
+#                 try:
+#                     bill.appointment = Appointment.objects.get(
+#                         id=appointment_id_from_form, 
+#                         clinic_id=clinic_id
+#                     )
+#                 except Appointment.DoesNotExist:
+#                     bill.appointment = None
+
+#             # bill.patient is already set via form.cleaned_data
+#             bill.patient = form.cleaned_data['patient']
+
+#             # calculate total from services if selected
+#             selected_services = form.cleaned_data.get('services')
+#             if selected_services:
+#                 bill.amount = sum(service.price for service in selected_services)
+#             else:
+#                 bill.amount = form.cleaned_data.get('amount', 0)
+
+#             if not bill.paid_amount:
+#                 bill.paid_amount = 0
+
+#             # set status
+#             if bill.paid_amount >= bill.amount and bill.amount > 0:
+#                 bill.status = 'PAID'
+#             elif bill.paid_amount > 0:
+#                 bill.status = 'PARTIAL'
+#             else:
+#                 bill.status = 'PENDING'
+
+#             bill.save()
+#             form.save_m2m()
+
+            
+#             log_action(
+#                 request,
+#                 'CREATE',
+#                 bill,
+#                 details=f"Created bill #{bill.id} for {bill.patient.full_name} - Amount: {bill.amount}"
+#             )
+            
+#             messages.success(request, f"Bill created successfully! Bill ID: #{bill.id}")
+#             return redirect('core:view_bill', pk=bill.pk)
+#     else:
+#         initial_data = {'service_date': date.today()}
+#         if patient:
+#             initial_data['patient'] = patient.patient_id
+#         form = BillingForm(initial=initial_data, clinic_id=clinic_id)
+
+#     context = {
+#         'form': form,
+#         'patient': patient,
+#         'patients_with_appointments': patients_with_appointments,
+#         'appointment': appointment,
+#         'selected_patient_id': selected_patient_id,
+#         'title': 'Create New Bill'
+#     }
+    
+#     return render(request, 'billing/billing_form.html', context)
+    
+    
+    
 
 
 
@@ -740,21 +1049,27 @@ def create_bill(request, patient_id=None):
 @role_required('ADMIN', 'RECEPTIONIST')
 def edit_bill(request, pk):
     bill = get_object_or_404(Billing, pk=pk)
-    patients_with_appointments = Patient.objects.filter(
-        appointments__isnull=False
-    ).distinct()
+    clinic_id = request.session.get('clinic_id')
     
     if request.method == 'POST':
-        form = BillingForm(request.POST, instance=bill)
+        form = BillingForm(request.POST, instance=bill, clinic_id=clinic_id)
         if form.is_valid():
             updated_bill = form.save(commit=False)
+            
+            # Calculate total from selected services
+            selected_services = form.cleaned_data.get('services', [])
+            service_total = sum(service.price for service in selected_services)
+            
+            # If amount was manually entered, add to service total
+            manual_amount = form.cleaned_data.get('amount', 0)
+            updated_bill.amount = service_total + manual_amount
             
             if updated_bill.paid_amount > updated_bill.amount:
                 messages.error(request, "Paid amount cannot be greater than total amount")
                 return render(request, 'billing/billing_form.html', {
                     'form': form, 
                     'bill': bill,
-                    'patients_with_appointments': patients_with_appointments
+                    'patients_with_appointments': Patient.objects.filter(clinic_id=clinic_id)
                 })
             
             if updated_bill.paid_amount == updated_bill.amount:
@@ -765,8 +1080,8 @@ def edit_bill(request, pk):
                 updated_bill.status = 'PENDING'
             
             updated_bill.save()
+            form.save_m2m()  # Save the many-to-many services
             
-            # ✅ Manual logging
             log_action(
                 request,
                 'UPDATE',
@@ -777,10 +1092,11 @@ def edit_bill(request, pk):
             messages.success(request, "Bill updated successfully!")
             return redirect('core:view_bill', pk=bill.pk)
     else:
-        form = BillingForm(instance=bill)
-        
+        form = BillingForm(instance=bill, clinic_id=clinic_id)
+        if bill.services.exists():
+            form.initial['services'] = bill.services.all()
     
-
+    patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
     
     return render(request, 'billing/billing_form.html', {
         'form': form,
@@ -2049,6 +2365,9 @@ def bulk_upload_stock(request):
     return render(request, 'inventory/bulk_upload.html', {'form': form})
 
 
+from django.db.models import Sum
+from django.utils import timezone
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
@@ -2059,56 +2378,58 @@ def dispense_prescription(request, pk):
 
     if not prescription.clinic_medication:
         messages.error(request, "This prescription is not from clinic inventory and cannot be dispensed.")
-        # return redirect('core:patient_detail', pk=patient.patient_id)   
         return redirect('core:prescription_list')
+
     if prescription.stock_deducted:
         messages.info(request, "This prescription has already been dispensed.")
-        # return redirect('core:patient_detail', pk=patient.patient_id)
         return redirect('core:prescription_list')
 
     if request.method == 'POST':
         # Deduct stock
         success = prescription.deduct_stock()
         if success:
-            # Ensure selling_price exists
             price = (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
-            
-            # Collect description lines first
-            description_lines.append(
-                f"Dispensed: {pres.medication_name} x{pres.quantity_prescribed} "
-                f"(₦{pres.clinic_medication.selling_price})"
+
+            # Build description string
+            description = (
+                f"Dispensed: {prescription.medication_name} x{prescription.quantity_prescribed} "
+                f"(₦{prescription.clinic_medication.selling_price})"
             )
 
-            # Create a Billing record
+            # Create billing record
             Billing.objects.create(
                 patient=patient,
                 clinic=prescription.clinic,
                 amount=price,
                 service_date=timezone.now().date(),
-                # description=f"Dispensed: {prescription.medication_name} x{prescription.quantity_prescribed}",
-                description=f"Dispensed: {pres.medication_name} x{pres.quantity_prescribed} "
-                f"(₦{pres.clinic_medication.selling_price})",
+                description=description,
                 created_by=request.user
             )
 
+            # Log action
             log_action(
                 request,
                 'UPDATE',
                 prescription,
-                details=f"Dispensed prescription for {patient.full_name}: "
-                        f"{prescription.medication_name} x{prescription.quantity_prescribed} (₦{price})"
+                details=f"Dispensed prescription for {patient.full_name}: {description}"
             )
 
-            messages.success(request, f"Prescription dispensed! Stock deducted, ₦{price} added to billing.")
+            # Calculate total billed dynamically
+            total_billed = Billing.objects.filter(patient=patient).aggregate(Sum('amount'))['amount__sum'] or 0
+
+            messages.success(
+                request,
+                f"Prescription dispensed! Stock deducted, ₦{price} added to billing. "
+                f"Total billed for {patient.full_name}: ₦{total_billed}"
+            )
         else:
             messages.error(request, "Insufficient stock to dispense this prescription.")
 
-        # FINAL CHECK: reload prescription from DB to verify stock_deducted
+        # Reload from DB to confirm stock update
         prescription.refresh_from_db()
         if prescription.stock_deducted:
             messages.info(request, "Dispense confirmed and stock updated.")
 
-        # return redirect('core:patient_detail', pk=patient.patient_id)
         return redirect('core:prescription_list')
 
     # Render confirmation page
@@ -2116,6 +2437,7 @@ def dispense_prescription(request, pk):
         'prescription': prescription,
         'total_price': (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
     })
+
 
 
 
@@ -2133,14 +2455,15 @@ def dispense_prescription(request, pk):
     
     if prescription.stock_deducted:
         messages.info(request, "This prescription has already been dispensed.")
-        return redirect('core:patient_detail', pk=patient.patient_id)
+        return redirect('core:patient_list')
+
 
     if request.method == 'POST':
         # Deduct stock
         if prescription.deduct_stock():
             # Add billing
             price = (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
-            patient.billing_total += price
+            # patient.billing_total += price
             patient.save()
 
             log_action(
@@ -2154,8 +2477,8 @@ def dispense_prescription(request, pk):
             messages.success(request, f"Prescription dispensed! Stock deducted, ₦{price} added to billing.")
         else:
             messages.error(request, "Insufficient stock to dispense this prescription.")
-        
-        return redirect('core:patient_list', pk=patient.patient_id)
+
+        return redirect('core:prescription_list')
 
     # Render confirmation page
     return render(request, 'prescription/dispense_prescription.html', {
@@ -2408,6 +2731,96 @@ def delete_medication(request, pk):
     return render(request, 'inventory/confirm_delete_medication.html', {
         'medication': medication
     })
+    
+    
+    
+    
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def service_list(request):
+    clinic_id = request.session.get('clinic_id')
+    services = ServicePriceList.objects.filter(clinic_id=clinic_id).order_by('name')
+    return render(request, 'billing/service_list.html', {
+        'services': services,
+        'clinic': Clinic.objects.get(id=clinic_id)
+    })
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def add_service(request):
+    clinic_id = request.session.get('clinic_id')
+    
+    if request.method == 'POST':
+        form = ServicePriceListForm(request.POST)
+        if form.is_valid():
+            service = form.save(commit=False)
+            service.clinic_id = clinic_id
+            service.save()
+            messages.success(request, f"Service '{service.name}' added successfully!")
+            return redirect('core:service_list')
+    else:
+        form = ServicePriceListForm()
+    
+    return render(request, 'billing/service_form.html', {
+        'form': form,
+        'title': 'Add New Service'
+    })
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def edit_service(request, pk):
+    clinic_id = request.session.get('clinic_id')
+    service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
+    
+    if request.method == 'POST':
+        form = ServicePriceListForm(request.POST, instance=service)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Service '{service.name}' updated successfully!")
+            return redirect('core:service_list')
+    else:
+        form = ServicePriceListForm(instance=service)
+    
+    return render(request, 'billing/service_form.html', {
+        'form': form,
+        'title': 'Edit Service'
+    })
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def delete_service(request, pk):
+    clinic_id = request.session.get('clinic_id')
+    service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
+    
+    if request.method == 'POST':
+        service_name = service.name
+        service.delete()
+        messages.success(request, f"Service '{service_name}' deleted successfully!")
+        return redirect('core:service_list')
+    
+    return render(request, 'billing/confirm_delete.html', {
+        'object': service,
+        'title': 'Confirm Delete Service'
+    })
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def toggle_service_status(request, pk):
+    clinic_id = request.session.get('clinic_id')
+    service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
+    service.is_active = not service.is_active
+    service.save()
+    
+    action = "activated" if service.is_active else "deactivated"
+    messages.success(request, f"Service '{service.name}' {action} successfully!")
+    return redirect('core:service_list')
 
 
 

@@ -287,13 +287,13 @@
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
+                    {% comment %} {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
                         {% for patient in patients %}
                             <a href="{% url 'core:add_prescription' patient_id=patient.id %}" class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                                 <i class="fas fa-glasses mr-2"></i>Issue Glasses Prescription
                             </a>
                         {% endfor %}
-                    {% endif %}
+                    {% endif %} {% endcomment %}
                     
                     {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                     <a href="{% url 'core:create_bill' %}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
@@ -346,16 +346,14 @@
                                     </div>
                                 </td>
                                   <td class="py-4 px-4">
-        {% if patient.ordered_appointments %}
-            {% with last_appointment=patient.ordered_appointments.0 %}
-            <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
-            <div class="text-sm text-gray-600">{{ last_appointment.reason|truncatechars:20 }}</div>
-            {% endwith %}
-        {% else %}
-            <div class="text-sm text-gray-600">No visits yet</div>
-        {% endif %}
-    </td>
-                                <td class="py-4 px-4">
+                                        {% if patient.last_appointment %}
+                                            <div class="text-sm text-gray-900">{{ patient.last_appointment.date|date:"M j, Y" }}</div>
+                                            <div class="text-sm text-gray-600">{{ patient.last_appointment.reason|truncatechars:20 }}</div>
+                                        {% else %}
+                                            <div class="text-sm text-gray-600">No visits yet</div>
+                                        {% endif %}
+                                    </td>
+                                                                <td class="py-4 px-4">
                                     <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Active</span>
                                 </td>
                                 <td class="py-4 px-4">

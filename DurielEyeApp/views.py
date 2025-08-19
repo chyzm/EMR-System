@@ -31,6 +31,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from .models import EyeAppointment
 from .forms import EyeAppointmentForm
 from core.utils import log_action
+from core.decorators import clinic_selected_required
+from django.db.models import Prefetch
+
+
 
 
 
@@ -50,92 +54,202 @@ def admin_check(user):
 # --------------------
 from django.shortcuts import render
 
-@login_required
-@user_passes_test(staff_check, login_url='login')
-def eye_dashboard(request):
-    today = date.today()
-    start_week = today - timedelta(days=today.weekday())
-    end_week = start_week + timedelta(days=6)
-    start_year = date(today.year, 1, 1)
+# @login_required
+# @user_passes_test(staff_check, login_url='login')
+# def eye_dashboard(request):
+#     today = date.today()
+#     start_week = today - timedelta(days=today.weekday())
+#     end_week = start_week + timedelta(days=6)
+#     start_year = date(today.year, 1, 1)
 
-    clinic_id = request.session.get('clinic_id')
-    if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
-        clinic_id = request.user.primary_clinic.id
-        request.session['clinic_id'] = clinic_id
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id and hasattr(request.user, 'primary_clinic') and request.user.primary_clinic:
+#         clinic_id = request.user.primary_clinic.id
+#         request.session['clinic_id'] = clinic_id
         
-    # --- Birthday notifications ---
-    # ENSURE THIS RUNS EVERY DASHBOARD LOAD
-    if clinic_id:  # Only run if we have a clinic_id
-        check_birthdays(clinic_id)
+#     # --- Birthday notifications ---
+#     # ENSURE THIS RUNS EVERY DASHBOARD LOAD
+#     if clinic_id:  # Only run if we have a clinic_id
+#         check_birthdays(clinic_id)
 
-    # Patients - FIXED: Filter properly for eye clinic
-    patients = Patient.objects.all()
-    if clinic_id:
-        patients = patients.filter(clinic_id=clinic_id)
+#     # Patients - FIXED: Filter properly for eye clinic
+#     patients = Patient.objects.all()
+#     if clinic_id:
+#         patients = patients.filter(clinic_id=clinic_id)
 
-    # Financial stats
-    financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
-        total_count=Count('id'),
-        total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
-        total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
-    )
+#     # Financial stats
+#     financial_stats = Billing.objects.filter(clinic_id=clinic_id, status='PENDING').aggregate(
+#         total_count=Count('id'),
+#         total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+#         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
+#     )
 
-    stats = {
-        'total_patients': patients.count(),
-        'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
-        'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
-        'today_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).count(),
-        'completed_appointments_today': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
-        'week_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
-        'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
-        'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
-        'pending_bills': financial_stats['total_count'],
-        'total_pending_amount': financial_stats['total_amount'],
-        'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
-    }
+#     stats = {
+#         'total_patients': patients.count(),
+#         'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
+#         'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
+#         'today_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).count(),
+#         'completed_appointments_today': EyeAppointment.objects.filter(clinic_id=clinic_id, date=today, status='COMPLETED').count(),
+#         'week_appointments': EyeAppointment.objects.filter(clinic_id=clinic_id, date__range=[start_week, end_week]).count(),
+#         'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
+#         'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
+#         'pending_bills': financial_stats['total_count'],
+#         'total_pending_amount': financial_stats['total_amount'],
+#         'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
+#     }
 
-    # Appointments for the user
-    user_appointments = EyeAppointment.objects.filter(
-        clinic_id=clinic_id, 
-        date=today
-    ).select_related('patient', 'provider', 'clinic').order_by('start_time')
+#     # Appointments for the user
+#     user_appointments = EyeAppointment.objects.filter(
+#         clinic_id=clinic_id, 
+#         date=today
+#     ).select_related('patient', 'provider', 'clinic').order_by('start_time')
 
-    if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
-        user_appointments = user_appointments.filter(provider=request.user)
+#     if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+#         user_appointments = user_appointments.filter(provider=request.user)
 
-    paginator = Paginator(user_appointments, 3)  # Changed to 3 to match DurielMedicApp
-    page = request.GET.get('page', 1)
+#     paginator = Paginator(user_appointments, 3)  # Changed to 3 to match DurielMedicApp
+#     page = request.GET.get('page', 1)
     
-    try:
-        user_appointments_page = paginator.page(page)
-    except (PageNotAnInteger, EmptyPage):
-        user_appointments_page = paginator.page(1)
+#     try:
+#         user_appointments_page = paginator.page(page)
+#     except (PageNotAnInteger, EmptyPage):
+#         user_appointments_page = paginator.page(1)
 
-    # Recent patients
-    recent_patients = patients.order_by('-created_at')[:5]
+#     # Recent patients
+#     recent_patients = patients.order_by('-created_at')[:5]
 
-    # Notifications - FIXED: Use same logic as DurielMedicApp
-    read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
-    notifications = Notification.objects.filter(
-        (
-            Q(user=request.user, is_read=False, clinic_id=clinic_id) |
-            Q(user__isnull=True, clinic_id=clinic_id)
+#     # Notifications - FIXED: Use same logic as DurielMedicApp
+#     read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+#     notifications = Notification.objects.filter(
+#         (
+#             Q(user=request.user, is_read=False, clinic_id=clinic_id) |
+#             Q(user__isnull=True, clinic_id=clinic_id)
+#         )
+#     ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
+
+#     # All appointments for today
+#     appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).exclude(id__isnull=True)
+
+#     context = {
+#         'stats': stats,
+#         'user_appointments': user_appointments_page,
+#         'recent_patients': recent_patients,
+#         'notifications': notifications,
+#         'today': today,
+#         'clinic_id': clinic_id,
+#         'appointments': appointments,
+#     }
+
+#     return render(request, 'eye/eye_dashboard.html', context)
+
+
+
+@login_required
+@clinic_selected_required
+def eye_dashboard(request):
+    clinic_id = request.session.get('clinic_id')
+    today = timezone.now().date()
+    
+    # Get today's eye appointments
+    user_appointments = EyeAppointment.objects.filter(
+        clinic_id=clinic_id,
+        date=today
+    ).select_related('patient', 'clinic').order_by('start_time')
+    
+    # Statistics calculations
+    stats = {
+        'today_appointments': user_appointments.count(),
+        'completed_appointments_today': user_appointments.filter(status='COMPLETED').count(),
+        'week_appointments': EyeAppointment.objects.filter(
+            clinic_id=clinic_id,
+            date__week=today.isocalendar()[1],
+            date__year=today.year
+        ).count(),
+        'total_patients': Patient.objects.filter(clinic_id=clinic_id).count(),
+        'new_patients_this_week': Patient.objects.filter(
+            clinic_id=clinic_id,
+            created_at__gte=today - timedelta(days=7)
+        ).count(),
+        'new_patients_this_year': Patient.objects.filter(
+            clinic_id=clinic_id,
+            created_at__year=today.year
+        ).count(),
+        'pending_prescriptions': Prescription.objects.filter(
+            patient__clinic_id=clinic_id,
+            is_active=True
+        ).count(),
+        'new_prescriptions_this_week': Prescription.objects.filter(
+            patient__clinic_id=clinic_id,
+            date_prescribed__gte=today - timedelta(days=7)
+        ).count(),
+        'pending_bills': Billing.objects.filter(
+            clinic_id=clinic_id,
+            status__in=['PENDING', 'PARTIAL']
+        ).count(),
+        'total_pending_amount': Billing.objects.filter(
+            clinic_id=clinic_id,
+            status__in=['PENDING', 'PARTIAL']
+        ).aggregate(total=Sum('amount'))['total'] or 0,
+        'outstanding_balance': Billing.objects.filter(
+            clinic_id=clinic_id,
+            status__in=['PENDING', 'PARTIAL']
+        ).aggregate(total=Sum('amount'))['total'] or 0,
+    }
+    
+    # Get recent patients with their last appointment
+    # This is the key fix - we're prefetching the appointments and ordering them
+    recent_patients = Patient.objects.filter(
+        clinic_id=clinic_id
+    ).prefetch_related(
+        Prefetch(
+            'appointments',  # regular appointments
+            queryset=EyeAppointment.objects.order_by('-date', '-start_time'),
+            to_attr='ordered_appointments'
+        ),
+        Prefetch(
+            'eye_appointments',  # eye appointments
+            queryset=EyeAppointment.objects.order_by('-date', '-start_time'),
+            to_attr='ordered_eye_appointments'
         )
-    ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
-
-    # All appointments for today
-    appointments = EyeAppointment.objects.filter(clinic_id=clinic_id, date=today).exclude(id__isnull=True)
-
+    ).order_by('-created_at')[:10]
+    
+    # For each patient, find their most recent appointment (from either type)
+    for patient in recent_patients:
+        # Get the most recent appointment from both regular and eye appointments
+        last_regular = patient.ordered_appointments[0] if patient.ordered_appointments else None
+        last_eye = patient.ordered_eye_appointments[0] if patient.ordered_eye_appointments else None
+        
+        # Determine which is more recent
+        if last_regular and last_eye:
+            if last_eye.date >= last_regular.date:
+                patient.last_appointment = last_eye
+            else:
+                patient.last_appointment = last_regular
+        elif last_eye:
+            patient.last_appointment = last_eye
+        elif last_regular:
+            patient.last_appointment = last_regular
+        else:
+            patient.last_appointment = None
+    
+    # Get patients for prescription dropdown (if needed)
+    patients = Patient.objects.filter(clinic_id=clinic_id)
+    
+    # Get notifications
+    notifications = request.user.notifications.filter(
+        clinic_id=clinic_id,
+        is_read=False
+    ).order_by('-created_at')[:10]
+    
     context = {
+        'user_appointments': user_appointments,
         'stats': stats,
-        'user_appointments': user_appointments_page,
         'recent_patients': recent_patients,
+        'patients': patients,
         'notifications': notifications,
         'today': today,
-        'clinic_id': clinic_id,
-        'appointments': appointments,
     }
-
+    
     return render(request, 'eye/eye_dashboard.html', context)
 
 

@@ -172,19 +172,38 @@ class Billing(models.Model):
     
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='bills')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='bills')
-    appointment = models.ForeignKey('DurielMedicApp.Appointment', on_delete=models.SET_NULL, null=True, blank=True, related_name='bill')
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    appointment = models.ForeignKey(
+        'DurielMedicApp.Appointment', 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name='bill'
+    )
+    services = models.ManyToManyField('ServicePriceList', blank=True, related_name='bills')  # <- added
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     service_date = models.DateField()
     due_date = models.DateField()
-    description = models.TextField()
+    description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_bills')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, blank=True, 
+        related_name='created_bills'
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def get_balance(self):
         return self.amount - self.paid_amount
+
+    def calculate_total(self):
+        """Calculate total amount from selected services."""
+        total = sum(service.price for service in self.services.all())
+        self.amount = total
+        self.save()
+        return total
+
 
 class Payment(models.Model):
     PAYMENT_METHODS = (
@@ -206,6 +225,19 @@ class Payment(models.Model):
     
     class Meta:
         ordering = ['-payment_date']
+        
+        
+class ServicePriceList(models.Model):
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='services')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - ₦{self.price}"
         
         
         

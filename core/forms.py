@@ -1,13 +1,15 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from core.models import CustomUser, Patient, Billing, Payment, Clinic, Prescription
+from core.models import CustomUser, Patient, Billing, Payment, Clinic, Prescription, ServicePriceList
 from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from django.contrib.auth.forms import AuthenticationForm
 from datetime import date
 
-from django import forms
+
+
+
 
 class CustomUserCreationForm(UserCreationForm):
     clinic = forms.ModelMultipleChoiceField(
@@ -245,6 +247,12 @@ class PatientForm(forms.ModelForm):
     
 
 class BillingForm(forms.ModelForm):
+    services = forms.ModelMultipleChoiceField(
+        queryset=ServicePriceList.objects.none(),
+        widget=forms.SelectMultiple(attrs={'class': 'form-control select2'}),
+        required=False
+    )
+
     class Meta:
         model = Billing
         fields = ['patient', 'appointment', 'service_date', 'due_date', 'amount', 'paid_amount', 'description']
@@ -255,10 +263,38 @@ class BillingForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        clinic_id = kwargs.pop('clinic_id', None)
         super().__init__(*args, **kwargs)
-        self.fields['patient'].required = True
+        
+        if clinic_id:
+            self.fields['services'].queryset = ServicePriceList.objects.filter(
+                clinic_id=clinic_id, 
+                is_active=True
+            ).order_by('name')
+            
         if not self.instance.pk:
             self.initial['paid_amount'] = 0
+
+
+
+
+
+
+
+            
+class ServicePriceListForm(forms.ModelForm):
+    class Meta:
+        model = ServicePriceList
+        fields = ['name', 'description', 'price', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        
+        
+        
 
 class PaymentForm(forms.ModelForm):
     class Meta:
@@ -516,5 +552,9 @@ class ClinicLogoForm(forms.ModelForm):
             return logo
         return None
         
+        
+
+
+
         
         

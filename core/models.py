@@ -280,13 +280,17 @@ class MedicationCategory(models.Model):
     """Categories for organizing medications"""
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    clinic = models.ForeignKey('Clinic', on_delete=models.CASCADE, related_name='medication_categories', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         verbose_name_plural = "Medication Categories"
-    
+        # Don't add unique_together yet since we have null clinics
+        
     def __str__(self):
+        if self.clinic:
+            return f"{self.name} ({self.clinic.name})"
         return self.name
-
     
     
     

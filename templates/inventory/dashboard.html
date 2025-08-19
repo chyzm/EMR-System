@@ -77,7 +77,7 @@
         box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
     }
     
-    .btn-outline-primary {
+    {% comment %} .btn-outline-primary {
         color: #4f46e5;
         border-color: #4f46e5;
     }
@@ -86,7 +86,7 @@
         background-color: #4f46e5;
         color: white;
         box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
-    }
+    } {% endcomment %}
     
     .btn-outline-secondary {
         color: #6b7280;
@@ -114,13 +114,14 @@
     /* Card Header Improvements */
     .card-header {
         border-bottom: 1px solid rgba(0,0,0,0.05);
-        background-color: #f9fafb;
+        {% comment %} background-color: #f9fafb; {% endcomment %}
     }
     
-    /* Table Improvements */
+    /* Table Improvements - Updated to match stock movements */
     .table {
         border-collapse: separate;
         border-spacing: 0;
+        width: 100%;
     }
     
     .table thead th {
@@ -131,10 +132,42 @@
         text-transform: uppercase;
         font-size: 0.75rem;
         letter-spacing: 0.5px;
+        padding: 0.75rem 1.5rem;
+    }
+    
+    .table tbody td {
+        padding: 1rem 1.5rem;
+        vertical-align: middle;
     }
     
     .table tbody tr:not(:last-child) td {
         border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #f9fafb;
+    }
+    
+    /* Status badges */
+    .badge-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    /* Stock progress bar */
+    .stock-progress {
+        height: 6px;
+        background-color: #e5e7eb;
+        border-radius: 3px;
+        width: 100px;
+        overflow: hidden;
+    }
+    
+    .stock-progress-bar {
+        height: 100%;
+        border-radius: 3px;
     }
     
     /* Responsive Adjustments */
@@ -146,6 +179,11 @@
         .btn {
             padding: 0.5rem 0.75rem;
             font-size: 0.875rem;
+        }
+        
+        .table thead th,
+        .table tbody td {
+            padding: 0.75rem 0.5rem;
         }
     }
 </style>
@@ -163,8 +201,8 @@
             <a href="{% url 'core:add_medication' %}" class="btn btn-primary text-white shadow-sm d-flex align-items-center">
                 <i class="fas fa-plus me-2"></i>Add Medication
             </a>
-            <a href="{% url 'core:bulk_upload_stock' %}" class="btn btn-outline-primary shadow-sm d-flex align-items-center">
-                <i class="fas fa-upload me-2"></i>Bulk Upload
+            <a href="{% url 'core:bulk_upload_stock' %}" class="btn btn-outline-primary shadow-sm d-flex bg-green-700 hover:bg-green-900 text-white align-items-center ml-2">
+                <i class="fas fa-upload me-2 text-white mr-1"></i>Bulk Upload
             </a>
            
         </div>
@@ -246,19 +284,19 @@
         <!-- Low Stock Alerts -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-600 d-flex align-items-center">
-                        <span class="badge bg-red-100 text-red-600 p-2 me-3 rounded">
+                <div class="card-header bg-gray-800 border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-600 d-flex align-items-center text-white">
+                        <span class="badge bg-red-100 text-red-600 p-2 me-3 ml-2 mr-1 rounded">
                             <i class="fas fa-exclamation-triangle fs-6"></i>
                         </span>
                         Low Stock Alerts
                     </h5>
                     {% if low_stock_items %}
-                    <div class="d-flex align-items-center">
-                        <a href="{% url 'core:low_stock_report' %}" class="btn btn-sm btn-outline-danger me-2">
+                    <div class="d-flex align-items-center mt-2 ml-2">
+                        <a href="{% url 'core:low_stock_report' %}" class="btn btn-sm bg-green-500 hover:bg-green-600 btn-outline-danger me-2 text-white">
                             View All
                         </a>
-                        <button class="btn btn-sm btn-outline-secondary" id="refresh-low-stock">
+                        <button class="btn btn-sm bg-white btn-outline-secondary ml-1" id="refresh-low-stock">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
@@ -269,42 +307,47 @@
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="bg-gray-50">
-                                    <tr class="text-gray-600">
-                                        <th class="fw-500 ps-4">Medication</th>
-                                        <th class="fw-500 text-end">Stock Level</th>
-                                        <th class="fw-500 text-end pe-4">Action</th>
+                                    <tr class="text-xs  text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3 font-medium">Medication</th>
+                                        <th class="px-6 py-3 font-medium text-center">Stock Level</th>
+                                        <th class="px-6 py-3 font-medium text-center">Status</th>
+                                        <th class="px-6 py-3 font-medium text-center">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody class="divide-y divide-gray-100">
                                     {% for item in low_stock_items %}
-                                    <tr class="alert-item {% if item.is_out_of_stock %}out-of-stock{% else %}low-stock{% endif %}">
-                                        <td class="ps-4">
-                                            <div class="d-flex align-items-center">
-                                                <div class="bg-gray-100 rounded-2 p-2 me-3">
-                                                    <i class="fas fa-pills text-primary"></i>
+                                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="flex-shrink-0 h-10 w-10 {% if item.is_out_of_stock %}bg-red-100{% else %}bg-amber-100{% endif %} rounded-lg flex items-center justify-center mr-3">
+                                                    <i class="fas fa-pills {% if item.is_out_of_stock %}text-red-600{% else %}text-amber-600{% endif %}"></i>
                                                 </div>
                                                 <div>
-                                                    <h6 class="mb-0 fw-600">{{ item.display_name }}</h6>
-                                                    <small class="text-gray-500">SKU: {{ item.sku|default:"N/A" }}</small>
+                                                    <div class="text-sm font-medium text-gray-900">{{ item.display_name }}</div>
+                                                    <div class="text-xs text-gray-500">SKU: {{ item.sku|default:"N/A" }}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-end">
-                                            <div class="d-flex flex-column">
-                                                <div class="mb-1">
-                                                    <span class="fw-600">{{ item.quantity_in_stock }}</span>
-                                                    <span class="text-gray-500">/{{ item.minimum_stock_level }}</span>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="mb-1 text-sm font-medium text-gray-900">
+                                                    {{ item.quantity_in_stock }} / {{ item.minimum_stock_level }}
                                                 </div>
-                                                <div class="stock-level">
-                                                    <div class="progress bg-{% if item.is_out_of_stock %}red{% else %}amber{% endif %}-100" 
+                                                <div class="stock-progress">
+                                                    <div class="stock-progress-bar {% if item.is_out_of_stock %}bg-red-500{% else %}bg-amber-500{% endif %}" 
                                                          style="width: {% widthratio item.quantity_in_stock item.minimum_stock_level 100 %}%">
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="pe-4 text-end">
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span class="badge-status {% if item.is_out_of_stock %}bg-red-100 text-red-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                                                {% if item.is_out_of_stock %}Out of Stock{% else %}Low Stock{% endif %}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
                                             <a href="{% url 'core:adjust_stock' item.pk %}" 
-                                               class="btn btn-sm btn-primary btn-action">
+                                               class="btn btn-sm btn-primary btn-action text-white">
                                                 Restock
                                             </a>
                                         </td>
@@ -329,16 +372,16 @@
         <!-- Expiring Soon -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-600 d-flex align-items-center">
+                <div class="card-header bg-red-600 border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-600 d-flex align-items-center text-white">
                         <span class="badge bg-cyan-100 text-cyan-600 p-2 me-3 rounded">
-                            <i class="fas fa-clock fs-6"></i>
+                            <i class="fas fa-clock fs-6 text-white"></i>
                         </span>
                         Expiring Soon
                     </h5>
                     {% if expiring_soon %}
-                    <a href="{% url 'core:expiring_soon_report' %}" class="btn btn-sm btn-outline-primary">
-                        View All
+                    <a href="{% url 'core:expiring_soon_report' %}" class="btn btn-sm btn-outline-primary bg-purple-900 hover:bg-gray-800 ml-2 mt-1">
+                        <span class="text-white">View All</span>
                     </a>
                     {% endif %}
                 </div>
@@ -347,32 +390,36 @@
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="bg-gray-50">
-                                    <tr class="text-gray-600">
-                                        <th class="fw-500 ps-4">Medication</th>
-                                        <th class="fw-500 text-end">Expiry Date</th>
-                                        <th class="fw-500 text-end">Stock</th>
-                                        <th class="fw-500 text-end pe-4">Status</th>
+                                    <tr class="text-xs text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3 font-medium">Medication</th>
+                                        <th class="px-6 py-3 font-medium text-center">Expiry Date</th>
+                                        <th class="px-6 py-3 font-medium text-center">Stock</th>
+                                        <th class="px-6 py-3 font-medium text-center">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody class="divide-y divide-gray-100">
                                     {% for item in expiring_soon %}
-                                    <tr class="alert-item expiring">
-                                        <td class="ps-4">
-                                            <div class="d-flex align-items-center">
-                                                <div class="bg-gray-100 rounded-2 p-2 me-3">
+                                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="flex-shrink-0 h-10 w-10 bg-cyan-100 rounded-lg flex items-center justify-center mr-3">
                                                     <i class="fas fa-prescription-bottle-alt text-cyan-600"></i>
                                                 </div>
                                                 <div>
-                                                    <h6 class="mb-0 fw-600">{{ item.display_name }}</h6>
-                                                    <small class="text-gray-500">Batch: {{ item.batch_number|default:"N/A" }}</small>
+                                                    <div class="text-sm font-medium text-gray-900">{{ item.display_name }}</div>
+                                                    <div class="text-xs text-gray-500">Batch: {{ item.batch_number|default:"N/A" }}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="text-end">{{ item.expiry_date|date:"M d, Y" }}</td>
-                                        <td class="text-end">{{ item.quantity_in_stock }}</td>
-                                        <td class="pe-4 text-end">
+                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                                            {{ item.expiry_date|date:"M d, Y" }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span class="text-sm font-medium text-gray-900">{{ item.quantity_in_stock }}</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
                                             {% with days_left=item.expiry_date|timeuntil %}
-                                                <span class="badge expiry-badge bg-amber-100 text-amber-800">
+                                                <span class="badge-status bg-amber-100 text-amber-800">
                                                     {{ days_left }} left
                                                 </span>
                                             {% endwith %}
@@ -399,13 +446,13 @@
     <!-- Recent Stock Movements -->
     <div class="row mt-4">
         <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-600 d-flex align-items-center">
-                        <i class="fas fa-exchange-alt text-gray-600 me-3"></i>
+            <div class="card border-0  shadow-sm">
+                <div class="card-header bg-green-700 border-0 py-3 d-flex justify-content-between align-items-center ">
+                    <h5 class="mb-0 fw-600 d-flex align-items-center text-white ml-2">
+                        <i class="fas fa-exchange-alt text-white me-3"></i>
                         Recent Stock Movements
                     </h5>
-                    <a href="{% url 'core:medication_list' %}" class="btn btn-sm btn-outline-primary">
+                    <a href="{% url 'core:medication_list' %}" class="btn btn-sm btn-outline-primary bg-gray-800 hover:bg-gray-900 text-white ml-2">
                         View All
                     </a>
                 </div>

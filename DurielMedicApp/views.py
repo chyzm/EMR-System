@@ -203,10 +203,9 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return kwargs
     
     def form_valid(self, form):
+        form.instance.provider = self.request.user
+        form.instance.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
         
-        form.instance.provider = self.request.user  # 👈 THIS is crucial
-        print("Saving appointment for:", form.cleaned_data.get('patient'))
-
         appointment = form.save(commit=False)
         appointment.save()
         
@@ -220,6 +219,39 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
 
         messages.success(self.request, 'Appointment scheduled successfully!')
         return redirect(self.success_url)
+
+# class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+#     model = Appointment
+#     form_class = AppointmentForm
+#     template_name = 'appointments/appointment_form.html'
+#     success_url = reverse_lazy('appointment_list')
+    
+#     def test_func(self):
+#         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
+    
+#     def get_form_kwargs(self):
+#         kwargs = super().get_form_kwargs()
+#         kwargs['initial'] = {'provider': self.request.user}
+#         return kwargs
+    
+#     def form_valid(self, form):
+        
+#         form.instance.provider = self.request.user  # 👈 THIS is crucial
+#         print("Saving appointment for:", form.cleaned_data.get('patient'))
+
+#         appointment = form.save(commit=False)
+#         appointment.save()
+        
+#         # ✅ Manual logging
+#         log_action(
+#             self.request,
+#             'CREATE',
+#             appointment,
+#             details=f"Created appointment for {appointment.patient.full_name} on {appointment.date}"
+#         )
+
+#         messages.success(self.request, 'Appointment scheduled successfully!')
+#         return redirect(self.success_url)
     
     
 
@@ -684,7 +716,9 @@ def appointment_update(request, pk):
     
     form = AppointmentForm(request.POST or None, instance=appointment)
     if form.is_valid():
-        form.save()
+        appointment = form.save(commit=False)
+        appointment.payment_type = form.cleaned_data.get('payment_type', appointment.payment_type)  # Add this line
+        appointment.save()
         messages.success(request, 'Appointment updated successfully.')
         return redirect('DurielMedicApp:appointment_list')
     
@@ -728,6 +762,7 @@ def check_appointment_availability(request):
         return JsonResponse({'available': False, 'error': str(e)}, status=500)
 
 
+
 @login_required
 def add_appointment(request):
     clinic_id = request.session.get('clinic_id')
@@ -746,9 +781,11 @@ def add_appointment(request):
 
         if form.is_valid():
             appointment = form.save(commit=False)
-            appointment.clinic_id = clinic_id  # Ensure correct clinic
+            appointment.clinic_id = clinic_id
+            appointment.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
             appointment.status = 'SCHEDULED'
             appointment.save()
+            
             # Notify all staff in this clinic
             staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
             for user in staff_users:
@@ -771,6 +808,53 @@ def add_appointment(request):
         'form': form,
         'title': 'Add New Appointment',
     })
+
+
+
+
+# @login_required
+# def add_appointment(request):
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id:
+#         messages.error(request, "No clinic selected. Please select a clinic first.")
+#         return redirect('core:select_clinic')
+
+#     # Filter patients and providers by clinic
+#     patients_qs = Patient.objects.filter(clinic_id=clinic_id)
+#     providers_qs = User.objects.filter(clinic__id=clinic_id, is_active=True)
+
+#     if request.method == 'POST':
+#         form = AppointmentForm(request.POST)
+#         form.fields['patient'].queryset = patients_qs
+#         form.fields['provider'].queryset = providers_qs
+
+#         if form.is_valid():
+#             appointment = form.save(commit=False)
+#             appointment.clinic_id = clinic_id  # Ensure correct clinic
+#             appointment.status = 'SCHEDULED'
+#             appointment.save()
+#             # Notify all staff in this clinic
+#             staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
+#             for user in staff_users:
+#                 Notification.objects.create(
+#                     user=user,
+#                     message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
+#                     link=reverse('DurielMedicApp:appointment_list'),
+#                     clinic_id=clinic_id
+#                 )
+#             messages.success(request, 'Appointment scheduled successfully!')
+#             return redirect('DurielMedicApp:appointment_list')
+#         else:
+#             messages.error(request, 'Please correct the errors below.')
+#     else:
+#         form = AppointmentForm(initial={'provider': request.user})
+#         form.fields['patient'].queryset = patients_qs
+#         form.fields['provider'].queryset = providers_qs
+
+#     return render(request, 'appointments/add_appointment.html', {
+#         'form': form,
+#         'title': 'Add New Appointment',
+#     })
 
 
 

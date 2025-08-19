@@ -7,17 +7,27 @@ from django.core.exceptions import ValidationError
 
 
 
+# Add this import at the top
+from django.utils.html import format_html
+
+# Modify the EyeAppointmentForm class
 class EyeAppointmentForm(forms.ModelForm):
     date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
     start_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
     end_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
     reason = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
+    # Change payment_type to use RadioSelect explicitly
+    payment_type = forms.ChoiceField(
+        choices=EyeAppointment.PAYMENT_CHOICES, 
+        required=True,
+        widget=forms.RadioSelect
+    )
 
     class Meta:
         model = EyeAppointment
-        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes']
-
+        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes', 'payment_type']
+        
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
         super().__init__(*args, **kwargs)
@@ -28,7 +38,15 @@ class EyeAppointmentForm(forms.ModelForm):
         else:
             self.fields['provider'].queryset = CustomUser.objects.none()
 
-        # Show full name + title
+        # Format patient names as "Name (Patient ID) + DOB"
+        self.fields['patient'].label_from_instance = lambda obj: format_html(
+            "{} ({}) - DOB: {}", 
+            obj.full_name, 
+            obj.patient_id,
+            obj.date_of_birth.strftime('%Y-%m-%d') if obj.date_of_birth else 'N/A'
+        )
+        
+        # Show full name + title for providers
         self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name()}"
 
         # Add styling and placeholder

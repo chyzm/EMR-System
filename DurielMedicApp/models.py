@@ -36,9 +36,16 @@ class Appointment(models.Model):
         ('NO_SHOW', 'No Show'),
     )
     
+    PAYMENT_CHOICES = (
+        ('SELF', 'Self Paid'),
+        ('INSURANCE', 'Insurance'),
+    )
+    
+    
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='appointments')
     provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='appointments')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='appointments')
+    payment_type = models.CharField(max_length=10, choices=PAYMENT_CHOICES, default='SELF')
     date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()

@@ -124,6 +124,8 @@ urlpatterns = [
     path('inventory/medications/<int:pk>/movements/', views.stock_movements, name='stock_movements'),
     path('inventory/bulk-upload/', views.bulk_upload_stock, name='bulk_upload_stock'),
     path('inventory/low-stock-report/', views.low_stock_report, name='low_stock_report'),
+    path('inventory/expiring-soon-report/', views.expiring_soon_report, name='expiring_soon_report'),
+    path('download-stock-template/', views.download_stock_template, name='download_stock_template'),
     
     # Enhanced Prescriptions
     # path('patients/<str:patient_id>/prescriptions/add-enhanced/', views.enhanced_add_prescription, name='enhanced_add_prescription'),

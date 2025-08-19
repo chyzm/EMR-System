@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Low Stock Report{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-item {
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+    }
+    .alert-item:hover {
+        transform: translateX(5px);
+        border-left-color: #4f46e5;
+        background-color: rgba(79, 70, 229, 0.03);
+    }
+    .alert-item.out-of-stock { 
+        background-color: rgba(239, 68, 68, 0.05);
+        border-left-color: #ef4444;
+    }
+    .alert-item.low-stock { 
+        background-color: rgba(245, 158, 11, 0.05);
+        border-left-color: #f59e0b;
+    }
+    
+    .stock-progress {
+        height: 6px;
+        background-color: #e5e7eb;
+        border-radius: 3px;
+        width: 100px;
+        overflow: hidden;
+    }
+    
+    .stock-progress-bar {
+        height: 100%;
+        border-radius: 3px;
+    }
+    
+    .badge-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .table thead th {
+        background-color: #f9fafb;
+        font-weight: 600;
+        color: #4b5563;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Header Section -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+        <div class="mb-3 mb-md-0">
+            <h1 class="h3 mb-2 fw-600 text-blue-800">Low Stock Report</h1>
+            <p class="text-gray-500 mb-0">{{ clinic.name }} • Generated on {% now "M d, Y" %}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'core:export_medications_csv' %}" class="btn btn-outline-primary  bg-green-600 hover:bg-green-700  rounded p-2 text-white shadow-sm d-flex align-items-center">
+                <i class="fas fa-download me-2 text-white"></i> Export CSV
+            </a>
+            <a href="{% url 'core:inventory_dashboard' %}" class="btn btn-secondary bg-gray-800 hover:bg-gray-900  rounded p-2 text-white ml-2 shadow-sm d-flex align-items-center">
+                <i class="fas fa-arrow-left me-2 text-white"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Out of Stock Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-red-600 border-0 py-3">
+                    <h5 class="mb-0 fw-600 d-flex align-items-center text-white ml-2">
+                        <i class="fas fa-exclamation-triangle me-3"></i>
+                        Out of Stock ({{ out_of_stock.count }})
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if out_of_stock %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="bg-gray-50">
+                                    <tr class="text-xs text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3 font-medium">Medication</th>
+                                        <th class="px-6 py-3 font-medium text-center">Status</th>
+                                        <th class="px-6 py-3 font-medium text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    {% for item in out_of_stock %}
+                                    <tr class="alert-item out-of-stock">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="flex-shrink-0 h-10 w-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
+                                                    <i class="fas fa-pills text-red-600"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-medium text-gray-900">{{ item.display_name }}</div>
+                                                    <div class="text-xs text-gray-500">Min: {{ item.minimum_stock_level }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span class="badge-status bg-red-100 text-red-800">
+                                                Out of Stock
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <a href="{% url 'core:adjust_stock' item.pk %}" 
+                                               class="btn btn-sm btn-primary btn-action  bg-purple-600 hover:bg-purple-700 rounded p-2 text-white">
+                                                Restock
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="bg-green-100 rounded-circle p-4 d-inline-flex mb-3">
+                                <i class="fas fa-check-circle text-green-600 fs-2"></i>
+                            </div>
+                            <h5 class="fw-600 mb-2">No out of stock items</h5>
+                            <p class="text-gray-500 mb-0">All medications are in stock</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Section -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-amber-600 border-0 py-3">
+                    <h5 class="mb-0 fw-600 d-flex align-items-center text-gray-800">
+                        <i class="fas fa-hourglass-half me-3 text-gray-800"></i>
+                        Low Stock ({{ low_stock.count }})
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if low_stock %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="bg-gray-50">
+                                    <tr class="text-xs text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3 font-medium">Medication</th>
+                                        <th class="px-6 py-3 font-medium text-center">Stock Level</th>
+                                        <th class="px-6 py-3 font-medium text-center">Status</th>
+                                        <th class="px-6 py-3 font-medium text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    {% for item in low_stock %}
+                                    <tr class="alert-item low-stock">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="flex-shrink-0 h-10 w-10 bg-amber-100 rounded-lg flex items-center justify-center mr-3">
+                                                    <i class="fas fa-pills text-amber-600"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-medium text-gray-900">{{ item.display_name }}</div>
+                                                    <div class="text-xs text-gray-500">Min: {{ item.minimum_stock_level }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="mb-1 text-sm font-medium text-gray-900">
+                                                    {{ item.quantity_in_stock }} / {{ item.minimum_stock_level }}
+                                                </div>
+                                                <div class="stock-progress">
+                                                    <div class="stock-progress-bar bg-amber-500" 
+                                                         style="width: {% widthratio item.quantity_in_stock item.minimum_stock_level 100 %}%">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <span class="badge-status bg-amber-100 text-amber-800">
+                                                Low Stock
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <a href="{% url 'core:adjust_stock' item.pk %}" 
+                                               class="btn btn-sm btn-primary btn-action t bg-purple-600 hover:bg-purple-700 rounded p-2 text-white">
+                                                Restock
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="bg-green-100 rounded-circle p-4 d-inline-flex mb-3">
+                                <i class="fas fa-check-circle text-green-600 fs-2"></i>
+                            </div>
+                            <h5 class="fw-600 mb-2">No low stock items</h5>
+                            <p class="text-gray-500 mb-0">All medications are well stocked</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-gray-800 border-0 py-3">
+                    <h5 class="mb-0 fw-600 text-white ml-2">
+                        <i class="fas fa-chart-bar me-3"></i>
+                        Stock Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3">
+                            <div class="bg-indigo-100 p-3 rounded">
+                                <h6 class="text-indigo-600 mb-1">Total Medications</h6>
+                                <h4 class="fw-700 text-gray-800">{{ total_medications }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="bg-red-100 p-3 rounded">
+                                <h6 class="text-red-600 mb-1">Out of Stock</h6>
+                                <h4 class="fw-700 text-gray-800">{{ out_of_stock.count }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="bg-amber-100 p-3 rounded">
+                                <h6 class="text-amber-600 mb-1">Low Stock</h6>
+                                <h4 class="fw-700 text-gray-800">{{ low_stock.count }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="bg-green-100 p-3 rounded">
+                                <h6 class="text-green-600 mb-1">Well Stocked</h6>
+                                <h4 class="fw-700 text-gray-800">{{ well_stocked_count }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

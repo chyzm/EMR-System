@@ -353,6 +353,9 @@ class EyeAppointmentListView(ListView):
         return qs.order_by('-date', '-start_time')
 
 
+
+
+
 # class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 #     model = EyeAppointment
 #     form_class = EyeAppointmentForm
@@ -365,28 +368,57 @@ class EyeAppointmentListView(ListView):
 #     def get_form_kwargs(self):
 #         kwargs = super().get_form_kwargs()
 #         kwargs['clinic_id'] = self.request.session.get('clinic_id')
+#         # kwargs['request'] = self.request  # Pass request to the form
 #         return kwargs
 
-#     def form_valid(self, form):
-#         form.instance.provider = self.request.user  # 👈 ensure logged-in user is provider
-#         form.instance.clinic_id = self.request.session.get('clinic_id')
-
-#         appointment = form.save(commit=False)
-#         appointment.save()
-        
-#         # CREATE NOTIFICATION WHEN APPOINTMENT IS CREATED (like DurielMedicApp does)
+#     def get_form(self, form_class=None):
+#         form = super().get_form(form_class)
+#         # Limit provider choices to staff in the same clinic
 #         clinic_id = self.request.session.get('clinic_id')
 #         if clinic_id:
-#             from django.contrib.auth import get_user_model
-#             User = get_user_model()
-#             staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
-#             for user in staff_users:
-#                 Notification.objects.create(
-#                     user=user,
-#                     message=f"New appointment with {appointment.patient.full_name} on {appointment.date}",
-#                     link=reverse('DurielEyeApp:appointment_list'),
-#                     clinic_id=clinic_id
-#                 )
+#             form.fields['provider'].queryset = CustomUser.objects.filter(
+#                 clinic__id=clinic_id,
+#                 is_active=True,
+#                 role__in=['DOCTOR', 'OPTOMETRIST', 'ADMIN']  # Only show appropriate roles
+#             ).order_by('first_name', 'last_name')
+#         return form
+
+#     def form_valid(self, form):
+#         clinic_id = self.request.session.get('clinic_id')
+#         if not clinic_id:
+#             messages.error(self.request, "No clinic selected")
+#             return redirect('core:select_clinic')
+
+#         # Set clinic and save appointment
+#         form.instance.clinic_id = clinic_id
+#         appointment = form.save()
+
+#         # Create notification for staff in the same clinic
+#         staff_users = CustomUser.objects.filter(
+#             clinic__id=clinic_id,
+#             is_active=True
+#          ) #.exclude(id=appointment.provider.id)  # Exclude the provider
+
+#         for user in staff_users:
+#             Notification.objects.create(
+#                 user=user,
+#                 message=f"New eye appointment with {appointment.patient.full_name} on {appointment.date}",
+#                 link=reverse('DurielEyeApp:appointment_list'),
+#                 clinic_id=clinic_id,
+#                 object_id=str(appointment.id),  # Unique identifier
+#                 app_name='eye'
+#             )
+
+#         # Also notify the provider if they're not the one creating the appointment
+#         if appointment.provider != self.request.user:
+#             Notification.objects.create(
+#                 user=appointment.provider,
+#                 message=f"You have a new appointment with {appointment.patient.full_name} on {appointment.date}",
+#                 link=reverse('DurielEyeApp:appointment_list'),
+#                 clinic_id=clinic_id,
+#                 object_id=str(appointment.id),
+#                 app_name='eye'
+#             )
 
 #         log_action(
 #             self.request,
@@ -397,6 +429,8 @@ class EyeAppointmentListView(ListView):
 
 #         messages.success(self.request, "Appointment scheduled successfully!")
 #         return redirect(self.success_url)
+
+
 
 
 class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -411,7 +445,6 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['clinic_id'] = self.request.session.get('clinic_id')
-        # kwargs['request'] = self.request  # Pass request to the form
         return kwargs
 
     def get_form(self, form_class=None):
@@ -422,7 +455,7 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
             form.fields['provider'].queryset = CustomUser.objects.filter(
                 clinic__id=clinic_id,
                 is_active=True,
-                role__in=['DOCTOR', 'OPTOMETRIST', 'ADMIN']  # Only show appropriate roles
+                role__in=['DOCTOR', 'OPTOMETRIST', 'ADMIN']
             ).order_by('first_name', 'last_name')
         return form
 
@@ -434,13 +467,14 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
 
         # Set clinic and save appointment
         form.instance.clinic_id = clinic_id
+        form.instance.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
         appointment = form.save()
 
         # Create notification for staff in the same clinic
         staff_users = CustomUser.objects.filter(
             clinic__id=clinic_id,
             is_active=True
-         ) #.exclude(id=appointment.provider.id)  # Exclude the provider
+        )
 
         for user in staff_users:
             Notification.objects.create(
@@ -448,7 +482,7 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
                 message=f"New eye appointment with {appointment.patient.full_name} on {appointment.date}",
                 link=reverse('DurielEyeApp:appointment_list'),
                 clinic_id=clinic_id,
-                object_id=str(appointment.id),  # Unique identifier
+                object_id=str(appointment.id),
                 app_name='eye'
             )
 
@@ -480,6 +514,33 @@ def eye_appointment_detail(request, pk):
     appointment = get_object_or_404(EyeAppointment, pk=pk)
     return render(request, 'eye/appointments/appointment_detail.html', {'appointment': appointment})
 
+
+
+
+# def eye_appointment_update(request, appointment_id):
+#     appointment = get_object_or_404(EyeAppointment, id=appointment_id)
+#     clinic_id = request.session.get('clinic_id')
+
+#     if request.method == "POST":
+#         form = EyeAppointmentForm(request.POST, instance=appointment, clinic_id=clinic_id)
+#         if form.is_valid():
+#             form.save()
+#             # ✅ Add logging
+#             log_action(
+#                 request,
+#                 'UPDATE',
+#                 appointment,
+#                 details=f"Updated eye appointment for {appointment.patient.full_name} on {appointment.date}"
+#             )
+#             messages.success(request, "Eye appointment updated successfully.")
+#             return redirect('DurielEyeApp:appointment_detail', pk=appointment.id)
+#     else:
+#         form = EyeAppointmentForm(instance=appointment, clinic_id=clinic_id)
+
+#     return render(request, 'eye/appointments/appointment_form.html', {'form': form, 'appointment': appointment})
+
+
+
 def eye_appointment_update(request, appointment_id):
     appointment = get_object_or_404(EyeAppointment, id=appointment_id)
     clinic_id = request.session.get('clinic_id')
@@ -487,7 +548,9 @@ def eye_appointment_update(request, appointment_id):
     if request.method == "POST":
         form = EyeAppointmentForm(request.POST, instance=appointment, clinic_id=clinic_id)
         if form.is_valid():
-            form.save()
+            appointment = form.save(commit=False)
+            appointment.payment_type = form.cleaned_data.get('payment_type', appointment.payment_type)  # Add this line
+            appointment.save()
             # ✅ Add logging
             log_action(
                 request,

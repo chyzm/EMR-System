@@ -81,10 +81,48 @@ class AdmissionForm(forms.ModelForm):
             'reason': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
 
+# class AppointmentForm(forms.ModelForm):
+#     class Meta:
+#         model = Appointment
+#         payment_type = forms.ChoiceField(choices=Appointment.PAYMENT_CHOICES, required=True)
+#         fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes', 'payment_type']
+#         widgets = {
+#             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+#             'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+#             'end_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+#             'reason': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+#             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+#             'payment_type': forms.RadioSelect(choices=Appointment.PAYMENT_CHOICES),
+#         }
+    
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name()}"
+#         self.fields['provider'].widget.attrs.update({
+#             'class': 'mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'
+#         })
+#         # Add empty label to force blank initial option
+#         self.fields['provider'].empty_label = "--------"
+#         # Remove any initial value so dropdown starts blank
+#         self.initial['provider'] = None
+
+
+
+# Add this import at the top
+from django.utils.html import format_html
+
+# Modify the AppointmentForm class
 class AppointmentForm(forms.ModelForm):
+    # Add payment_type field explicitly
+    payment_type = forms.ChoiceField(
+        choices=Appointment.PAYMENT_CHOICES, 
+        required=True,
+        widget=forms.RadioSelect
+    )
+    
     class Meta:
         model = Appointment
-        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes']
+        fields = ['patient', 'provider', 'date', 'start_time', 'end_time', 'reason', 'notes', 'payment_type']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
@@ -95,10 +133,23 @@ class AppointmentForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        # Format patient names as "Name (Patient ID) + DOB"
+        self.fields['patient'].label_from_instance = lambda obj: format_html(
+            "{} ({}) - DOB: {}", 
+            obj.full_name, 
+            obj.patient_id,
+            obj.date_of_birth.strftime('%Y-%m-%d') if obj.date_of_birth else 'N/A'
+        )
+        
+        # Format provider names
         self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name()}"
+        
+        # Update provider widget attributes
         self.fields['provider'].widget.attrs.update({
             'class': 'mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'
         })
+        
         # Add empty label to force blank initial option
         self.fields['provider'].empty_label = "--------"
         # Remove any initial value so dropdown starts blank

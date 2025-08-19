@@ -52,9 +52,78 @@ class CustomUserCreationForm(UserCreationForm):
             Submit('submit', 'Create Account')
         )
 
+# class UserCreationWithRoleForm(UserCreationForm):
+#     clinic = forms.ModelMultipleChoiceField(
+#         queryset=Clinic.objects.all(),
+#         widget=forms.CheckboxSelectMultiple,
+#         required=False,
+#     )
+    
+#     class Meta:
+#         model = CustomUser
+#         fields = ['username', 'email', 'first_name', 'last_name', 'password1', 'password2', 
+#                  'role', 'title', 'phone', 'clinic', 'is_active', 'is_staff', 'verified', 'is_superuser', 'profile_picture']
+#         widgets = {
+#             'username': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'email': forms.EmailInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'first_name': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'last_name': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'password1': forms.PasswordInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'password2': forms.PasswordInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'role': forms.Select(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'title': forms.Select(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'phone': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'is_active': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'is_staff': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'verified': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'is_superuser': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'profile_picture': forms.FileInput(attrs={
+#                 'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+#             }),
+#         }
+        
+#     # MOVED OUTSIDE Meta class - this was the issue!
+#     def __init__(self, *args, **kwargs):
+#         # Extract the request from kwargs before calling super()
+#         self.request = kwargs.pop('request', None)
+#         super().__init__(*args, **kwargs)
+
+#         # Hide superuser checkbox for non-superusers
+#         if self.request and not self.request.user.is_superuser:
+#             self.fields['is_superuser'].widget = forms.HiddenInput()
+#             self.fields['is_superuser'].disabled = True
+#             self.fields['is_superuser'].initial = False
+
+
 class UserCreationWithRoleForm(UserCreationForm):
     clinic = forms.ModelMultipleChoiceField(
-        queryset=Clinic.objects.all(),
+        queryset=Clinic.objects.none(),  # Start with empty queryset
         widget=forms.CheckboxSelectMultiple,
         required=False,
     )
@@ -64,66 +133,91 @@ class UserCreationWithRoleForm(UserCreationForm):
         fields = ['username', 'email', 'first_name', 'last_name', 'password1', 'password2', 
                  'role', 'title', 'phone', 'clinic', 'is_active', 'is_staff', 'verified', 'is_superuser', 'profile_picture']
         widgets = {
-            'username': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'email': forms.EmailInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'first_name': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'last_name': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'password1': forms.PasswordInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'password2': forms.PasswordInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'role': forms.Select(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'title': forms.Select(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'phone': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-            }),
-            'is_active': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-            }),
-            'is_staff': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-            }),
-            'verified': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-            }),
-            'is_superuser': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-            }),
-            'profile_picture': forms.FileInput(attrs={
-                'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-            }),
+            # ... existing widget definitions ...
         }
         
-    # MOVED OUTSIDE Meta class - this was the issue!
     def __init__(self, *args, **kwargs):
-        # Extract the request from kwargs before calling super()
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
+        
+        # Set clinic queryset based on the request user
+        if self.request:
+            if self.request.user.is_superuser:
+                self.fields['clinic'].queryset = Clinic.objects.all()
+            else:
+                self.fields['clinic'].queryset = self.request.user.clinic.all()
+            
+            # Hide superuser checkbox for non-superusers
+            if not self.request.user.is_superuser:
+                self.fields['is_superuser'].widget = forms.HiddenInput()
+                self.fields['is_superuser'].disabled = True
+                self.fields['is_superuser'].initial = False
+                
+                
 
-        # Hide superuser checkbox for non-superusers
-        if self.request and not self.request.user.is_superuser:
-            self.fields['is_superuser'].widget = forms.HiddenInput()
-            self.fields['is_superuser'].disabled = True
-            self.fields['is_superuser'].initial = False
+# class UserEditForm(forms.ModelForm):
+#     clinic = forms.ModelMultipleChoiceField(
+#         queryset=Clinic.objects.all(),
+#         widget=forms.CheckboxSelectMultiple,
+#         required=False,
+#     )
+    
+#     class Meta:
+#         model = CustomUser
+#         fields = ['title', 'first_name', 'last_name', 'email', 'phone', 
+#                  'is_active', 'is_staff', 'verified', 
+#                  'is_superuser', 'clinic', 'role', 'profile_picture']
+        # widgets = {
+        #     'title': forms.Select(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'first_name': forms.TextInput(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'last_name': forms.TextInput(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'email': forms.EmailInput(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'role': forms.Select(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'is_active': forms.CheckboxInput(attrs={
+        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+        #     }),
+        #     'is_staff': forms.CheckboxInput(attrs={
+        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+        #     }),
+        #     'is_superuser': forms.CheckboxInput(attrs={
+        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+        #     }),
+        #     'verified': forms.CheckboxInput(attrs={
+        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+        #     }),
+        #     'phone': forms.TextInput(attrs={
+        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+        #     }),
+        #     'profile_picture': forms.FileInput(attrs={
+        #         'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+        #     }),
+        # }
+        
+#     # MOVED OUTSIDE Meta class - same issue here!        
+#     def __init__(self, *args, **kwargs):
+#         self.request = kwargs.pop('request', None)
+#         super().__init__(*args, **kwargs)
+        
+#         # Hide and disable is_superuser field if user is not a superuser
+#         if self.request and not self.request.user.is_superuser:
+#             self.fields['is_superuser'].widget = forms.HiddenInput()
+#             self.fields['is_superuser'].disabled = True
+
 
 
 class UserEditForm(forms.ModelForm):
     clinic = forms.ModelMultipleChoiceField(
-        queryset=Clinic.objects.all(),
+        queryset=Clinic.objects.none(),  # Start with empty queryset
         widget=forms.CheckboxSelectMultiple,
         required=False,
     )
@@ -169,15 +263,21 @@ class UserEditForm(forms.ModelForm):
             }),
         }
         
-    # MOVED OUTSIDE Meta class - same issue here!        
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        # Hide and disable is_superuser field if user is not a superuser
-        if self.request and not self.request.user.is_superuser:
-            self.fields['is_superuser'].widget = forms.HiddenInput()
-            self.fields['is_superuser'].disabled = True
+        # Set clinic queryset based on the request user
+        if self.request:
+            if self.request.user.is_superuser:
+                self.fields['clinic'].queryset = Clinic.objects.all()
+            else:
+                self.fields['clinic'].queryset = self.request.user.clinic.all()
+            
+            # Hide and disable is_superuser field if user is not a superuser
+            if not self.request.user.is_superuser:
+                self.fields['is_superuser'].widget = forms.HiddenInput()
+                self.fields['is_superuser'].disabled = True
             
             
             
@@ -363,13 +463,28 @@ class ClinicMedicationForm(forms.ModelForm):
             'status': forms.Select(attrs={'class': 'form-control'}),
         }
     
+    # def __init__(self, *args, **kwargs):
+    #     self.clinic = kwargs.pop('clinic', None)
+    #     super().__init__(*args, **kwargs)
+        
+    #     # Set clinic automatically if provided
+    #     if self.clinic:
+    #         self.instance.clinic = self.clinic
+    
     def __init__(self, *args, **kwargs):
-        self.clinic = kwargs.pop('clinic', None)
+        clinic = kwargs.pop('clinic', None)
         super().__init__(*args, **kwargs)
         
-        # Set clinic automatically if provided
-        if self.clinic:
-            self.instance.clinic = self.clinic
+        if clinic:
+            # Only show categories for the current clinic
+            self.fields['category'].queryset = MedicationCategory.objects.filter(clinic=clinic)
+        else:
+            # If no clinic provided, show empty queryset
+            self.fields['category'].queryset = MedicationCategory.objects.none()
+        
+        # Make category optional with empty label
+        self.fields['category'].empty_label = "Select Category (Optional)"
+        self.fields['category'].required = False
 
 
 class StockAdjustmentForm(forms.Form):

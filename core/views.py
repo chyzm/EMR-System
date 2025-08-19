@@ -38,6 +38,8 @@ from django.urls import reverse
 from DurielEyeApp.models import EyeAppointment
 from .models import Notification, NotificationRead
 from django.http import HttpResponseForbidden
+from django.db import models
+
 
 
 
@@ -173,43 +175,14 @@ def select_clinic(request):
 
 # ---------- USER ROLE MANAGEMENT ----------
 
-@login_required
-def manage_user_roles(request):
-    # 🔹 Only superusers can see other superusers
-    if request.user.is_superuser:
-        users = CustomUser.objects.all()
-    else:
-        users = CustomUser.objects.filter(is_superuser=False)
-
-    new_user_form = UserCreationWithRoleForm()
-    new_user_form.fields['clinic'].queryset = Clinic.objects.all()
-    role_forms = {user.id: UserEditForm(instance=user) for user in users}
-
-    if request.method == 'POST':
-        if 'create_user' in request.POST:
-            new_user_form = UserCreationWithRoleForm(request.POST)
-            if new_user_form.is_valid():
-                new_user_form.save()
-                return redirect('core:manage_roles')
-        elif 'update_role' in request.POST:
-            user_id = request.POST.get('user_id')
-            user = get_object_or_404(CustomUser, id=user_id)
-            role_form = UserEditForm(request.POST, instance=user)
-            if role_form.is_valid():
-                role_form.save()
-                return redirect('core:manage_roles')
-
-    return render(request, 'administration/manage_roles.html', {
-        'users': users,
-        'new_user_form': new_user_form,
-        'role_forms': role_forms,
-    })
-
-
-
 # @login_required
 # def manage_user_roles(request):
-#     users = CustomUser.objects.all()
+#     # 🔹 Only superusers can see other superusers
+#     if request.user.is_superuser:
+#         users = CustomUser.objects.all()
+#     else:
+#         users = CustomUser.objects.filter(is_superuser=False)
+
 #     new_user_form = UserCreationWithRoleForm()
 #     new_user_form.fields['clinic'].queryset = Clinic.objects.all()
 #     role_forms = {user.id: UserEditForm(instance=user) for user in users}
@@ -235,10 +208,119 @@ def manage_user_roles(request):
 #     })
 
 
+
+@login_required
+def manage_user_roles(request):
+    # 🔹 Superusers can see all users and clinics
+    if request.user.is_superuser:
+        users = CustomUser.objects.all()
+        clinics = Clinic.objects.all()
+    else:
+        # 🔹 ADMIN users can only see users from their own clinics
+        users = CustomUser.objects.filter(
+            clinic__in=request.user.clinic.all(),
+            is_superuser=False  # ADMINs can't see superusers
+        )
+        clinics = request.user.clinic.all()
+
+    new_user_form = UserCreationWithRoleForm()
+    new_user_form.fields['clinic'].queryset = clinics
+    role_forms = {user.id: UserEditForm(instance=user) for user in users}
+
+    if request.method == 'POST':
+        if 'create_user' in request.POST:
+            new_user_form = UserCreationWithRoleForm(request.POST)
+            if new_user_form.is_valid():
+                user = new_user_form.save(commit=False)
+                
+                # For non-superusers, ensure they can't create superusers
+                if not request.user.is_superuser:
+                    user.is_superuser = False
+                
+                user.save()
+                new_user_form.save_m2m()  # Save many-to-many relationships
+                
+                return redirect('core:manage_roles')
+        elif 'update_role' in request.POST:
+            user_id = request.POST.get('user_id')
+            user = get_object_or_404(CustomUser, id=user_id)
+            role_form = UserEditForm(request.POST, instance=user)
+            if role_form.is_valid():
+                # For non-superusers, ensure they can't make users superusers
+                if not request.user.is_superuser:
+                    role_form.instance.is_superuser = False
+                
+                role_form.save()
+                return redirect('core:manage_roles')
+
+    return render(request, 'administration/manage_roles.html', {
+        'users': users,
+        'new_user_form': new_user_form,
+        'role_forms': role_forms,
+    })
+
+
+
+
+
+# @login_required
+# def edit_user_role(request, user_id):
+#     user = get_object_or_404(CustomUser, id=user_id)
+#     editing_self = (request.user.id == user.id)
+    
+#     if request.method == 'POST':
+#         form = UserEditForm(request.POST, request.FILES, instance=user)
+#         if form.is_valid():
+#             # Prevent non-superusers from making superusers
+#             if not request.user.is_superuser and form.cleaned_data.get('is_superuser'):
+#                 messages.error(request, "Only superusers can create other superusers.")
+#                 return redirect('core:manage_roles')
+            
+#             # Prevent users from deactivating themselves
+#             if editing_self and not form.cleaned_data.get('is_active'):
+#                 messages.error(request, "You cannot deactivate yourself.")
+#                 return redirect('core:manage_roles')
+                
+#             form.save()
+
+#             # ✅ Manual logging
+#             from .utils import log_action
+#             log_action(
+#                 request,
+#                 'UPDATE',
+#                 user,
+#                 details=f"Updated user role/details for {user.get_full_name() or user.username}"
+#             )
+
+#             messages.success(request, 'User details updated successfully.')
+#             return redirect('core:manage_roles')
+#     else:
+#         form = UserEditForm(instance=user)
+#         form.fields['clinic'].queryset = Clinic.objects.all()
+        
+#         # Hide superuser checkbox for non-superusers
+#         if not request.user.is_superuser:
+#             form.fields['is_superuser'].widget = forms.HiddenInput()
+
+#     return render(request, 'dashboard/edit_user_role.html', {
+#         'form': form,
+#         'user_obj': user,
+#         'editing_self': editing_self,
+#     })
+
+
+
 @login_required
 def edit_user_role(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
     editing_self = (request.user.id == user.id)
+    
+    # Check permissions - superusers can edit anyone, ADMINs only their clinic users
+    if not request.user.is_superuser:
+        # Check if the user being edited belongs to any of the current user's clinics
+        if not user.clinic.filter(id__in=request.user.clinic.all()).exists():
+            messages.error(request, "You don't have permission to edit this user.")
+            return redirect('core:manage_roles')
     
     if request.method == 'POST':
         form = UserEditForm(request.POST, request.FILES, instance=user)
@@ -268,7 +350,12 @@ def edit_user_role(request, user_id):
             return redirect('core:manage_roles')
     else:
         form = UserEditForm(instance=user)
-        form.fields['clinic'].queryset = Clinic.objects.all()
+        
+        # Limit clinic choices based on user role
+        if request.user.is_superuser:
+            form.fields['clinic'].queryset = Clinic.objects.all()
+        else:
+            form.fields['clinic'].queryset = request.user.clinic.all()
         
         # Hide superuser checkbox for non-superusers
         if not request.user.is_superuser:
@@ -1291,7 +1378,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+@user_passes_test(lambda u: u.is_superuser)
 def admin_dashboard(request):
     # Clinics Management with search and pagination
     clinic_search = request.GET.get('clinic_search', '')
@@ -2021,6 +2108,10 @@ def inventory_dashboard(request):
 #     return render(request, 'inventory/dashboard.html', context)
 
 
+
+
+# Update your medication_list view to filter categories by clinic:
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
@@ -2050,13 +2141,14 @@ def medication_list(request):
         medications = medications.filter(quantity_in_stock=0)
     elif stock_filter == 'low_stock':
         medications = medications.filter(
-            quantity_in_stock__lte=models.F('minimum_stock_level'),
+            quantity_in_stock__lte=F('minimum_stock_level'),
             quantity_in_stock__gt=0
         )
     elif stock_filter == 'in_stock':
-        medications = medications.filter(quantity_in_stock__gt=models.F('minimum_stock_level'))
+        medications = medications.filter(quantity_in_stock__gt=F('minimum_stock_level'))
     
-    categories = MedicationCategory.objects.all()
+    # Only show categories for this clinic
+    categories = MedicationCategory.objects.filter(clinic=clinic)
     
     context = {
         'medications': medications,
@@ -2068,6 +2160,54 @@ def medication_list(request):
     }
     
     return render(request, 'inventory/medication_list.html', context)
+
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+# def medication_list(request):
+#     """List all medications for the current clinic"""
+#     clinic_id = request.session.get('clinic_id')
+#     clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+#     medications = ClinicMedication.objects.filter(clinic=clinic).order_by('name')
+    
+#     # Search and filtering
+#     search = request.GET.get('search', '')
+#     category_filter = request.GET.get('category', '')
+#     stock_filter = request.GET.get('stock_status', '')
+    
+#     if search:
+#         medications = medications.filter(
+#             Q(name__icontains=search) |
+#             Q(generic_name__icontains=search) |
+#             Q(manufacturer__icontains=search)
+#         )
+    
+#     if category_filter:
+#         medications = medications.filter(category_id=category_filter)
+    
+#     if stock_filter == 'out_of_stock':
+#         medications = medications.filter(quantity_in_stock=0)
+#     elif stock_filter == 'low_stock':
+#         medications = medications.filter(
+#             quantity_in_stock__lte=models.F('minimum_stock_level'),
+#             quantity_in_stock__gt=0
+#         )
+#     elif stock_filter == 'in_stock':
+#         medications = medications.filter(quantity_in_stock__gt=models.F('minimum_stock_level'))
+    
+#     categories = MedicationCategory.objects.all()
+    
+#     context = {
+#         'medications': medications,
+#         'categories': categories,
+#         'search': search,
+#         'category_filter': category_filter,
+#         'stock_filter': stock_filter,
+#         'clinic': clinic,
+#     }
+    
+#     return render(request, 'inventory/medication_list.html', context)
 
 
 @login_required
@@ -2573,23 +2713,37 @@ def low_stock_report(request):
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
     
+    # Get out of stock medications
     out_of_stock = ClinicMedication.objects.filter(
         clinic=clinic,
         quantity_in_stock=0,
         status='ACTIVE'
     ).order_by('name')
     
+    # Get low stock medications (above 0 but below minimum)
     low_stock = ClinicMedication.objects.filter(
         clinic=clinic,
-        quantity_in_stock__lte=models.F('minimum_stock_level'),
+        quantity_in_stock__lte=F('minimum_stock_level'),
         quantity_in_stock__gt=0,
         status='ACTIVE'
     ).order_by('quantity_in_stock')
+    
+    # Get total medications count
+    total_medications = ClinicMedication.objects.filter(clinic=clinic, status='ACTIVE').count()
+    
+    # Calculate well stocked count
+    well_stocked_count = ClinicMedication.objects.filter(
+        clinic=clinic,
+        quantity_in_stock__gt=F('minimum_stock_level'),
+        status='ACTIVE'
+    ).count()
     
     context = {
         'clinic': clinic,
         'out_of_stock': out_of_stock,
         'low_stock': low_stock,
+        'total_medications': total_medications,
+        'well_stocked_count': well_stocked_count,
     }
     
     return render(request, 'inventory/low_stock_report.html', context)
@@ -2620,6 +2774,68 @@ def medication_detail(request, pk):
     }
     
     return render(request, 'inventory/medication_detail.html', context)
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def expiring_soon_report(request):
+    """Report of medications expiring soon"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    # Get medications expiring within 30 days
+    today = timezone.now().date()
+    thirty_days_later = today + timedelta(days=30)
+    
+    expiring_soon = ClinicMedication.objects.filter(
+        clinic=clinic,
+        expiry_date__lte=thirty_days_later,
+        expiry_date__gte=today,
+        status='ACTIVE'
+    ).order_by('expiry_date')
+    
+    # Calculate days until expiry for each medication
+    for medication in expiring_soon:
+        medication.days_until_expiry = (medication.expiry_date - today).days
+    
+    context = {
+        'clinic': clinic,
+        'expiring_medications': expiring_soon,
+        'today': today,
+    }
+    
+    return render(request, 'inventory/expiring_soon_report.html', context)
+
+
+
+
+from django.http import HttpResponse
+import os
+from django.conf import settings
+
+def download_stock_template(request):
+    # Path to your template file
+    file_path = os.path.join(settings.BASE_DIR, 'inventory', 'static', 'doc', 'stock_template.csv')
+    
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as fh:
+            response = HttpResponse(fh.read(), content_type="text/csv")
+            response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
+            return response
+    else:
+        # Create a default template if it doesn't exist
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="stock_template.csv"'
+        
+     
+        # Write CSV headers
+        response.write("name,strength,quantity,cost_price,selling_price,expiry_date\n")
+        
+        # Write a sample row
+        response.write("Paracetamol,500mg,100,50.00,75.00,2025-12-31\n")
+        
+        return response
 
 
 # ---------- API ENDPOINTS ----------
@@ -2675,25 +2891,64 @@ def check_medication_stock(request, pk):
 
 # ---------- CATEGORY MANAGEMENT ----------
 
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN')
+# def manage_categories(request):
+#     """Manage medication categories"""
+#     categories = MedicationCategory.objects.all().order_by('name')
+    
+#     if request.method == 'POST':
+#         form = MedicationCategoryForm(request.POST)
+#         if form.is_valid():
+#             category = form.save()
+#             messages.success(request, f"Category '{category.name}' created successfully!")
+#             return redirect('core:prescription_menu')
+#     else:
+#         form = MedicationCategoryForm()
+    
+#     return render(request, 'inventory/manage_categories.html', {
+#         'categories': categories,
+#         'form': form
+#     })
+
+
+# Replace your existing manage_categories view with this fixed version:
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN')
 def manage_categories(request):
-    """Manage medication categories"""
-    categories = MedicationCategory.objects.all().order_by('name')
+    """Manage medication categories for the current clinic"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    
+    # Filter categories by clinic
+    categories = MedicationCategory.objects.filter(clinic=clinic).order_by('name')
     
     if request.method == 'POST':
         form = MedicationCategoryForm(request.POST)
         if form.is_valid():
-            category = form.save()
+            category = form.save(commit=False)
+            category.clinic = clinic  # Associate with current clinic
+            category.save()
+            
+            log_action(
+                request,
+                'CREATE',
+                category,
+                details=f"Created medication category: {category.name}"
+            )
+            
             messages.success(request, f"Category '{category.name}' created successfully!")
-            return redirect('core:prescription_menu')
+            return redirect('core:manage_categories')
     else:
         form = MedicationCategoryForm()
     
     return render(request, 'inventory/manage_categories.html', {
         'categories': categories,
-        'form': form
+        'form': form,
+        'clinic': clinic
     })
 
 

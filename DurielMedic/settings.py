@@ -15,6 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,10 +24,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
+# SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY not set in environment variables!")
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
+DEBUG = os.getenv('DEBUG') 
 
 
 
@@ -60,11 +66,13 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crum.CurrentRequestUserMiddleware',
     'core.middleware.ClinicMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+  
+
 ]
 
 ROOT_URLCONF = 'DurielMedic.urls'
@@ -126,9 +134,9 @@ else:  # PythonAnywhere/MySQL
     
     
 
-# LOGIN_REDIRECT_URL = '/DurielMedicApp/'  # or reverse('patient_list') if you're using named URLs
+
 LOGIN_URL = '/accounts/login/'
-# LOGIN_REDIRECT_URL =  '/dashboard/'
+
 LOGIN_REDIRECT_URL = '/select-clinic/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
@@ -145,9 +153,55 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
 CRISPY_TEMPLATE_PACK = "tailwind"
 
-# LOGIN_URL = '/accounts/login/'
-# LOGIN_REDIRECT_URL = '/dashboard/'
-# LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+
+
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)  # ✅ auto-create logs folder if missing
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'django.log',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+    },
+}
+
+
+
+# Security settings
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# Additional modern security settings
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Session expires after 15 minutes of inactivity
+SESSION_COOKIE_AGE = 900  # seconds (900 = 15 minutes)
+
+# Reset the timer on each request (so active users aren’t logged out)
+SESSION_SAVE_EVERY_REQUEST = True
+
+# AUTO_LOGOUT_DELAY = 900  # seconds = 15 mins
+
+CSRF_TRUSTED_ORIGINS = ['https://durielmedic.pythonanywhere.com', 
+                        'https://www.durielmedic.pythonanywhere.com']
 
 
 # Password validation

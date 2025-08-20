@@ -537,15 +537,24 @@ class StockAdjustmentForm(forms.Form):
     
     adjustment_type = forms.ChoiceField(
         choices=ADJUSTMENT_TYPES,
-        widget=forms.Select(attrs={'class': 'form-control'})
+        widget=forms.Select(attrs={
+            'class': 'border-2 border-gray-400 rounded-md px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+        })
     )
     quantity = forms.IntegerField(
         min_value=0,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '0'})
+        widget=forms.NumberInput(attrs={
+            'class': 'border-2 border-gray-400 rounded-md px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500',
+            'min': '0'
+        })
     )
     notes = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Reason for adjustment'})
+        widget=forms.Textarea(attrs={
+            'class': 'border-2 border-gray-400 rounded-md px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500',
+            'rows': 3,
+            'placeholder': 'Reason for adjustment'
+        })
     )
 
 

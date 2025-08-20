@@ -47,6 +47,7 @@ from django.core.mail import send_mail
 from core.utils import log_action
 from core.models import Clinic
 from core.models import Notification, NotificationRead
+from django.utils import timezone
 
 User = get_user_model()
 

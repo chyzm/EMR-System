@@ -2,36 +2,140 @@
 {% block title %}Add Prescription{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto bg-white shadow-md rounded-lg p-6">
-  <h2 class="text-2xl font-semibold text-blue-900 mb-4">Add Prescription for {{ patient.full_name }}</h2>
+<div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl p-6 mt-6 mb-10 border border-gray-200">
+  <h2 class="text-2xl font-bold text-blue-800 mb-2">Add Prescription</h2>
+  <p class="text-gray-600 mb-6">for {{ patient.full_name }}</p>
 
   {% if messages %}
-  <div class="mb-4">
+  <div class="mb-6">
     {% for message in messages %}
-      <div class="p-2 rounded {{ message.tags }} bg-gray-100 text-gray-800">
+      <div class="p-3 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700 border border-red-300{% else %}bg-green-100 text-green-700 border border-green-300{% endif %}">
         {{ message }}
       </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <form method="POST" class="space-y-4">
+  <form method="POST" class="space-y-6">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {{ form.patient.label_tag }} {{ form.patient }}
-    {{ form.clinic_medication.label_tag }} {{ form.clinic_medication }}
-    {{ form.custom_medication.label_tag }} {{ form.custom_medication }}
-    {{ form.dosage.label_tag }} {{ form.dosage }}
-    {{ form.frequency.label_tag }} {{ form.frequency }}
-    {{ form.duration.label_tag }} {{ form.duration }}
-    {{ form.quantity_prescribed.label_tag }} {{ form.quantity_prescribed }}
-    {{ form.instructions.label_tag }} {{ form.instructions }}
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Patient Field -->
+      <div class="form-group">
+        <label for="{{ form.patient.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.patient.label }}
+        </label>
+        {{ form.patient }}
+      </div>
+      
+      <!-- Clinic Medication Field -->
+      <div class="form-group">
+        <label for="{{ form.clinic_medication.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.clinic_medication.label }}
+        </label>
+        {{ form.clinic_medication }}
+      </div>
+      
+      <!-- Custom Medication Field -->
+      <div class="form-group">
+        <label for="{{ form.custom_medication.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.custom_medication.label }}
+        </label>
+        {{ form.custom_medication }}
+      </div>
+      
+      <!-- Dosage Field -->
+      <div class="form-group">
+        <label for="{{ form.dosage.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.dosage.label }}
+        </label>
+        {{ form.dosage }}
+      </div>
+      
+      <!-- Frequency Field -->
+      <div class="form-group">
+        <label for="{{ form.frequency.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.frequency.label }}
+        </label>
+        {{ form.frequency }}
+      </div>
+      
+      <!-- Duration Field -->
+      <div class="form-group">
+        <label for="{{ form.duration.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.duration.label }}
+        </label>
+        {{ form.duration }}
+      </div>
+      
+      <!-- Quantity Prescribed Field -->
+      <div class="form-group">
+        <label for="{{ form.quantity_prescribed.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+          {{ form.quantity_prescribed.label }}
+        </label>
+        {{ form.quantity_prescribed }}
+      </div>
+    </div>
+    
+    <!-- Instructions Field (Full Width) -->
+    <div class="form-group">
+      <label for="{{ form.instructions.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+        {{ form.instructions.label }}
+      </label>
+      {{ form.instructions }}
+    </div>
 
-    <button type="submit" class="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800">Save Prescription</button>
-</form>
-
+    <div class="pt-4">
+      <button type="submit" class="bg-blue-800 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
+        Save Prescription
+      </button>
+    </div>
+  </form>
 </div>
 
+<style>
+  .form-group input, 
+  .form-group select, 
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background-color: #f9fafb;
+  }
+  
+  .form-group input:focus, 
+  .form-group select:focus, 
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    background-color: #fff;
+  }
+  
+  .form-group input:hover, 
+  .form-group select:hover, 
+  .form-group textarea:hover {
+    border-color: #9ca3af;
+  }
+  
+  .form-group {
+    position: relative;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-group textarea {
+    min-height: 120px;
+    resize: vertical;
+  }
+</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

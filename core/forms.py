@@ -448,19 +448,58 @@ class ClinicMedicationForm(forms.ModelForm):
             'expiry_date', 'batch_number', 'status'
         ]
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Medication name'}),
-            'generic_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Generic name (optional)'}),
-            'strength': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 500mg, 10ml'}),
-            'manufacturer': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Manufacturer name'}),
-            'quantity_in_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'minimum_stock_level': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'value': '10'}),
-            'cost_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
-            'expiry_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'batch_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Batch/Lot number'}),
-            'category': forms.Select(attrs={'class': 'form-control'}),
-            'medication_type': forms.Select(attrs={'class': 'form-control'}),
-            'status': forms.Select(attrs={'class': 'form-control'}),
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'placeholder': 'Medication name'
+            }),
+            'generic_name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'placeholder': 'Generic name (optional)'
+            }),
+            'strength': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'placeholder': 'e.g., 500mg, 10ml'
+            }),
+            'manufacturer': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'placeholder': 'Manufacturer name'
+            }),
+            'quantity_in_stock': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'min': '0'
+            }),
+            'minimum_stock_level': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'min': '1', 
+                'value': '10'
+            }),
+            'cost_price': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'step': '0.01', 
+                'min': '0'
+            }),
+            'selling_price': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'step': '0.01', 
+                'min': '0'
+            }),
+            'expiry_date': forms.DateInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'type': 'date'
+            }),
+            'batch_number': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent', 
+                'placeholder': 'Batch/Lot number'
+            }),
+            'category': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+            }),
+            'medication_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border-2 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+            }),
         }
     
     # def __init__(self, *args, **kwargs):
@@ -520,34 +559,34 @@ class PrescriptionForm(forms.ModelForm):
         ]
         widgets = {
             'patient': forms.Select(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
             }),
             'clinic_medication': forms.Select(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
             }),
             'custom_medication': forms.TextInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'placeholder': 'Enter custom medication name'
             }),
             'dosage': forms.TextInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'placeholder': 'e.g., 1 tablet'
             }),
             'frequency': forms.TextInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'placeholder': 'e.g., Twice daily'
             }),
             'duration': forms.TextInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'placeholder': 'e.g., 7 days'
             }),
             'quantity_prescribed': forms.NumberInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'min': '1',
                 'value': '1'
             }),
             'instructions': forms.Textarea(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
+                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
                 'rows': 3,
                 'placeholder': 'Special instructions'
             }),

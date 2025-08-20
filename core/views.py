@@ -39,6 +39,7 @@ from DurielEyeApp.models import EyeAppointment
 from .models import Notification, NotificationRead
 from django.http import HttpResponseForbidden
 from django.db import models
+from django.utils import timezone
 
 
 
@@ -1792,7 +1793,6 @@ def add_prescription(request, patient_id):
     })
 
 
-
 @login_required
 def edit_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk)
@@ -1803,9 +1803,9 @@ def edit_prescription(request, pk):
         return HttpResponseForbidden("You do not have permission to access this page.")
 
     # Get medications for the current clinic to populate the dropdown
-    user_clinics = request.user.clinic.all()
+    clinic_id = request.session.get('clinic_id')
     medications = ClinicMedication.objects.filter(
-        clinic__in=user_clinics,
+        clinic_id=clinic_id,
         status='ACTIVE'
     ).order_by('name')
 
@@ -1816,7 +1816,7 @@ def edit_prescription(request, pk):
         medication_id = request.POST.get('medication')
         
         try:
-            medication = ClinicMedication.objects.get(id=medication_id, clinic__in=user_clinics)
+            medication = ClinicMedication.objects.get(id=medication_id, clinic_id=clinic_id)
         except ClinicMedication.DoesNotExist:
             messages.error(request, "Invalid medication selected.")
             return redirect('core:patient_detail', pk=patient.patient_id)
@@ -1842,6 +1842,57 @@ def edit_prescription(request, pk):
         'medications': medications,
         'current_medication_id': current_medication_id,
     })
+
+
+# @login_required
+# def edit_prescription(request, pk):
+#     prescription = get_object_or_404(Prescription, pk=pk)
+#     patient = prescription.patient
+
+#     # Ensure the user belongs to the clinic of this prescription
+#     if prescription.clinic not in request.user.clinic.all():
+#         return HttpResponseForbidden("You do not have permission to access this page.")
+
+#     # Get medications for the current clinic to populate the dropdown
+#     user_clinics = request.user.clinic.all()
+#     medications = ClinicMedication.objects.filter(
+#         clinic__in=user_clinics,
+#         status='ACTIVE'
+#     ).order_by('name')
+
+#     # Pass the current medication ID to template for pre-selection
+#     current_medication_id = prescription.clinic_medication.id if prescription.clinic_medication else None
+
+#     if request.method == 'POST':
+#         medication_id = request.POST.get('medication')
+        
+#         try:
+#             medication = ClinicMedication.objects.get(id=medication_id, clinic__in=user_clinics)
+#         except ClinicMedication.DoesNotExist:
+#             messages.error(request, "Invalid medication selected.")
+#             return redirect('core:patient_detail', pk=patient.patient_id)
+        
+#         # Update prescription
+#         prescription.clinic_medication = medication
+#         prescription.dosage = request.POST.get('dosage')
+#         prescription.instructions = request.POST.get('instructions')
+#         prescription.save()
+
+#         log_action(
+#             request,
+#             'UPDATE',
+#             prescription,
+#             details=f"Updated prescription for {patient.full_name}"
+#         )
+#         messages.success(request, "Prescription updated successfully.")
+#         return redirect('core:patient_detail', pk=patient.patient_id)
+
+#     return render(request, 'prescription/edit_prescription.html', {
+#         'prescription': prescription,
+#         'patient': patient,
+#         'medications': medications,
+#         'current_medication_id': current_medication_id,
+#     })
 
 
 # @login_required

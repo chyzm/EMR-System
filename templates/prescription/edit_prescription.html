@@ -3,46 +3,52 @@
 
 {% block content %}
 <div class="max-w-3xl mx-auto bg-white shadow-md rounded-lg p-6">
-  <h2 class="text-2xl font-semibold text-blue-900 mb-4">Edit Prescription for {{ patient.full_name }}</h2>
+  <h2 class="text-2xl font-semibold text-blue-900 mb-6">Edit Prescription for {{ patient.full_name }}</h2>
   
-  <form method="POST" class="space-y-4">
+  <form method="POST" class="space-y-6">
     {% csrf_token %}
 
     <div>
-      <label for="medication" class="block text-sm font-medium text-gray-700">Medication</label>
+      <label for="medication" class="block text-sm font-medium text-gray-700 mb-2">Medication</label>
       <select name="medication" id="medication" required
-             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+             class="mt-1 block w-full rounded-md border-2 border-gray-300 px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
         <option value="">Select a medication</option>
         {% for med in medications %}
-          <option value="{{ med.id }}" {% if med.id == prescription.medication.id %}selected{% endif %}>
+          <option value="{{ med.id }}" {% if med.id == current_medication_id %}selected{% endif %}>
             {{ med.name }} ({{ med.manufacturer }}) - {{ med.strength }}
+            {% if med.is_out_of_stock %} (OUT OF STOCK)
+            {% elif med.is_low_stock %} (LOW STOCK: {{ med.quantity_in_stock }})
+            {% else %} (Stock: {{ med.quantity_in_stock }})
+            {% endif %}
           </option>
         {% endfor %}
       </select>
       <input type="text" id="medication-search" placeholder="Start typing to search..." 
-             class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm hidden">
+             class="mt-2 block w-full rounded-md border-2 border-gray-300 px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm hidden">
     </div>
 
     <div>
-      <label for="dosage" class="block text-sm font-medium text-gray-700">Dosage</label>
+      <label for="dosage" class="block text-sm font-medium text-gray-700 mb-2">Dosage</label>
       <input type="text" name="dosage" id="dosage" value="{{ prescription.dosage }}" required
-             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+             class="mt-1 block w-full rounded-md border-2 border-gray-300 px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
     </div>
 
     <div>
-      <label for="instructions" class="block text-sm font-medium text-gray-700">Instructions</label>
+      <label for="instructions" class="block text-sm font-medium text-gray-700 mb-2">Instructions</label>
       <textarea name="instructions" id="instructions" rows="4"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                class="mt-1 block w-full rounded-md border-2 border-gray-300 px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="e.g., Take 1 tablet twice daily after meals.">{{ prescription.instructions }}</textarea>
     </div>
 
-    <div class="pt-4">
+    <div class="pt-4 flex items-center justify-between">
       <button type="submit"
-              class="bg-blue-900 text-white px-4 py-2 rounded hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              class="bg-blue-900 text-white px-6 py-2 rounded-md hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
         Update Prescription
       </button>
       <a href="{% url 'core:patient_detail' patient.patient_id %}"
-         class="ml-2 text-blue-900 hover:underline text-sm">Cancel</a>
+         class="text-blue-900 hover:text-blue-700 font-medium text-sm underline transition-colors">
+        Cancel
+      </a>
     </div>
   </form>
 </div>

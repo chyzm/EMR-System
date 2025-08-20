@@ -355,6 +355,7 @@ class BillingForm(forms.ModelForm):
 
     class Meta:
         model = Billing
+        exclude = ['appointment', 'appointment_content_type', 'appointment_object_id']
         fields = ['patient', 'appointment', 'service_date', 'due_date', 'amount', 'paid_amount', 'description']
         widgets = {
             'service_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),

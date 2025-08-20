@@ -172,12 +172,15 @@ class Billing(models.Model):
     
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='bills')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='bills')
-    appointment = models.ForeignKey(
-        'DurielMedicApp.Appointment', 
-        on_delete=models.SET_NULL, 
-        null=True, blank=True, 
-        related_name='bill'
+    appointment_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}  # restrict to your models
     )
+    appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
+    appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
     services = models.ManyToManyField('ServicePriceList', blank=True, related_name='bills')  # <- added
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)

@@ -40,6 +40,8 @@ from .models import Notification, NotificationRead
 from django.http import HttpResponseForbidden
 from django.db import models
 from django.utils import timezone
+from DurielMedicApp.models import Appointment
+from DurielEyeApp.models import EyeAppointment
 
 
 
@@ -878,32 +880,37 @@ def create_bill(request, patient_id=None):
     selected_patient_id = request.GET.get('patient')
     patient = None
 
-    # Try to get patient by patient_id (not pk)
+    # --- Get patient ---
     if selected_patient_id:
         try:
             patient = Patient.objects.get(patient_id=selected_patient_id, clinic_id=clinic_id)
         except Patient.DoesNotExist:
-            print(f"Patient with ID {selected_patient_id} not found")
+            patient = None
     elif patient_id:
         try:
             patient = Patient.objects.get(pk=patient_id, clinic_id=clinic_id)
         except Patient.DoesNotExist:
             patient = None
 
-    # Get appointment if specified
-    appointment_id = request.GET.get('appointment_id')
+    # --- Get appointment if specified ---
     appointment = None
-    if appointment_id:
+    appointment_id = request.GET.get('appointment_id')
+    appointment_type = request.GET.get('appointment_type')  # "general" or "eye"
+
+    if appointment_id and appointment_type:
         try:
-            appointment = GeneralAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
-        except GeneralAppointment.DoesNotExist:
+            if appointment_type == "eye":
+                appointment = EyeAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+            else:
+                appointment = Appointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+        except (Appointment.DoesNotExist, EyeAppointment.DoesNotExist):
             appointment = None
 
-    # If no specific appointment but we have a patient, find latest across apps
+    # --- If no specific appointment but we have a patient, pick latest ---
     if patient and not appointment:
         appointment = get_latest_patient_appointment(patient, clinic_id)
 
-    # Handle AJAX requests for patient selection
+    # --- Handle AJAX (used for patient selection updates) ---
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         context = {
             'appointment': appointment,
@@ -911,28 +918,34 @@ def create_bill(request, patient_id=None):
         }
         return render(request, 'billing/_appointment_info.html', context)
 
-    # Handle form submission
+    # --- Handle Form Submission ---
     if request.method == 'POST':
         form = BillingForm(request.POST, clinic_id=clinic_id)
         if form.is_valid():
             bill = form.save(commit=False)
             bill.created_by = request.user
             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
-
-            # appointment_id comes from hidden input
-            appointment_id_from_form = request.POST.get('appointment_id')
-            if appointment_id_from_form:
-                try:
-                    bill.appointment = GeneralAppointment.objects.get(
-                        id=appointment_id_from_form,
-                        clinic_id=clinic_id
-                    )
-                except GeneralAppointment.DoesNotExist:
-                    bill.appointment = None
-
             bill.patient = form.cleaned_data['patient']
 
-            # calculate total from services if selected
+            # Handle appointment (from hidden fields)
+            appointment_id_from_form = request.POST.get('appointment_id')
+            appointment_type_from_form = request.POST.get('appointment_type')
+
+            if appointment_id_from_form and appointment_type_from_form:
+                try:
+                    if appointment_type_from_form == "eye":
+                        appointment = EyeAppointment.objects.get(id=appointment_id_from_form, clinic_id=clinic_id)
+                    else:
+                        appointment = Appointment.objects.get(id=appointment_id_from_form, clinic_id=clinic_id)
+
+                    # Link using GenericForeignKey
+                    bill.appointment_object_id = appointment.id
+                    bill.appointment_content_type = ContentType.objects.get_for_model(appointment)
+
+                except (Appointment.DoesNotExist, EyeAppointment.DoesNotExist):
+                    appointment = None
+
+            # --- Calculate billing amount ---
             selected_services = form.cleaned_data.get('services')
             if selected_services:
                 bill.amount = sum(service.price for service in selected_services)
@@ -942,7 +955,7 @@ def create_bill(request, patient_id=None):
             if not bill.paid_amount:
                 bill.paid_amount = 0
 
-            # set status
+            # --- Set status ---
             if bill.paid_amount >= bill.amount and bill.amount > 0:
                 bill.status = 'PAID'
             elif bill.paid_amount > 0:
@@ -963,6 +976,7 @@ def create_bill(request, patient_id=None):
             messages.success(request, f"Bill created successfully! Bill ID: #{bill.id}")
             return redirect('core:view_bill', pk=bill.pk)
     else:
+        # --- Initial form data ---
         initial_data = {'service_date': date.today()}
         if patient:
             initial_data['patient'] = patient.patient_id
@@ -978,6 +992,7 @@ def create_bill(request, patient_id=None):
     }
 
     return render(request, 'billing/billing_form.html', context)
+
 
 
 

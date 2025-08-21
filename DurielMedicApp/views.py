@@ -528,11 +528,11 @@ def mark_appointment_completed(request, pk):
         details=f"Marked appointment #{appointment.id} as completed" 
     )
     
-    # Check if bill already exists
-    if not hasattr(appointment, 'bill'):
-        messages.info(request, 'Appointment marked as completed. Would you like to create a bill?')
+    # # Check if bill already exists
+    # if not hasattr(appointment, 'bill'):
+    #     messages.info(request, 'Appointment marked as completed. Would you like to create a bill?')
         
-        return redirect('DurielMedicApp:create_bill_for_appointment', appointment_id=appointment.pk)
+    #     return redirect('core:create_bill', appointment_id=appointment.pk)
     
     messages.success(request, 'Appointment marked as completed.')
     return redirect('DurielMedicApp:appointment_list')

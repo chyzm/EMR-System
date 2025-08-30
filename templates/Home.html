@@ -1,0 +1,791 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DurielMedic+ | Comprehensive EMR System for Healthcare Providers</title>
+  <meta name="description" content="DurielMedic+ is a modern EMR system designed for hospitals, eye clinics, and dental practices. Streamline patient management, appointments, billing, and more.">
+  <meta name="keywords" content="EMR, electronic medical records, clinic management, hospital software, eye clinic software, dental clinic software, healthcare IT">
+  <meta name="author" content="Duriel Tech Solutions">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://durielmedic.pythonanywhere.com/">
+  <meta property="og:title" content="DurielMedic+ | Comprehensive EMR System">
+  <meta property="og:description" content="Modern EMR system for hospitals, eye clinics, and dental practices.">
+  <meta property="og:image" content="https://durielmedic.pythonanywhere.com/static/images/og-image.jpg">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://durielmedic.pythonanywhere.com/">
+  <meta property="twitter:title" content="DurielMedic+ | Comprehensive EMR System">
+  <meta property="twitter:description" content="Modern EMR system for hospitals, eye clinics, and dental practices.">
+  <meta property="twitter:image" content="https://durielmedic.pythonanywhere.com/static/images/twitter-image.jpg">
+
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .glass {
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    
+    .card-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    
+    .stat-card {
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        box-shadow: 20px 20px 60px #d9d9d9, -20px -20px 60px #ffffff;
+    }
+    
+    .pulse-dot {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    
+    .floating {
+        animation: floating 3s ease-in-out infinite;
+    }
+    
+    @keyframes floating {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .slide-in {
+        animation: slideIn 0.8s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 1s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .progress-bar {
+        background: linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899);
+        background-size: 200% 100%;
+        animation: gradientShift 3s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    
+    .gradient-bg {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        min-height: 100vh;
+    }
+
+    .hero-gradient {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    }
+    
+    .feature-icon {
+        background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+    }
+    
+    .cta-gradient {
+        background: linear-gradient(90deg, #4f46e5, #7c3aed);
+    }
+
+    /* Notification animation */
+  #notification {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-top: 4rem;
+  }
+  
+  /* Form focus styles */
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    ring: 2px;
+    ring-color: #3b82f6;
+  }
+
+  </style>
+</head>
+<body class="text-gray-800">
+
+  
+          <!-- Notification Messages -->
+          <div id="notification" class="fixed top-4 right-4 z-50 transition-all duration-300 transform translate-y-[-100px]">
+            {% if messages %}
+              {% for message in messages %}
+                <div class="{% if message.tags == 'success' %}bg-green-100 border-green-400 text-green-700{% else %}bg-red-100 border-red-400 text-red-700{% endif %} border px-4 py-3 rounded-lg shadow-lg mb-2 flex items-start max-w-md">
+                  <div class="mr-3">
+                    {% if message.tags == 'success' %}
+                      <i class="fas fa-check-circle text-green-500 mt-1"></i>
+                    {% else %}
+                      <i class="fas fa-exclamation-circle text-red-500 mt-1"></i>
+                    {% endif %}
+                  </div>
+                  <div class="flex-1">
+                    <p class="font-medium">{{ message }}</p>
+                  </div>
+                  <button data-dismiss="notification" class="ml-4 text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+  <!-- Navigation -->
+  <nav class="bg-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 flex items-center">
+            <a href="{% url 'core:home' %}">
+              <span class="text-blue-900 font-bold text-xl">DURIELMEDIC+</span>
+            </a>
+          </div>
+          <div class="hidden md:ml-6 md:flex md:space-x-8">
+            <a href="#features" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Features</a>
+            <a href="#clinics" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Solutions</a>
+            <a href="#testimonials" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Testimonials</a>
+            <a href="#pricing" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Pricing</a>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <div class="hidden md:ml-4 md:flex md:items-center">
+            <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Login</a>
+            <a href="#contact" class="ml-4 px-4 py-2 rounded-md text-white bg-blue-900 hover:bg-blue-800 text-sm font-medium transition-colors">Request Demo</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-gradient text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div class="fade-in">
+          <h1 class="text-4xl md:text-5xl font-bold mb-6">Revolutionizing Healthcare Management</h1>
+          <p class="text-xl mb-8">DurielMedic+ is a comprehensive EMR system designed to streamline operations for hospitals, eye clinics, and dental practices.</p>
+          <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <a href="#contact" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold text-center hover:bg-blue-50 transition-colors">Get Started</a>
+            <a href="#features" class="px-6 py-3 rounded-lg border-2 border-white text-white font-semibold text-center hover:bg-white hover:text-blue-900 transition-colors">Explore Features</a>
+          </div>
+        </div>
+        <div class="flex justify-center floating">
+          <div class="relative">
+            <div class="absolute -inset-4 bg-blue-400 rounded-lg blur opacity-30"></div>
+            <img src="https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80" alt="Healthcare Dashboard" class="relative rounded-lg shadow-2xl w-full max-w-md">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="bg-white py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="text-center">
+          <div class="text-4xl font-bold text-blue-900 mb-2">100+</div>
+          <div class="text-gray-600">Healthcare Providers</div>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl font-bold text-blue-900 mb-2">15k+</div>
+          <div class="text-gray-600">Patients Managed</div>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl font-bold text-blue-900 mb-2">98%</div>
+          <div class="text-gray-600">Customer Satisfaction</div>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl font-bold text-blue-900 mb-2">24/7</div>
+          <div class="text-gray-600">Support Available</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">Powerful Features for Modern Healthcare</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">DurielMedic+ offers a comprehensive suite of tools to manage all aspects of your healthcare practice.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        
+
+        <!-- Patient Management -->
+                <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/patient_management.png' %}" 
+                             alt="Patient Management" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Patient Management</h3>
+                        <p class="text-gray-600 mb-4">Comprehensive patient records with medical history, appointments, prescriptions, and billing information.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Demographic information</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Medical history tracking</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Prescription information</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Appointment history</li>
+                        </ul>
+                    </div>
+                </div>
+
+                        <!-- Appointment Scheduling -->
+                <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/appointment.png' %}" 
+                             alt="Appointment Scheduling" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Appointment Scheduling</h3>
+                        <p class="text-gray-600 mb-4">Efficient scheduling system with automated reminders and calendar integration.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Provider Specific appointment</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> New appointment alert</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Provider availability</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Waitlist management</li>
+                        </ul>
+                    </div>
+                </div>
+
+                        <!-- Billing & Payments -->
+                <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/billing.png' %}"
+                             alt="Billing & Payments" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Billing & Payments</h3>
+                        <p class="text-gray-600 mb-4">Streamlined billing process with multiple payment options and insurance claims management.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Invoice generation</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Payment Status</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Payment processing</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Financial reporting</li>
+                        </ul>
+                    </div>
+                </div>
+
+       <!-- Electronic Medical Records -->
+                <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/medical_record.png' %}" 
+                             alt="Electronic Medical Records" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Electronic Medical Records</h3>
+                        <p class="text-gray-600 mb-4">Complete digital health records with secure access and interoperability.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Clinical documentation</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Lab results integration</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Prescription management</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> HIPAA compliant</li>
+                        </ul>
+                    </div>
+                </div>
+
+        <!-- Pharmacy Management -->
+                <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/pharmacy.png' %}" 
+                             alt="Pharmacy Management" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Pharmacy Management</h3>
+                        <p class="text-gray-600 mb-4">Complete medication management with inventory tracking and prescription processing.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Medication inventory</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Prescription tracking</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Stock level alert</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Inventory dashboard</li>
+                        </ul>
+                    </div>
+                </div>
+
+                   <!-- Reporting & Analytics -->
+                        <div class="bg-white rounded-xl p-0 shadow-lg card-hover overflow-hidden">
+                    <div class="h-48 overflow-hidden">
+                        <img src="{% static 'images/report.png' %}" 
+                             alt="Reporting & Analytics" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-semibold mb-3">Reporting & Analytics</h3>
+                        <p class="text-gray-600 mb-4">Comprehensive reporting tools to analyze practice performance and patient outcomes.</p>
+                        <ul class="space-y-2">
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Financial reports</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Appointment reports</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Patient reports</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Export capabilities</li>
+                        </ul>
+                    </div>
+                </div>
+      </div>
+    </div>
+  </section>
+
+
+
+
+  <!-- Clinic Types Section -->
+  <section id="clinics" class="py-20 bg-gray-50">
+    <div class="container mx-auto px-6">
+      <div class="text-center mb-16 center-title">
+        <h2 class="text-3xl font-bold mb-4 section-title">Specialized For Your Clinic</h2>
+        <p class="text-gray-600 max-w-3xl mx-auto">DurielMedic+ offers specialized modules for different healthcare specialties.</p>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Hospital -->
+        <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
+          <div class="h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Hospital Management" class="w-full h-full object-cover">
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-semibold mb-3">Hospitals</h3>
+            <p class="text-gray-600 mb-4">Comprehensive management system for hospitals with multiple departments, inpatient/outpatient tracking, and complex billing needs.</p>
+            <ul class="text-gray-600 space-y-2">
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Multi-department support</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Inpatient/outpatient management</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Advanced billing </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Eye Clinic -->
+        <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
+          <div class="h-48 overflow-hidden">
+           <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Eye Clinic Management" class="w-full h-full object-cover">
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-semibold mb-3">Eye Clinics</h3>
+            <p class="text-gray-600 mb-4">Specialized features for optometrists and ophthalmologists with vision-specific examination templates and prescription management.</p>
+            <ul class="text-gray-600 space-y-2">
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Vision-specific examination records</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Contact lens and glasses prescriptions</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Visual acuity tracking</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Dental Clinic -->
+        <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
+          <div class="h-48 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Dental Clinic Management" class="w-full h-full object-cover">
+          </div>
+          <div class="p-6">
+            <h3 class="text-xl font-semibold mb-3">Dental Clinics</h3>
+            <p class="text-gray-600 mb-4">Dental practice management with tooth charting, procedure coding, and dental-specific billing features.</p>
+            <ul class="text-gray-600 space-y-2">
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Digital tooth charting</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Dental procedure coding</span>
+              </li>
+              <li class="flex items-start">
+                <i class="fas fa-check text-blue-700 mt-1 mr-2"></i>
+                <span>Treatment plan management</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials Section -->
+  <section id="testimonials" class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">What Our Clients Say</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">Hear from healthcare providers who have transformed their practice with DurielMedic+.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Testimonial 1 -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-blue-900 flex items-center justify-center text-white mr-4">
+              <span class="text-lg font-semibold">DR</span>
+            </div>
+            <div>
+              <h4 class="font-semibold">Dr. Sarah Johnson</h4>
+              <p class="text-blue-600">General Hospital</p>
+            </div>
+          </div>
+          <p class="text-gray-600">"DurielMedic+ has transformed how we manage patient records. The intuitive interface and comprehensive features have significantly improved our efficiency."</p>
+          <div class="flex mt-4">
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+          </div>
+        </div>
+
+        <!-- Testimonial 2 -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-blue-900 flex items-center justify-center text-white mr-4">
+              <span class="text-lg font-semibold">JO</span>
+            </div>
+            <div>
+              <h4 class="font-semibold">John Okafor</h4>
+              <p class="text-blue-600">Vision Care Center</p>
+            </div>
+          </div>
+          <p class="text-gray-600">"The eye clinic module is exceptional. It has all the specialized features we need for optometry practice, from visual acuity tests to prescription management."</p>
+          <div class="flex mt-4">
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+          </div>
+        </div>
+
+        <!-- Testimonial 3 -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-blue-900 flex items-center justify-center text-white mr-4">
+              <span class="text-lg font-semibold">DA</span>
+            </div>
+            <div>
+              <h4 class="font-semibold">Dr. Ahmed Musa</h4>
+              <p class="text-blue-600">Dental Care Clinic</p>
+            </div>
+          </div>
+          <p class="text-gray-600">"The dental module has streamlined our operations significantly. The tooth charting feature is incredibly intuitive, and patients love the automated reminders."</p>
+          <div class="flex mt-4">
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+            <i class="fas fa-star text-yellow-400"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+    <!-- Pricing Section -->
+  <section id="pricing" class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">Choose the plan that works best for your healthcare practice with no hidden fees.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <!-- Monthly Plan -->
+        <div class="bg-white rounded-xl p-8 shadow-lg border border-gray-200 relative">
+          <div class="absolute top-0 right-0 bg-blue-100 text-blue-900 px-4 py-1 rounded-bl-lg font-semibold">
+            Popular
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-4">Monthly Plan</h3>
+          <div class="mb-6">
+            <span class="text-4xl font-bold text-gray-900">₦15,000</span>
+            <span class="text-gray-600">/month</span>
+          </div>
+          <p class="text-gray-600 mb-6">Perfect for smaller practices or those wanting to try our system.</p>
+          <ul class="space-y-3" style="margin-bottom: 4rem;">
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>All features included</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>Standard support</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>No long-term commitment</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>Monthly billing</span>
+            </li>
+          </ul>
+          <a href="#contact" class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-5">
+            Get Started
+          </a>
+        </div>
+
+        <!-- Yearly Plan -->
+        <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-blue-900 relative">
+          <div class="absolute top-0 right-0 bg-blue-900 text-white px-4 py-1 rounded-bl-lg font-semibold">
+            Save 17%
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-4">Yearly Plan</h3>
+          <div class="mb-2">
+            <span class="text-4xl font-bold text-gray-900">₦150,000</span>
+            <span class="text-gray-600">/year</span>
+          </div>
+          <div class="mb-4">
+            <span class="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-semibold">
+              Save ₦30,000
+            </span>
+          </div>
+          <p class="text-gray-600 mb-6">Ideal for established practices looking for the best value.</p>
+          <ul class="space-y-3 mb-8">
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>All features included</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>Priority support</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>Free setup assistance</span>
+            </li>
+            <li class="flex items-center">
+              <i class="fas fa-check-circle text-green-500 mr-2"></i>
+              <span>One annual payment</span>
+            </li>
+          </ul>
+          <a href="#contact" class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">
+            Get Started
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-12 text-center">
+        <p class="text-gray-600">Need a customized plan? <a href="#contact" class="text-blue-900 font-semibold hover:underline">Contact us</a> for enterprise solutions.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-16 cta-gradient text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl font-bold mb-6">Ready to Transform Your Practice?</h2>
+      <p class="text-xl mb-8 max-w-3xl mx-auto">Join hundreds of healthcare providers who have streamlined their operations with DurielMedic+.</p>
+      <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+        <a href="#contact" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold hover:bg-blue-50 transition-colors">Request a Demo</a>
+        <a href="{% url 'login' %}" class="px-6 py-3 rounded-lg border-2 border-white text-white font-semibold hover:bg-white hover:text-blue-900 transition-colors"> Login</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Section -->
+<section id="contact" class="py-16 bg-white">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Get In Touch</h2>
+        <p class="text-gray-600 mb-6">Interested in learning more about DurielMedic+? Fill out the form and our team will contact you shortly.</p>
+        <div class="space-y-4">
+          <div class="flex items-center">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-900 mr-4">
+              <i class="fas fa-phone"></i>
+            </div>
+            <div>
+              <p class="font-semibold">(+234) 703-1016-787</p>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-900 mr-4">
+              <i class="fas fa-envelope"></i>
+            </div>
+            <div>
+              <p class="font-semibold">info@durieltech.com</p>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-900 mr-4">
+              <i class="fas fa-map-marker-alt"></i>
+            </div>
+            <div>
+              <p class="font-semibold">Duriel Tech Solutions</p>
+              <p class="text-gray-600">Lagos, Nigeria</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <form method="post" action="{% url 'core:contact_form' %}" class="bg-gray-50 p-6 rounded-lg">
+        {% comment %} <form method="post" action="{% url 'contact_form' %}#contact" class="bg-gray-50 p-6 rounded-lg"> {% endcomment %}
+          {% csrf_token %}
+          <div class="mb-4">
+            <label for="name" class="block text-gray-700 mb-2">Full Name</label>
+            <input type="text" id="name" name="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+          </div>
+          <div class="mb-4">
+            <label for="email" class="block text-gray-700 mb-2">Email Address</label>
+            <input type="email" id="email" name="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+          </div>
+          <div class="mb-4">
+            <label for="phone" class="block text-gray-700 mb-2">Phone Number</label>
+            <input type="tel" id="phone" name="phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4">
+            <label for="practice" class="block text-gray-700 mb-2">Practice Type</label>
+            <select id="practice" name="practice" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Select Practice Type</option>
+              <option value="hospital">Hospital</option>
+              <option value="eye_clinic">Eye Clinic</option>
+              <option value="dental_clinic">Dental Clinic</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label for="message" class="block text-gray-700 mb-2">Message</label>
+            <textarea id="message" name="message" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required></textarea>
+          </div>
+          <button type="submit" class="w-full bg-blue-900 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">Submit Request</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+  <!-- Footer -->
+  <footer class="bg-blue-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <h3 class="text-xl font-bold mb-4">DURIELMEDIC+</h3>
+          <p class="text-blue-200">Comprehensive EMR solutions for modern healthcare providers.</p>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-4">Quick Links</h4>
+          <ul class="space-y-2">
+            <li><a href="#features" class="text-blue-200 hover:text-white">Features</a></li>
+            <li><a href="#solutions" class="text-blue-200 hover:text-white">Solutions</a></li>
+            <li><a href="#pricing" class="text-blue-200 hover:text-white">Pricing</a></li>
+            <li><a href="#contact" class="text-blue-200 hover:text-white">Contact</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-4">Resources</h4>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-blue-200 hover:text-white">Documentation</a></li>
+            <li><a href="#" class="text-blue-200 hover:text-white">Blog</a></li>
+            <li><a href="#" class="text-blue-200 hover:text-white">Support</a></li>
+            <li><a href="#" class="text-blue-200 hover:text-white">FAQ</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-4">Connect With Us</h4>
+          <div class="flex space-x-4">
+            <a href="#" class="text-blue-200 hover:text-white"><i class="fab fa-facebook-f"></i></a>
+            <a href="#" class="text-blue-200 hover:text-white"><i class="fab fa-twitter"></i></a>
+            <a href="#" class="text-blue-200 hover:text-white"><i class="fab fa-linkedin-in"></i></a>
+            <a href="#" class="text-blue-200 hover:text-white"><i class="fab fa-instagram"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="border-t border-blue-800 mt-8 pt-8 text-center text-blue-200">
+        <p>&copy; 2025 Duriel Tech Solutions. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Simple animations
+    document.addEventListener('DOMContentLoaded', function() {
+      const fadeElems = document.querySelectorAll('.fade-in');
+      fadeElems.forEach(elem => {
+        elem.style.opacity = 1;
+      });
+    });
+  </script>
+
+  <!-- Add this script at the bottom of your Home.html file, before the closing </body> tag -->
+<script>
+  // Function to show notification
+  function showNotification() {
+    const notification = document.getElementById('notification');
+    if (notification) {
+      notification.classList.remove('translate-y-[-100px]');
+      notification.classList.add('translate-y-0');
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        closeNotification();
+      }, 5000);
+    }
+  }
+  
+  // Function to close notification
+  function closeNotification() {
+    const notification = document.getElementById('notification');
+    if (notification) {
+      notification.classList.remove('translate-y-0');
+      notification.classList.add('translate-y-[-100px]');
+      
+      // Remove the notification from DOM after animation completes
+      setTimeout(() => {
+        notification.remove();
+      }, 500);
+    }
+  }
+  
+  // Show notification on page load if there are messages
+  document.addEventListener('DOMContentLoaded', function() {
+    {% if messages %}
+      showNotification();
+    {% endif %}
+    
+    // Close notification when clicking the close button
+    document.addEventListener('click', function(event) {
+      if (event.target.closest('[data-dismiss="notification"]')) {
+        closeNotification();
+      }
+    });
+  });
+</script>
+</body>
+</html>

@@ -293,13 +293,25 @@ li ul[id*="_error"] {
                 Billing
               </a>
               {% endif %}
-          
+              
+              
               {% if request.user.role == 'ADMIN' %}
+              {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:generate_report' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-chart-line mr-3"></i>
                 Reports
               </a>
+
+              {% elif request.session.clinic_type == "EYE" %}
+              <a href="{% url 'DurielEyeApp:generate_report' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-chart-line mr-3"></i>
+                Reports
+              </a>
+              {% endif %}
+
+
               <a href="{% url 'core:settings' %}" 
                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-cog mr-3"></i>

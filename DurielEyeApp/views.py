@@ -1008,6 +1008,94 @@ from datetime import datetime, time, timedelta
 from core.models import Patient, Billing  # Patient and Billing from core app
 from .models import EyeAppointment  # Your local eye models
 
+# @login_required
+# @user_passes_test(admin_check, login_url='login')
+# def generate_eye_report(request):
+#     clinic_id = request.session.get('clinic_id')
+#     if not clinic_id:
+#         messages.error(request, "No clinic selected. Please select a clinic first.")
+#         return redirect('core:select_clinic')
+
+#     # Default date range: last 30 days
+#     end_date = timezone.now()
+#     start_date = end_date - timedelta(days=30)
+
+#     if request.method == 'POST':
+#         start_date_str = request.POST.get('start_date')
+#         end_date_str = request.POST.get('end_date')
+#         report_type = request.POST.get('report_type')
+
+#         if start_date_str and end_date_str:
+#             start_date = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
+#             end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+
+#         # Route to correct report
+#         if report_type == 'appointments':
+#             return generate_eye_appointment_report(start_date, end_date, clinic_id)
+#         elif report_type == 'patients':
+#             return generate_eye_patient_report(start_date, end_date, clinic_id)
+#         elif report_type == 'financial':
+#             return generate_eye_financial_report(start_date, end_date, clinic_id)
+
+#     # ✅ Appointment stats with status labels
+#     try:
+#         STATUS_LABELS = dict(EyeAppointment._meta.get_field('status').choices)
+
+#         raw_stats = EyeAppointment.objects.filter(
+#             clinic_id=clinic_id,
+#             date__range=[start_date.date(), end_date.date()]
+#         ).values('status').annotate(count=Count('id'))
+
+#         appointment_stats = [
+#             {
+#                 'status': STATUS_LABELS.get(stat['status'], stat['status']),
+#                 'count': stat['count']
+#             }
+#             for stat in raw_stats
+#         ]
+
+#         print(f"DEBUG: appointment_stats = {appointment_stats}")
+
+#     except Exception as e:
+#         appointment_stats = []
+#         print(f"Appointment stats error: {e}")
+
+#     # Patient stats
+#     patient_stats = Patient.objects.filter(
+#         clinic_id=clinic_id,
+#         created_at__range=[start_date, end_date]
+#     ).aggregate(total=Count('pk'))
+
+#     # Financial stats
+#     try:
+#         financial_stats = Billing.objects.filter(
+#             clinic_id=clinic_id,
+#             service_date__range=[start_date.date(), end_date.date()]
+#         ).aggregate(
+#             total_amount=Sum('amount'),
+#             total_paid=Sum('paid_amount')
+#         )
+
+#         if not financial_stats['total_amount']:
+#             financial_stats['total_amount'] = 0
+#         if not financial_stats['total_paid']:
+#             financial_stats['total_paid'] = 0
+
+#     except Exception as e:
+#         financial_stats = {'total_amount': 0, 'total_paid': 0}
+#         print(f"Financial stats error: {e}")
+
+#     context = {
+#         'start_date': start_date.date(),
+#         'end_date': end_date.date(),
+#         'appointment_stats': appointment_stats,
+#         'patient_stats': patient_stats,
+#         'financial_stats': financial_stats,
+#     }
+
+#     return render(request, 'eye/reports/generate_eye_report.html', context)
+
+
 @login_required
 @user_passes_test(admin_check, login_url='login')
 def generate_eye_report(request):
@@ -1017,8 +1105,8 @@ def generate_eye_report(request):
         return redirect('core:select_clinic')
 
     # Default date range: last 30 days
-    end_date = timezone.now()
-    start_date = end_date - timedelta(days=30)
+    end_dt = timezone.localtime()
+    start_dt = end_dt - timedelta(days=30)
 
     if request.method == 'POST':
         start_date_str = request.POST.get('start_date')
@@ -1026,98 +1114,83 @@ def generate_eye_report(request):
         report_type = request.POST.get('report_type')
 
         if start_date_str and end_date_str:
-            start_date = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
-            end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+            try:
+                start_dt = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
+                end_dt = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+            except ValueError:
+                messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+        else:
+            messages.error(request, "Please select both start and end dates.")
 
         # Route to correct report
         if report_type == 'appointments':
-            return generate_eye_appointment_report(start_date, end_date, clinic_id)
+            return generate_eye_appointment_report(start_dt, end_dt, clinic_id)
         elif report_type == 'patients':
-            return generate_eye_patient_report(start_date, end_date, clinic_id)
+            return generate_eye_patient_report(start_dt, end_dt, clinic_id)
         elif report_type == 'financial':
-            return generate_eye_financial_report(start_date, end_date, clinic_id)
+            return generate_eye_financial_report(start_dt, end_dt, clinic_id)
 
-    # Dashboard Summary Stats
-    try:
-        appointment_stats = EyeAppointment.objects.filter(
-            clinic_id=clinic_id,
-            date__range=[start_date.date(), end_date.date()]
-        ).values('status').annotate(count=Count('pk'))
-    except Exception as e:
-        appointment_stats = []
-        print(f"Appointment stats error: {e}")
+    # # Debug: Print date range and clinic ID
+    # print(f"DEBUG: Date range - {start_dt.date()} to {end_dt.date()}")
+    # print(f"DEBUG: Clinic ID - {clinic_id}")
 
-    # Use Patient from core.models and filter for eye-related patients
-    patient_stats = Patient.objects.filter(
+    # ---------- Appointments summary ----------
+    # Get all appointments in the date range first
+    appointments = EyeAppointment.objects.filter(
         clinic_id=clinic_id,
-        created_at__range=[start_date, end_date]
-    ).aggregate(total=Count('pk'))
+        date__range=[start_dt.date(), end_dt.date()]
+    )
+    
+    # print(f"DEBUG: Found {appointments.count()} appointments in date range")
 
-    # Financial stats - using centralized core Billing model
-    try:
-        print(f"DEBUG: Using clinic_id = {clinic_id}")
-        print(f"DEBUG: Date range = {start_date.date()} to {end_date.date()}")
-        
-        # Debug: Check total bills for this clinic (without date filter)
-        total_bills_for_clinic = Billing.objects.filter(clinic_id=clinic_id).count()
-        print(f"DEBUG: Total Billing records for clinic {clinic_id}: {total_bills_for_clinic}")
-        
-        # Get financial stats for this clinic and date range
-        financial_stats = Billing.objects.filter(
-            clinic_id=clinic_id,
-            service_date__range=[start_date.date(), end_date.date()]
-        ).aggregate(
-            total_amount=Sum('amount'),
-            total_paid=Sum('paid_amount')
-        )
-        
-        # Debug: Check how many bills in date range
-        bills_in_range = Billing.objects.filter(
-            clinic_id=clinic_id,
-            service_date__range=[start_date.date(), end_date.date()]
-        ).count()
-        print(f"DEBUG: Billing records in date range: {bills_in_range}")
-        print(f"DEBUG: Financial stats result: {financial_stats}")
-        
-        # Ensure we have default values if None
-        if not financial_stats['total_amount']:
-            financial_stats['total_amount'] = 0
-        if not financial_stats['total_paid']:
-            financial_stats['total_paid'] = 0
-            
-        # Debug: Show some sample bills if any exist
-        if bills_in_range > 0:
-            sample_bills = Billing.objects.filter(
-                clinic_id=clinic_id,
-                service_date__range=[start_date.date(), end_date.date()]
-            )[:3]
-            for i, bill in enumerate(sample_bills, 1):
-                print(f"DEBUG: Sample bill {i} - Amount: {getattr(bill, 'amount', 'N/A')}, Paid: {getattr(bill, 'paid_amount', 'N/A')}, Date: {getattr(bill, 'service_date', 'N/A')}")
-            
-    except Exception as e:
-        financial_stats = {'total_amount': 0, 'total_paid': 0}
-        print(f"Financial stats error: {e}")
-        
-        # Additional debugging - check if Billing model exists and has expected fields
-        try:
-            all_bills = Billing.objects.filter(clinic_id=clinic_id)
-            print(f"Total bills for clinic {clinic_id}: {all_bills.count()}")
-            if all_bills.exists():
-                sample_bill = all_bills.first()
-                print(f"Available fields in Billing model: {[f.name for f in sample_bill._meta.fields]}")
-                print(f"Sample bill data: clinic_id={sample_bill.clinic_id}")
-        except Exception as debug_error:
-            print(f"Debug error: {debug_error}")
+    # Define all possible statuses with their display names
+    status_mapping = {
+        'SCHEDULED': 'Scheduled',
+        'COMPLETED': 'Completed', 
+        'CANCELLED': 'Cancelled',
+        'NO_SHOW': 'No Show',
+        'RESCHEDULED': 'Rescheduled',
+    }
+
+    # Count appointments by status
+    appointment_stats = []
+    for status_code, status_name in status_mapping.items():
+        count = appointments.filter(status=status_code).count()
+        appointment_stats.append({
+            'status': status_name,
+            'count': count
+        })
+        # print(f"DEBUG: Status {status_code} - {count} appointments")
+
+    # ---------- Patients summary ----------
+    total_new_patients = Patient.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[start_dt, end_dt]
+    ).count()
+    patient_stats = {'total': total_new_patients}
+    # print(f"DEBUG: Found {total_new_patients} new patients")
+
+    # ---------- Financial summary ----------
+    financial_stats = Billing.objects.filter(
+        clinic_id=clinic_id,
+        service_date__range=[start_dt.date(), end_dt.date()]
+    ).aggregate(
+        total_amount=Coalesce(Sum('amount'), Value(0, output_field=DecimalField())),
+        total_paid=Coalesce(Sum('paid_amount'), Value(0, output_field=DecimalField())),
+    )
+    # print(f"DEBUG: Financial stats - {financial_stats}")
 
     context = {
-        'start_date': start_date.date(),
-        'end_date': end_date.date(),
+        'start_date': start_dt.date(),
+        'end_date': end_dt.date(),
         'appointment_stats': appointment_stats,
         'patient_stats': patient_stats,
         'financial_stats': financial_stats,
     }
 
     return render(request, 'eye/reports/generate_eye_report.html', context)
+
+
 
 
 def generate_eye_appointment_report(start_date, end_date, clinic_id):

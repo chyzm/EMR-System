@@ -69,3 +69,23 @@ Traceback (most recent call last):
     raise NoReverseMatch(msg)
 django.urls.exceptions.NoReverseMatch: Reverse for 'create_bill' with keyword arguments '{'appointment_id': 12}' not found. 1 pattern(s) tried: ['billing/create/\\Z']
 "POST /DurielMedicAppappointments/12/complete/ HTTP/1.1" 500 109128
+Internal Server Error: /
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\core\urls.py", line 21, in <lambda>
+    path('', lambda request: redirect('home'), name='home_redirect'),
+                             ~~~~~~~~^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 51, in redirect
+    resolve_url(to, *args, **kwargs),
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
+    return reverse(to, args=args, kwargs=kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\base.py", line 98, in reverse
+    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'home' not found. 'home' is not a valid view function or pattern name.
+"GET / HTTP/1.1" 500 92981

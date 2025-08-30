@@ -49,7 +49,8 @@ from DurielEyeApp.models import EyeAppointment
 
 
 
-
+def home_view(request):
+    return render(request, "home.html")
 
 
 
@@ -63,13 +64,8 @@ def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
 
 
-# ---------- HOME ----------
-# @login_required
-# def home_view(request):
-#     return redirect('DurielMedicApp:dashboard')
 
 
-# Replace the existing CustomLoginView and logout_view in views.py with these fixed versions:
 
 from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.views import LoginView
@@ -3187,3 +3183,163 @@ def clear_notifications(request):
 
     messages.success(request, "Notifications cleared")
     return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
+
+
+#--------------------------------------------------------------------------------------
+#  Contact Forms
+#--------------------------------------------------------------------------------------
+
+from django.core.mail import send_mail, BadHeaderError
+from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from django.conf import settings
+from django.contrib import messages
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+
+
+
+
+def contact_form(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        email = request.POST.get('email')
+        phone = request.POST.get('phone')
+        practice = request.POST.get('practice')
+        message = request.POST.get('message')
+        
+        # Practice type mapping for better display
+        practice_types = {
+            'hospital': 'Hospital',
+            'eye_clinic': 'Eye Clinic',
+            'dental_clinic': 'Dental Clinic',
+            'other': 'Other'
+        }
+        practice_display = practice_types.get(practice, 'Not specified')
+        
+        # Context data for email templates
+        context = {
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'practice': practice_display,
+            'message': message,
+            'website_url': 'https://durielmedic.pythonanywhere.com/',
+            'company_name': 'Duriel Tech Solutions'
+        }
+        
+        try:
+            # 1. Send email to admin (HTML version)
+            admin_subject = f"New Website Inquiry: {name} - {practice_display}"
+            admin_html_message = render_to_string('emails/admin_contact_notification.html', context)
+            admin_plain_message = strip_tags(admin_html_message)
+            
+            send_mail(
+                admin_subject,
+                admin_plain_message,
+                settings.DEFAULT_FROM_EMAIL,
+                ['suavedef@gmail.com'],  # Your admin email
+                html_message=admin_html_message,
+                fail_silently=False,
+            )
+            
+            # 2. Send confirmation email to user (HTML version)
+            user_subject = "Thank You for Contacting DurielMedic+"
+            user_html_message = render_to_string('emails/user_confirmation.html', context)
+            user_plain_message = strip_tags(user_html_message)
+            
+            send_mail(
+                user_subject,
+                user_plain_message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                html_message=user_html_message,
+                fail_silently=False,
+            )
+            
+            messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
+            return redirect('core:home')
+
+        except BadHeaderError:
+            messages.error(request, 'Invalid header found.')
+            return redirect('core:home')
+        except Exception as e:
+            messages.error(request, 'There was an error sending your message. Please try again later.')
+            # Log the error for debugging
+            print(f"Email error: {str(e)}")
+            return redirect('core:home')
+
+    return redirect('core:home')
+
+
+
+# def contact_form(request):
+#     if request.method == 'POST':
+#         name = request.POST.get('name')
+#         email = request.POST.get('email')
+#         phone = request.POST.get('phone')
+#         practice = request.POST.get('practice')
+#         message = request.POST.get('message')
+        
+#         # Practice type mapping for better display
+#         practice_types = {
+#             'hospital': 'Hospital',
+#             'eye_clinic': 'Eye Clinic',
+#             'dental_clinic': 'Dental Clinic',
+#             'other': 'Other'
+#         }
+#         practice_display = practice_types.get(practice, 'Not specified')
+        
+#         # Context data for email templates
+#         context = {
+#             'name': name,
+#             'email': email,
+#             'phone': phone,
+#             'practice': practice_display,
+#             'message': message,
+#             'website_url': 'https://durielmedic.pythonanywhere.com/',
+#             'company_name': 'Duriel Tech Solutions'
+#         }
+        
+#         try:
+#             # 1. Send email to admin (HTML version)
+#             admin_subject = f"New Website Inquiry: {name} - {practice_display}"
+#             admin_html_message = render_to_string('emails/admin_contact_notification.html', context)
+#             admin_plain_message = strip_tags(admin_html_message)
+            
+#             send_mail(
+#                 admin_subject,
+#                 admin_plain_message,
+#                 settings.DEFAULT_FROM_EMAIL,
+#                 ['suavedef@gmail.com'],  # Your admin email
+#                 html_message=admin_html_message,
+#                 fail_silently=False,
+#             )
+            
+#             # 2. Send confirmation email to user (HTML version)
+#             user_subject = "Thank You for Contacting DurielMedic+"
+#             user_html_message = render_to_string('emails/user_confirmation.html', context)
+#             user_plain_message = strip_tags(user_html_message)
+            
+#             send_mail(
+#                 user_subject,
+#                 user_plain_message,
+#                 settings.DEFAULT_FROM_EMAIL,
+#                 [email],
+#                 html_message=user_html_message,
+#                 fail_silently=False,
+#             )
+            
+#             messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
+#             return redirect('core:home')
+            
+#         except BadHeaderError:
+#             messages.error(request, 'Invalid header found.')
+#             return redirect('core:home')
+#         except Exception as e:
+#             messages.error(request, f'There was an error sending your message. Please try again later.')
+#             # Log the error for debugging
+#             print(f"Email error: {str(e)}")
+#             return redirect('core:home')
+
+#     return redirect('core:home')

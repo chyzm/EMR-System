@@ -17,8 +17,11 @@ urlpatterns = [
     
     path('select-clinic/', select_clinic, name='select_clinic'),
     
+    path('contact/', views.contact_form, name='contact_form'),
+    
     # Authentication
-    path('', lambda request: redirect('login'), name='home_redirect'),
+    # path('', lambda request: redirect('home'), name='home_redirect'),
+    path('', views.home_view, name='home'),
     # path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('login/', CustomLoginView.as_view(), name='login'),  # ✅ Changed this line
     path('logout/', views.logout_view, name='logout'),

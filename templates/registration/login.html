@@ -57,5 +57,11 @@
   >
     Login
   </button>
+
+
 </form>
+   <a href="{% url 'core:home' %}" 
+        class="block px-4 py-2 text-center text-sm text-gray-700 hover:text-blue-700 transition-colors {% if 'core:home' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
+        role="menuitem">Return to home</a>                    
+  <p class="text-center text-gray-500 text-sm mt-4s"> Powered by Duriel Tech Solutions</p>
 {% endblock %}

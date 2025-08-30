@@ -129,6 +129,18 @@
     ring-color: #3b82f6;
   }
 
+  /* Mobile menu styles */
+  .mobile-menu {
+    transition: all 0.3s ease-in-out;
+    max-height: 0;
+    overflow: hidden;
+  }
+  
+  .mobile-menu.open {
+    max-height: 500px;
+  }
+
+
   </style>
 </head>
 <body class="text-gray-800">
@@ -179,6 +191,27 @@
             <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Login</a>
             <a href="#contact" class="ml-4 px-4 py-2 rounded-md text-white bg-blue-900 hover:bg-blue-800 text-sm font-medium transition-colors">Request Demo</a>
           </div>
+          <!-- Mobile menu button -->
+          <div class="md:hidden flex items-center">
+            <button id="mobile-menu-button" class="text-gray-600 hover:text-blue-900 focus:outline-none">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path id="menu-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                <path id="close-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="hidden"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Mobile menu, show/hide based on menu state -->
+      <div id="mobile-menu" class="mobile-menu md:hidden">
+        <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+          <a href="#features" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Features</a>
+          <a href="#clinics" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Solutions</a>
+          <a href="#testimonials" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Testimonials</a>
+          <a href="#pricing" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Pricing</a>
+          <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Login</a>
+          <a href="#contact" class="bg-blue-900 text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-800">Request Demo</a>
         </div>
       </div>
     </div>
@@ -744,7 +777,9 @@
   </script>
 
   <!-- Add this script at the bottom of your Home.html file, before the closing </body> tag -->
-<script>
+{% comment %} <script>
+
+  
   // Function to show notification
   function showNotification() {
     const notification = document.getElementById('notification');
@@ -784,6 +819,90 @@
       if (event.target.closest('[data-dismiss="notification"]')) {
         closeNotification();
       }
+    });
+  });
+
+
+</script> {% endcomment %}
+
+<script>
+  // Mobile menu toggle functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const menuIcon = document.getElementById('menu-icon');
+    const closeIcon = document.getElementById('close-icon');
+    
+    if (mobileMenuButton && mobileMenu) {
+      mobileMenuButton.addEventListener('click', function() {
+        // Toggle menu visibility
+        mobileMenu.classList.toggle('open');
+        
+        // Toggle menu icons
+        if (mobileMenu.classList.contains('open')) {
+          menuIcon.classList.add('hidden');
+          closeIcon.classList.remove('hidden');
+        } else {
+          menuIcon.classList.remove('hidden');
+          closeIcon.classList.add('hidden');
+        }
+      });
+      
+      // Close menu when clicking on links
+      const menuLinks = mobileMenu.querySelectorAll('a');
+      menuLinks.forEach(link => {
+        link.addEventListener('click', function() {
+          mobileMenu.classList.remove('open');
+          menuIcon.classList.remove('hidden');
+          closeIcon.classList.add('hidden');
+        });
+      });
+    }
+    
+    // Function to show notification
+    function showNotification() {
+      const notification = document.getElementById('notification');
+      if (notification) {
+        notification.classList.remove('translate-y-[-100px]');
+        notification.classList.add('translate-y-0');
+        
+        // Auto hide after 5 seconds
+        setTimeout(() => {
+          closeNotification();
+        }, 5000);
+      }
+    }
+    
+    // Function to close notification
+    function closeNotification() {
+      const notification = document.getElementById('notification');
+      if (notification) {
+        notification.classList.remove('translate-y-0');
+        notification.classList.add('translate-y-[-100px]');
+        
+        // Remove the notification from DOM after animation completes
+        setTimeout(() => {
+          notification.remove();
+        }, 500);
+      }
+    }
+    
+    // Show notification on page load if there are messages
+    {% if messages %}
+      showNotification();
+    {% endif %}
+    
+    // Close notification when clicking the close button
+    document.addEventListener('click', function(event) {
+      if (event.target.closest('[data-dismiss="notification"]')) {
+        closeNotification();
+      }
+    });
+    
+    // Simple animations
+    const fadeElems = document.querySelectorAll('.fade-in');
+    fadeElems.forEach(elem => {
+      elem.style.opacity = 1;
     });
   });
 </script>

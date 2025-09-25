@@ -1,107 +1,99 @@
-Not Found: /favicon.ico
-"GET /favicon.ico HTTP/1.1" 404 24167
-Internal Server Error: /DurielMedicAppappointments/13/complete/
+Internal Server Error: /plans/
 Traceback (most recent call last):
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
     response = get_response(request)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
     response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
-    return func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
-    return view_func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\DurielMedicApp\views.py", line 535, in mark_appointment_completed
-    return redirect('DurielMedicApp:create_bill_for_appointment', appointment_id=appointment.pk)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 51, in redirect
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\core\views.py", line 3284, in select_plan
+    return render(request, 'registration/select_plan.html', {'plans': plans})
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 171, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\loader_tags.py", line 159, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 163, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\loader_tags.py", line 65, in render
+    result = block.nodelist.render(context)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 1016, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\defaulttags.py", line 243, in render
+    nodelist.append(node.render_annotated(context))
+                    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\base.py", line 977, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\template\defaulttags.py", line 480, in render
+    url = reverse(view_name, args=args, kwargs=kwargs, current_app=current_app)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\urls\base.py", line 98, in reverse
+    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+    raise NoReverseMatch(msg)
+django.urls.exceptions.NoReverseMatch: Reverse for 'register_facility' not found. 'register_facility' is not a valid view function or pattern name.
+"GET /plans/ HTTP/1.1" 500 171253
+Internal Server Error: /register/MONTHLY/
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\core\views.py", line 3294, in register_facility
+    return redirect('paystack_payment')
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\shortcuts.py", line 51, in redirect
     resolve_url(to, *args, **kwargs),
     ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
     return reverse(to, args=args, kwargs=kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\base.py", line 98, in reverse
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\urls\base.py", line 98, in reverse
     resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
     raise NoReverseMatch(msg)
-django.urls.exceptions.NoReverseMatch: Reverse for 'create_bill_for_appointment' not found. 'create_bill_for_appointment' is not a valid view function or pattern name.
-"POST /DurielMedicAppappointments/13/complete/ HTTP/1.1" 500 107785
-Internal Server Error: /DurielMedicAppappointments/13/complete/
-Traceback (most recent call last):
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
-    return func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
-    return view_func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\DurielMedicApp\views.py", line 535, in mark_appointment_completed
-    return redirect('DurielMedicApp:create_bill_for_appointment', appointment_id=appointment.pk)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 51, in redirect
-    resolve_url(to, *args, **kwargs),
-    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
-    return reverse(to, args=args, kwargs=kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\base.py", line 98, in reverse
-    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
-    raise NoReverseMatch(msg)
-django.urls.exceptions.NoReverseMatch: Reverse for 'create_bill_for_appointment' not found. 'create_bill_for_appointment' is not a valid view function or pattern name.
-"POST /DurielMedicAppappointments/13/complete/ HTTP/1.1" 500 108092
-Internal Server Error: /DurielMedicAppappointments/12/complete/
-Traceback (most recent call last):
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
-    return func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
-    return view_func(request, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\DurielMedicApp\views.py", line 535, in mark_appointment_completed
-    return redirect('core:create_bill', appointment_id=appointment.pk)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 51, in redirect
-    resolve_url(to, *args, **kwargs),
-    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
-    return reverse(to, args=args, kwargs=kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\base.py", line 98, in reverse
-    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
-    raise NoReverseMatch(msg)
-django.urls.exceptions.NoReverseMatch: Reverse for 'create_bill' with keyword arguments '{'appointment_id': 12}' not found. 1 pattern(s) tried: ['billing/create/\\Z']
-"POST /DurielMedicAppappointments/12/complete/ HTTP/1.1" 500 109128
-Internal Server Error: /
-Traceback (most recent call last):
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
-    response = get_response(request)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
-    response = wrapped_callback(request, *callback_args, **callback_kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\core\urls.py", line 21, in <lambda>
-    path('', lambda request: redirect('home'), name='home_redirect'),
-                             ~~~~~~~~^^^^^^^^
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 51, in redirect
-    resolve_url(to, *args, **kwargs),
-    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\shortcuts.py", line 184, in resolve_url
-    return reverse(to, args=args, kwargs=kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\base.py", line 98, in reverse
-    resolved_url = resolver._reverse_with_prefix(view, prefix, *args, **kwargs)
-  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\env\Lib\site-packages\django\urls\resolvers.py", line 831, in _reverse_with_prefix
-    raise NoReverseMatch(msg)
-django.urls.exceptions.NoReverseMatch: Reverse for 'home' not found. 'home' is not a valid view function or pattern name.
-"GET / HTTP/1.1" 500 92981
+django.urls.exceptions.NoReverseMatch: Reverse for 'paystack_payment' not found. 'paystack_payment' is not a valid view function or pattern name.
+"POST /register/MONTHLY/ HTTP/1.1" 500 96311
+Not Found: /select-clinic/dashboard
+"GET /select-clinic/dashboard HTTP/1.1" 404 25557
+Not Found: /select-clinic/admin_dashboard
+"GET /select-clinic/admin_dashboard HTTP/1.1" 404 25575
+Not Found: /select-clinic/dashboard/admin_dashboard
+"GET /select-clinic/dashboard/admin_dashboard HTTP/1.1" 404 25605
+Not Found: /dashboard/admin_dashboard
+"GET /dashboard/admin_dashboard HTTP/1.1" 404 25563
+Not Found: /admin_dashboard
+"GET /admin_dashboard HTTP/1.1" 404 25533
+Not Found: /admin
+"GET /admin HTTP/1.1" 404 25503
+Not Found: /admin
+"GET /admin HTTP/1.1" 404 25503
 Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
+"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 25632
 Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
-Not Found: /.well-known/appspecific/com.chrome.devtools.json
-"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 24531
+"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 25632

@@ -153,4 +153,14 @@ urlpatterns = [
     path('services/<int:pk>/edit/', views.edit_service, name='edit_service'),
     path('services/<int:pk>/delete/', views.delete_service, name='delete_service'),
     path('services/toggle/<int:pk>/', views.toggle_service_status, name='toggle_service_status'),
+    
+    
+    # Subscription and Payment
+    path('plans/', views.select_plan, name='select_plan'),
+    path('register/<str:plan_type>/', views.register_facility, name='register_facility'),
+    path('paystack/payment/', views.paystack_payment, name='paystack_payment'),
+    path('paystack/callback/', views.paystack_callback, name='paystack_callback'),
+    
+    # Re-subscribe (renew) for existing clinics
+    path('subscribe/<int:clinic_id>/<str:plan_type>/', views.start_renewal, name='start_renewal'),
 ]

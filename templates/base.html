@@ -685,6 +685,21 @@ li ul[id*="_error"] {
         document.head.appendChild(link);
     }
   </script>
+
+
+  <!-- WebSocket for real-time notifications -->
+  <script>
+    const ws_scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws_path = ws_scheme + '://' + window.location.host + "/ws/notifications/";
+    const socket = new WebSocket(ws_path);
+
+    socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        // Display notification in your UI
+        // Example: append to notification dropdown
+        alert(data.message); // Replace with your notification UI
+    };
+    </script>
   
   {% block extra_js %}{% endblock %}
 </body>

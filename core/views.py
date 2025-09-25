@@ -12,7 +12,7 @@ from django.http import Http404, HttpResponse
 import csv
 
 from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription, ServicePriceList 
-from .forms import (CustomUserCreationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
+from .forms import (CustomUserCreationForm, FacilityRegistrationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
 ServicePriceListForm)
 from DurielMedicApp.decorators import role_required
 from django.http import JsonResponse
@@ -42,6 +42,8 @@ from django.db import models
 from django.utils import timezone
 from DurielMedicApp.models import Appointment
 from DurielEyeApp.models import EyeAppointment
+from django.contrib.contenttypes.models import ContentType
+from datetime import timedelta
 
 
 
@@ -116,33 +118,101 @@ def home(request):
 
 
 # views.py (snippet)
+# @login_required
+# def select_clinic(request):
+#     user_clinics = request.user.clinic.all().order_by('clinic_type', 'name')
+
+#     if request.method == 'POST':
+#         clinic_id = request.POST.get('clinic_id')
+#         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
+#         if clinic:
+#             request.session['clinic_id'] = clinic.id
+#             request.session['clinic_type'] = clinic.clinic_type
+#             request.session['clinic_name'] = clinic.name
+
+#             # >>> Add these two lines <<<
+#             from .utils import finalize_pending_login, log_login
+#             finalize_pending_login(request)      # attaches pending login (if any) to this clinic
+#             log_login(request, request.user)     # also log an explicit login-at-clinic selection
+
+#             if clinic.clinic_type == 'GENERAL':
+#                 return redirect('DurielMedicApp:dashboard')
+#             elif clinic.clinic_type == 'EYE':
+#                 return redirect('DurielEyeApp:eye_dashboard')
+#             elif clinic.clinic_type == 'DENTAL':
+#                 return redirect('DurielDentalApp:dental_dashboard')
+
+#     return render(request, 'select-clinic/select_clinic.html', {
+#         'clinics': user_clinics,
+#         'clinic_types': dict(Clinic.CLINIC_TYPES)
+#     })
+
+
 @login_required
 def select_clinic(request):
     user_clinics = request.user.clinic.all().order_by('clinic_type', 'name')
+    today = timezone.now().date()
+    can_renew = request.user.is_superuser or getattr(request.user, 'role', '') == 'ADMIN'
+
+    clinics_enriched = []
+    for c in user_clinics:
+        end = getattr(c, 'subscription_end_date', None)
+        days_left = (end - today).days if end else None
+        is_expired = (getattr(c, 'is_subscription_active', True) is False) or (days_left is not None and days_left < 0)
+        clinics_enriched.append({
+            'clinic': c,
+            'days_left': days_left,
+            'is_expired': is_expired,
+            'can_renew': can_renew,
+            'renew_monthly_url': reverse('core:start_renewal', args=[c.id, 'MONTHLY']),
+            'renew_yearly_url': reverse('core:start_renewal', args=[c.id, 'YEARLY']),
+        })
 
     if request.method == 'POST':
         clinic_id = request.POST.get('clinic_id')
         clinic = Clinic.objects.filter(id=clinic_id, staff=request.user).first()
-        if clinic:
-            request.session['clinic_id'] = clinic.id
-            request.session['clinic_type'] = clinic.clinic_type
-            request.session['clinic_name'] = clinic.name
+        if not clinic:
+            messages.error(request, "You do not have access to this clinic.")
+            return redirect('core:select_clinic')
 
-            # >>> Add these two lines <<<
-            from .utils import finalize_pending_login, log_login
-            finalize_pending_login(request)      # attaches pending login (if any) to this clinic
-            log_login(request, request.user)     # also log an explicit login-at-clinic selection
+        end = getattr(clinic, 'subscription_end_date', None)
+        days_left = (end - today).days if end else None
+        is_expired = (getattr(clinic, 'is_subscription_active', True) is False) or (days_left is not None and days_left < 0)
+        if is_expired:
+            messages.warning(request, "This clinic is expired. Please renew to continue.")
+            return redirect('core:select_clinic')
 
-            if clinic.clinic_type == 'GENERAL':
-                return redirect('DurielMedicApp:dashboard')
-            elif clinic.clinic_type == 'EYE':
-                return redirect('DurielEyeApp:eye_dashboard')
-            elif clinic.clinic_type == 'DENTAL':
-                return redirect('DurielDentalApp:dental_dashboard')
+        request.session['clinic_id'] = clinic.id
+        request.session['clinic_type'] = clinic.clinic_type
+        request.session['clinic_name'] = clinic.name
+
+        from .utils import finalize_pending_login, log_login
+        finalize_pending_login(request)
+        log_login(request, request.user)
+
+        if clinic.clinic_type == 'GENERAL':
+            return redirect('DurielMedicApp:dashboard')
+        elif clinic.clinic_type == 'EYE':
+            return redirect('DurielEyeApp:eye_dashboard')
+        elif clinic.clinic_type == 'DENTAL':
+            return redirect('DurielDentalApp:dental_dashboard')
+
+    primary_clinic_id = getattr(request.user, 'primary_clinic_id', None)
+    active_count = sum(1 for x in clinics_enriched if not x['is_expired'])
+    expired_count = len(clinics_enriched) - active_count
+    has_multiple_clinics = len(clinics_enriched) > 1
+    single_clinic = clinics_enriched[0] if len(clinics_enriched) == 1 else None
 
     return render(request, 'select-clinic/select_clinic.html', {
         'clinics': user_clinics,
-        'clinic_types': dict(Clinic.CLINIC_TYPES)
+        'clinics_enriched': clinics_enriched,
+        'clinic_types': dict(Clinic.CLINIC_TYPES),
+        'can_renew': can_renew,
+        'primary_clinic_id': primary_clinic_id,
+        'active_count': active_count,
+        'expired_count': expired_count,
+        'has_multiple_clinics': has_multiple_clinics,
+        'single_clinic': single_clinic,
     })
 
 
@@ -313,30 +383,25 @@ def manage_user_roles(request):
 def edit_user_role(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
     editing_self = (request.user.id == user.id)
-    
-    # Check permissions - superusers can edit anyone, ADMINs only their clinic users
+
+    # Permission checks
     if not request.user.is_superuser:
-        # Check if the user being edited belongs to any of the current user's clinics
         if not user.clinic.filter(id__in=request.user.clinic.all()).exists():
             messages.error(request, "You don't have permission to edit this user.")
             return redirect('core:manage_roles')
-    
+
     if request.method == 'POST':
-        form = UserEditForm(request.POST, request.FILES, instance=user)
+        form = UserEditForm(request.POST, request.FILES, instance=user, request=request)
         if form.is_valid():
-            # Prevent non-superusers from making superusers
             if not request.user.is_superuser and form.cleaned_data.get('is_superuser'):
                 messages.error(request, "Only superusers can create other superusers.")
                 return redirect('core:manage_roles')
-            
-            # Prevent users from deactivating themselves
+
             if editing_self and not form.cleaned_data.get('is_active'):
                 messages.error(request, "You cannot deactivate yourself.")
                 return redirect('core:manage_roles')
-                
-            form.save()
 
-            # ✅ Manual logging
+            form.save()
             from .utils import log_action
             log_action(
                 request,
@@ -344,19 +409,16 @@ def edit_user_role(request, user_id):
                 user,
                 details=f"Updated user role/details for {user.get_full_name() or user.username}"
             )
-
             messages.success(request, 'User details updated successfully.')
             return redirect('core:manage_roles')
     else:
-        form = UserEditForm(instance=user)
-        
-        # Limit clinic choices based on user role
+        form = UserEditForm(instance=user, request=request)
+
+        # ✅ Only override for superusers
         if request.user.is_superuser:
             form.fields['clinic'].queryset = Clinic.objects.all()
-        else:
-            form.fields['clinic'].queryset = request.user.clinic.all()
-        
-        # Hide superuser checkbox for non-superusers
+
+        # ✅ For admins, let UserEditForm logic handle merging
         if not request.user.is_superuser:
             form.fields['is_superuser'].widget = forms.HiddenInput()
 
@@ -365,6 +427,7 @@ def edit_user_role(request, user_id):
         'user_obj': user,
         'editing_self': editing_self,
     })
+
 
 
 
@@ -1305,24 +1368,53 @@ def patient_search_api(request):
 
 
 
+# @login_required
+# @clinic_selected_required
+# @role_required('ADMIN', 'RECEPTIONIST')
+# def generate_receipt(request, pk):
+#     bill = get_object_or_404(Billing, pk=pk)
+#     payments = bill.payments.all().order_by('-payment_date')
+
+#     if payments.exists():
+#         payment = payments.first()  # latest payment
+#     else:
+#         payment = None
+
+#     context = {
+#         'bill': bill,
+#         'payment': payment,
+#         'payments': payments,
+#         'outstanding': bill.amount - bill.paid_amount,
+#         'today': timezone.now().date()
+#     }
+
+#     return render(request, 'billing/receipt.html', context)
+
+
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def generate_receipt(request, pk):
     bill = get_object_or_404(Billing, pk=pk)
     payments = bill.payments.all().order_by('-payment_date')
+    payment = payments.first() if payments.exists() else None
 
-    if payments.exists():
-        payment = payments.first()  # latest payment
-    else:
-        payment = None
+    clinic_obj = getattr(bill, 'clinic', None)
+    clinic_name = (
+        getattr(clinic_obj, 'name', None)
+        or request.session.get('clinic_name')
+        or (getattr(getattr(request.user, 'primary_clinic', None), 'name', None) if request.user.is_authenticated else None)
+        or 'Your Clinic'
+    )
 
     context = {
         'bill': bill,
         'payment': payment,
         'payments': payments,
         'outstanding': bill.amount - bill.paid_amount,
-        'today': timezone.now().date()
+        'today': timezone.now().date(),
+        'clinic_name': clinic_name,
     }
 
     return render(request, 'billing/receipt.html', context)
@@ -1426,6 +1518,7 @@ def admin_dashboard(request):
     
     # User Management with search and pagination
     user_search = request.GET.get('user_search', '')
+    user_clinic = request.GET.get('user_clinic', '')
     user_page = request.GET.get('user_page', 1)
     
     users = CustomUser.objects.all().order_by('last_name', 'first_name')  # Added ordering by last_name then first_name
@@ -1437,6 +1530,8 @@ def admin_dashboard(request):
             Q(email__icontains=user_search) |
             Q(role__icontains=user_search)
         )
+    if user_clinic:
+        users = users.filter(clinic__name__icontains=user_clinic).distinct()  
     
     user_paginator = Paginator(users, 10)  # Show 10 users per page
     try:
@@ -1450,6 +1545,9 @@ def admin_dashboard(request):
         'stats': stats,
         'users': user_page_obj,
         'clinics': clinic_page_obj,
+        'user_clinic': user_clinic,
+        'clinic_search': clinic_search,
+        'user_search': user_search,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
@@ -3273,73 +3371,434 @@ def contact_form(request):
 
 
 
-# def contact_form(request):
-#     if request.method == 'POST':
-#         name = request.POST.get('name')
-#         email = request.POST.get('email')
-#         phone = request.POST.get('phone')
-#         practice = request.POST.get('practice')
-#         message = request.POST.get('message')
-        
-#         # Practice type mapping for better display
-#         practice_types = {
-#             'hospital': 'Hospital',
-#             'eye_clinic': 'Eye Clinic',
-#             'dental_clinic': 'Dental Clinic',
-#             'other': 'Other'
-#         }
-#         practice_display = practice_types.get(practice, 'Not specified')
-        
-#         # Context data for email templates
-#         context = {
-#             'name': name,
-#             'email': email,
-#             'phone': phone,
-#             'practice': practice_display,
-#             'message': message,
-#             'website_url': 'https://durielmedic.pythonanywhere.com/',
-#             'company_name': 'Duriel Tech Solutions'
-#         }
-        
-#         try:
-#             # 1. Send email to admin (HTML version)
-#             admin_subject = f"New Website Inquiry: {name} - {practice_display}"
-#             admin_html_message = render_to_string('emails/admin_contact_notification.html', context)
-#             admin_plain_message = strip_tags(admin_html_message)
-            
-#             send_mail(
-#                 admin_subject,
-#                 admin_plain_message,
-#                 settings.DEFAULT_FROM_EMAIL,
-#                 ['suavedef@gmail.com'],  # Your admin email
-#                 html_message=admin_html_message,
-#                 fail_silently=False,
-#             )
-            
-#             # 2. Send confirmation email to user (HTML version)
-#             user_subject = "Thank You for Contacting DurielMedic+"
-#             user_html_message = render_to_string('emails/user_confirmation.html', context)
-#             user_plain_message = strip_tags(user_html_message)
-            
-#             send_mail(
-#                 user_subject,
-#                 user_plain_message,
-#                 settings.DEFAULT_FROM_EMAIL,
-#                 [email],
-#                 html_message=user_html_message,
-#                 fail_silently=False,
-#             )
-            
-#             messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
-#             return redirect('core:home')
-            
-#         except BadHeaderError:
-#             messages.error(request, 'Invalid header found.')
-#             return redirect('core:home')
-#         except Exception as e:
-#             messages.error(request, f'There was an error sending your message. Please try again later.')
-#             # Log the error for debugging
-#             print(f"Email error: {str(e)}")
-#             return redirect('core:home')
+# Subscriptions and Payments
 
-#     return redirect('core:home')
+def select_plan(request):
+    plans = [
+        {'name': 'Monthly', 'price': 15000, 'type': 'MONTHLY'},
+        {'name': 'Yearly', 'price': 150000, 'type': 'YEARLY'},
+    ]
+    return render(request, 'registration/select_plan.html', {'plans': plans})
+
+
+
+# def register_facility(request, plan_type):
+#     price_map = {'MONTHLY': 15000, 'YEARLY': 150000}
+#     if request.method == 'POST':
+#         form = FacilityRegistrationForm(request.POST)
+#         if form.is_valid():
+#             request.session['registration_data'] = form.cleaned_data
+#             return redirect('core:paystack_payment')
+#     else:
+#         form = FacilityRegistrationForm(initial={
+#             'clinic_type': '',  # You can let user select or enter clinic type/name
+#             'amount': price_map.get(plan_type, 15000)
+#         })
+#     return render(request, 'registration/register_facility.html', {'form': form, 'plan_type': plan_type})
+
+def register_facility(request, plan_type):
+    price_map = {'MONTHLY': 15000, 'YEARLY': 150000}
+    if request.method == 'POST':
+        form = FacilityRegistrationForm(request.POST)
+        if form.is_valid():
+            # Store valid form data + plan type in session
+            request.session['registration_data'] = form.cleaned_data
+            request.session['plan_type'] = plan_type  # ✅ save plan type
+            return redirect('core:paystack_payment')
+    else:
+        form = FacilityRegistrationForm(initial={
+            'clinic_type': 'GENERAL',  # Default to GENERAL
+            'amount': price_map.get(plan_type, 15000)
+        })
+    return render(request, 'registration/register_facility.html', {'form': form, 'plan_type': plan_type})
+
+
+
+
+def paystack_payment(request):
+    reg_data = request.session.get('registration_data')
+    renewal = request.session.get('renewal')
+    if not reg_data and not renewal:
+        return redirect('core:select_plan')
+
+    headers = {
+        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
+    callback_url = request.build_absolute_uri(reverse('core:paystack_callback'))
+
+    if reg_data:
+        amount = int(reg_data['amount'])
+        email = reg_data['email']
+    else:
+        plan_type = renewal['plan_type']
+        clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
+        email = clinic.email or (request.user.email if request.user.is_authenticated else None)
+        amount = pay_amount_for_plan(plan_type)
+        if not email:
+            messages.error(request, "No email found to initialize payment.")
+            return redirect('core:select_plan')
+
+    payload = {
+        "email": email,
+        "amount": amount * 100,  # kobo
+        "callback_url": callback_url
+    }
+    response = requests.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers)
+    res_data = response.json()
+    if res_data.get('status'):
+        return redirect(res_data['data']['authorization_url'])
+    messages.error(request, "Payment initialization failed. Try again.")
+    return redirect('core:select_plan')
+
+
+    
+    
+from django.core.mail import send_mail
+from django.conf import settings
+from django.shortcuts import redirect
+from django.contrib import messages
+import requests
+from .models import Clinic, CustomUser
+
+
+# def paystack_callback(request):
+#     reference = request.GET.get('reference')
+#     if not reference:
+#         messages.error(request, "Payment reference not found.")
+#         return redirect('core:select_plan')
+
+#     try:
+#         # --- Verify transaction with Paystack ---
+#         verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
+#         headers = {
+#             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+#             "Content-Type": "application/json"
+#         }
+#         response = requests.get(verify_url, headers=headers)
+#         res_data = response.json()
+
+#         if res_data.get('status') and res_data['data']['status'] == 'success':
+#             # --- Get registration data from session ---
+#             data = request.session.get('registration_data')
+#             plan_type = request.session.get('plan_type', 'MONTHLY')
+
+#             if not data:
+#                 messages.error(request, "Registration data not found. Please try registering again.")
+#                 return redirect('core:select_plan')
+
+#             # Required fields
+#             required_fields = ['clinic_name', 'username', 'email', 'password']
+#             for field in required_fields:
+#                 if field not in data:
+#                     messages.error(request, f"Missing required information: {field}. Please try registering again.")
+#                     return redirect('core:select_plan')
+
+#             # Validate clinic_type
+#             VALID_CLINIC_TYPES = ['GENERAL', 'EYE', 'DENTAL']
+#             clinic_type = data.get('clinic_type')
+#             if not clinic_type or clinic_type not in VALID_CLINIC_TYPES:
+#                 clinic_type = 'GENERAL'
+
+#             try:
+#                 # --- Create or get Clinic ---
+#                 clinic, created = Clinic.objects.get_or_create(
+#                     name=data['clinic_name'],
+#                     defaults={
+#                         'clinic_type': clinic_type,
+#                         'address': data.get('clinic_address', ''),
+#                         'phone': data.get('clinic_phone', ''),
+#                         'email': data.get('clinic_email', '')
+#                     }
+#                 )
+
+#                 # --- Create Admin User ---
+#                 user = CustomUser.objects.create_user(
+#                     username=data['username'],
+#                     email=data['email'],
+#                     password=data['password'],
+#                     first_name=data.get('first_name', ''),
+#                     last_name=data.get('last_name', ''),
+#                     is_active=True,
+#                     role='ADMIN'
+#                 )
+#                 user.title = data.get('title', '')
+#                 user.phone = data.get('phone', '')  # ✅ correct field
+#                 user.save()
+
+#                 # Link user to clinic
+#                 user.clinic.add(clinic)
+
+#                 # --- Send activation email ---
+#                 try:
+#                     send_mail(
+#                         "New Clinic Activation",
+#                         f"New clinic '{clinic.name}' activated by {user.username}. Plan: {plan_type}",
+#                         settings.DEFAULT_FROM_EMAIL,
+#                         ['suavedef@gmail.com'],
+#                         fail_silently=True
+#                     )
+#                 except Exception as e:
+#                     print(f"Email sending failed: {str(e)}")  # Log but don’t break
+
+#                 # --- Clear session safely ---
+#                 request.session.pop('registration_data', None)
+#                 request.session.pop('plan_type', None)
+
+#                 messages.success(request, "Payment successful! Your account has been activated.")
+#                 return redirect('core:login')
+
+#             except Exception as e:
+#                 messages.error(request, f"Error creating account: {str(e)}. Please contact support.")
+#                 return redirect('core:select_plan')
+
+#         else:
+#             payment_message = res_data.get('message', 'Unknown error')
+#             plan_type = request.session.get('plan_type', 'MONTHLY')
+#             messages.error(request, f"Payment verification failed: {payment_message}")
+#             return redirect('core:register_facility', plan_type=plan_type)
+
+#     except Exception as e:
+#         messages.error(request, f"An error occurred during payment verification: {str(e)}")
+#         return redirect('core:select_plan')
+
+
+def paystack_callback(request):
+    # Handle TRIAL flow without Paystack (no reference needed)
+    if request.session.get('plan_type') == 'TRIAL' and request.session.get('registration_data'):
+        data = request.session.get('registration_data')
+
+        required_fields = ['clinic_name', 'username', 'email', 'password']
+        for field in required_fields:
+            if not data.get(field):
+                messages.error(request, f"Missing required information: {field}.")
+                return redirect('core:select_plan')
+
+        VALID_CLINIC_TYPES = ['GENERAL', 'EYE', 'DENTAL']
+        clinic_type = data.get('clinic_type') if data.get('clinic_type') in VALID_CLINIC_TYPES else 'GENERAL'
+
+        try:
+            with transaction.atomic():
+                clinic = Clinic.objects.create(
+                    name=data['clinic_name'],
+                    clinic_type=clinic_type,
+                    address=data.get('clinic_address', ''),
+                    phone=data.get('clinic_phone', ''),
+                    email=data.get('clinic_email', '') or data['email']
+                )
+                # Start TRIAL immediately (models.set_subscription should set 7 days)
+                clinic.set_subscription('TRIAL')
+
+                user = CustomUser.objects.create_user(
+                    username=data['username'],
+                    email=data['email'],
+                    password=data['password'],
+                    first_name=data.get('first_name', ''),
+                    last_name=data.get('last_name', ''),
+                    is_active=True,
+                    role='ADMIN'
+                )
+                user.title = data.get('title', '')
+                user.phone = data.get('phone', '') or data.get('phone_number', '')
+                user.primary_clinic = clinic
+                user.save()
+                user.clinic.add(clinic)
+
+            # Notify
+            try:
+                send_mail(
+                    "Trial Started - DurielMedic+",
+                    f"Clinic '{clinic.name}' started a trial. Expires on {clinic.subscription_end_date}.",
+                    settings.DEFAULT_FROM_EMAIL,
+                    ['suavedef@gmail.com'],
+                    fail_silently=True
+                )
+                if clinic.email:
+                    send_mail(
+                        "Welcome to DurielMedic+ (Trial)",
+                        f"Your clinic '{clinic.name}' trial is active. It expires on {clinic.subscription_end_date}.",
+                        settings.DEFAULT_FROM_EMAIL,
+                        [clinic.email],
+                        fail_silently=True
+                    )
+            except Exception:
+                pass
+
+            # Cleanup
+            request.session.pop('registration_data', None)
+            request.session.pop('plan_type', None)
+
+            messages.success(request, f"Trial started. Expires on {clinic.subscription_end_date}.")
+            return redirect('core:login')
+
+        except Exception as e:
+            messages.error(request, f"Could not start trial: {e}")
+            return redirect('core:select_plan')
+
+    # ----- Paid flows (require Paystack verification) -----
+    reference = request.GET.get('reference')
+    if not reference:
+        messages.error(request, "Payment reference not found.")
+        return redirect('core:select_plan')
+
+    try:
+        verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
+        headers = {
+            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+            "Content-Type": "application/json"
+        }
+        response = requests.get(verify_url, headers=headers)
+        res_data = response.json()
+
+        if not (res_data.get('status') and res_data['data']['status'] == 'success'):
+            payment_message = res_data.get('message', 'Unknown error')
+            messages.error(request, f"Payment verification failed: {payment_message}")
+            return redirect('core:select_plan')
+
+        # Renewal flow (existing clinic)
+        if request.session.get('renewal'):
+            renewal = request.session.pop('renewal')
+            plan_type = renewal['plan_type']
+            clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
+            clinic.set_subscription(plan_type)
+            try:
+                send_mail(
+                    "Subscription Renewed",
+                    f"{clinic.name} has renewed {plan_type}. Expires on {clinic.subscription_end_date}.",
+                    settings.DEFAULT_FROM_EMAIL,
+                    [clinic.email, 'suavedef@gmail.com'],
+                    fail_silently=True
+                )
+            except Exception:
+                pass
+            messages.success(request, "Subscription renewed successfully.")
+            return redirect('core:admin_dashboard')
+
+        # Registration flow (new clinic + admin)
+        data = request.session.get('registration_data')
+        plan_type = request.session.get('plan_type', 'MONTHLY')
+        if not data:
+            messages.error(request, "Registration data not found. Please try again.")
+            return redirect('core:select_plan')
+
+        required_fields = ['clinic_name', 'username', 'email', 'password']
+        for field in required_fields:
+            if not data.get(field):
+                messages.error(request, f"Missing required information: {field}.")
+                return redirect('core:select_plan')
+
+        VALID_CLINIC_TYPES = ['GENERAL', 'EYE', 'DENTAL']
+        clinic_type = data.get('clinic_type')
+        if clinic_type not in VALID_CLINIC_TYPES:
+            clinic_type = 'GENERAL'
+
+        with transaction.atomic():
+            clinic = Clinic.objects.create(
+                name=data['clinic_name'],
+                clinic_type=clinic_type,
+                address=data.get('clinic_address', ''),
+                phone=data.get('clinic_phone', ''),
+                email=data.get('clinic_email', '') or data['email']
+            )
+            clinic.set_subscription(plan_type)
+
+            user = CustomUser.objects.create_user(
+                username=data['username'],
+                email=data['email'],
+                password=data['password'],
+                first_name=data.get('first_name', ''),
+                last_name=data.get('last_name', ''),
+                is_active=True,
+                role='ADMIN'
+            )
+            user.title = data.get('title', '')
+            user.phone = data.get('phone', '') or data.get('phone_number', '')
+            user.primary_clinic = clinic
+            user.save()
+            user.clinic.add(clinic)
+
+        try:
+            send_mail(
+                "New Clinic Activated",
+                f"Clinic '{clinic.name}' activated by {user.username}. Plan: {plan_type}. Expires on {clinic.subscription_end_date}.",
+                settings.DEFAULT_FROM_EMAIL,
+                ['suavedef@gmail.com'],
+                fail_silently=True
+            )
+            if clinic.email:
+                send_mail(
+                    "Welcome to DurielMedic+",
+                    f"Your clinic '{clinic.name}' has been activated. Plan: {plan_type}. Expires on {clinic.subscription_end_date}.",
+                    settings.DEFAULT_FROM_EMAIL,
+                    [clinic.email],
+                    fail_silently=True
+                )
+        except Exception:
+            pass
+
+        # Cleanup
+        request.session.pop('registration_data', None)
+        request.session.pop('plan_type', None)
+
+        messages.success(request, "Payment successful! Your account is activated.")
+        return redirect('core:login')
+
+    except Exception as e:
+        messages.error(request, f"An error occurred during payment verification: {str(e)}")
+        return redirect('core:select_plan')
+
+    
+    
+    
+    
+def pay_amount_for_plan(plan_type: str) -> int:
+    return 15000 if plan_type == 'MONTHLY' else 150000
+
+@login_required
+def start_renewal(request, clinic_id, plan_type):
+    if plan_type not in ('MONTHLY', 'YEARLY'):
+        messages.error(request, "Invalid plan.")
+        return redirect('core:select_plan')
+
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    # Only superuser or ADMIN within the clinic can renew
+    if not (request.user.is_superuser or (clinic in request.user.clinic.all() and getattr(request.user, 'role', '') == 'ADMIN')):
+        messages.error(request, "You do not have permission to renew this clinic.")
+        return redirect('core:select_clinic')
+
+    request.session['renewal'] = {'clinic_id': clinic.id, 'plan_type': plan_type}
+    request.session['plan_type'] = plan_type
+    return redirect('core:paystack_payment')
+
+# Sending real time Notification using websocket
+
+from core.models import Notification
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+def notify_user(user, message, link=None, clinic=None, app_name=None):
+    # Save to DB using your Notification model
+    notif = Notification.objects.create(
+        user=user,
+        clinic=clinic,
+        message=message,
+        link=link,
+        app_name=app_name
+    )
+    # Send via WebSocket
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"user_{user.id}",
+        {
+            "type": "send_notification",
+            "notification": {
+                "id": notif.id,
+                "message": notif.message,
+                "link": notif.link,
+                "created_at": notif.created_at.strftime("%Y-%m-%d %H:%M"),
+                "is_read": notif.is_read,
+                "app_name": notif.app_name,
+                "clinic": notif.clinic.name if notif.clinic else "",
+            }
+        }
+    )

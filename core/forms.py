@@ -52,9 +52,11 @@ class CustomUserCreationForm(UserCreationForm):
             Submit('submit', 'Create Account')
         )
 
+
+
 # class UserCreationWithRoleForm(UserCreationForm):
 #     clinic = forms.ModelMultipleChoiceField(
-#         queryset=Clinic.objects.all(),
+#         queryset=Clinic.objects.none(),  # Start with empty queryset
 #         widget=forms.CheckboxSelectMultiple,
 #         required=False,
 #     )
@@ -64,61 +66,26 @@ class CustomUserCreationForm(UserCreationForm):
 #         fields = ['username', 'email', 'first_name', 'last_name', 'password1', 'password2', 
 #                  'role', 'title', 'phone', 'clinic', 'is_active', 'is_staff', 'verified', 'is_superuser', 'profile_picture']
 #         widgets = {
-#             'username': forms.TextInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'email': forms.EmailInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'first_name': forms.TextInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'last_name': forms.TextInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'password1': forms.PasswordInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'password2': forms.PasswordInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'role': forms.Select(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'title': forms.Select(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'phone': forms.TextInput(attrs={
-#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-#             }),
-#             'is_active': forms.CheckboxInput(attrs={
-#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-#             }),
-#             'is_staff': forms.CheckboxInput(attrs={
-#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-#             }),
-#             'verified': forms.CheckboxInput(attrs={
-#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-#             }),
-#             'is_superuser': forms.CheckboxInput(attrs={
-#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-#             }),
-#             'profile_picture': forms.FileInput(attrs={
-#                 'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-#             }),
+#             # ... existing widget definitions ...
 #         }
         
-#     # MOVED OUTSIDE Meta class - this was the issue!
 #     def __init__(self, *args, **kwargs):
-#         # Extract the request from kwargs before calling super()
 #         self.request = kwargs.pop('request', None)
 #         super().__init__(*args, **kwargs)
+        
+#         # Set clinic queryset based on the request user
+#         if self.request:
+#             if self.request.user.is_superuser:
+#                 self.fields['clinic'].queryset = Clinic.objects.all()
+#             else:
+#                 self.fields['clinic'].queryset = self.request.user.clinic.all()
+            
+#             # Hide superuser checkbox for non-superusers
+#             if not self.request.user.is_superuser:
+#                 self.fields['is_superuser'].widget = forms.HiddenInput()
+#                 self.fields['is_superuser'].disabled = True
+#                 self.fields['is_superuser'].initial = False
 
-#         # Hide superuser checkbox for non-superusers
-#         if self.request and not self.request.user.is_superuser:
-#             self.fields['is_superuser'].widget = forms.HiddenInput()
-#             self.fields['is_superuser'].disabled = True
-#             self.fields['is_superuser'].initial = False
 
 
 class UserCreationWithRoleForm(UserCreationForm):
@@ -143,9 +110,25 @@ class UserCreationWithRoleForm(UserCreationForm):
         # Set clinic queryset based on the request user
         if self.request:
             if self.request.user.is_superuser:
+                # Superusers can see and assign all clinics
                 self.fields['clinic'].queryset = Clinic.objects.all()
             else:
-                self.fields['clinic'].queryset = self.request.user.clinic.all()
+                # For regular admins creating new users:
+                # 1. Get all clinics they have access to
+                admin_clinics = self.request.user.clinic.all()
+                
+                # 2. If we're updating an existing user (rare with UserCreationForm, but possible)
+                if hasattr(self, 'instance') and self.instance and self.instance.pk:
+                    # Include any clinics the user being edited already belongs to
+                    user_clinics = list(self.instance.clinic.all().values_list('id', flat=True))
+                    admin_clinic_ids = list(admin_clinics.values_list('id', flat=True))
+                    
+                    # Combine both sets of clinics, removing duplicates
+                    combined_ids = list(set(admin_clinic_ids + user_clinics))
+                    self.fields['clinic'].queryset = Clinic.objects.filter(id__in=combined_ids)
+                else:
+                    # For brand new users, just show admin's clinics
+                    self.fields['clinic'].queryset = admin_clinics
             
             # Hide superuser checkbox for non-superusers
             if not self.request.user.is_superuser:
@@ -155,9 +138,12 @@ class UserCreationWithRoleForm(UserCreationForm):
                 
                 
 
+
+
+
 # class UserEditForm(forms.ModelForm):
 #     clinic = forms.ModelMultipleChoiceField(
-#         queryset=Clinic.objects.all(),
+#         queryset=Clinic.objects.none(),  # Start with empty queryset
 #         widget=forms.CheckboxSelectMultiple,
 #         required=False,
 #     )
@@ -167,51 +153,57 @@ class UserCreationWithRoleForm(UserCreationForm):
 #         fields = ['title', 'first_name', 'last_name', 'email', 'phone', 
 #                  'is_active', 'is_staff', 'verified', 
 #                  'is_superuser', 'clinic', 'role', 'profile_picture']
-        # widgets = {
-        #     'title': forms.Select(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'first_name': forms.TextInput(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'last_name': forms.TextInput(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'email': forms.EmailInput(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'role': forms.Select(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'is_active': forms.CheckboxInput(attrs={
-        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-        #     }),
-        #     'is_staff': forms.CheckboxInput(attrs={
-        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-        #     }),
-        #     'is_superuser': forms.CheckboxInput(attrs={
-        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-        #     }),
-        #     'verified': forms.CheckboxInput(attrs={
-        #         'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-        #     }),
-        #     'phone': forms.TextInput(attrs={
-        #         'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
-        #     }),
-        #     'profile_picture': forms.FileInput(attrs={
-        #         'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
-        #     }),
-        # }
+#         widgets = {
+#             'title': forms.Select(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'first_name': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'last_name': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'email': forms.EmailInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'role': forms.Select(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'is_active': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'is_staff': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'is_superuser': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'verified': forms.CheckboxInput(attrs={
+#                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+#             }),
+#             'phone': forms.TextInput(attrs={
+#                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
+#             }),
+#             'profile_picture': forms.FileInput(attrs={
+#                 'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100'
+#             }),
+#         }
         
-#     # MOVED OUTSIDE Meta class - same issue here!        
 #     def __init__(self, *args, **kwargs):
 #         self.request = kwargs.pop('request', None)
 #         super().__init__(*args, **kwargs)
         
-#         # Hide and disable is_superuser field if user is not a superuser
-#         if self.request and not self.request.user.is_superuser:
-#             self.fields['is_superuser'].widget = forms.HiddenInput()
-#             self.fields['is_superuser'].disabled = True
+#         # Set clinic queryset based on the request user
+#         if self.request:
+#             if self.request.user.is_superuser:
+#                 self.fields['clinic'].queryset = Clinic.objects.all()
+#             else:
+#                 self.fields['clinic'].queryset = self.request.user.clinic.all()
+            
+#             # Hide and disable is_superuser field if user is not a superuser
+#             if not self.request.user.is_superuser:
+#                 self.fields['is_superuser'].widget = forms.HiddenInput()
+#                 self.fields['is_superuser'].disabled = True
 
 
 
@@ -267,14 +259,33 @@ class UserEditForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
+        # Get the clinics the user is already associated with
+        user_clinics = []
+        if self.instance and self.instance.pk:
+            user_clinics = list(self.instance.clinic.all())
+            user_clinic_ids = [clinic.id for clinic in user_clinics]
+        
         # Set clinic queryset based on the request user
         if self.request:
             if self.request.user.is_superuser:
+                # Superusers can see all clinics
                 self.fields['clinic'].queryset = Clinic.objects.all()
             else:
-                self.fields['clinic'].queryset = self.request.user.clinic.all()
+                # For regular users (ADMIN), combine:
+                # 1. All clinics they have access to
+                admin_clinics = self.request.user.clinic.all()
+                admin_clinic_ids = [clinic.id for clinic in admin_clinics]
+                
+                # 2. Plus any clinics the user being edited already belongs to
+                # This prevents the "Select a valid choice" error when editing
+                if self.instance and self.instance.pk:
+                    # Get all unique clinic IDs by combining both lists
+                    combined_ids = list(set(admin_clinic_ids + user_clinic_ids))
+                    self.fields['clinic'].queryset = Clinic.objects.filter(id__in=combined_ids)
+                else:
+                    self.fields['clinic'].queryset = admin_clinics
             
-            # Hide and disable is_superuser field if user is not a superuser
+            # Hide superuser checkbox for non-superusers
             if not self.request.user.is_superuser:
                 self.fields['is_superuser'].widget = forms.HiddenInput()
                 self.fields['is_superuser'].disabled = True
@@ -716,6 +727,67 @@ class ClinicLogoForm(forms.ModelForm):
             return logo
         return None
         
+        
+class FacilityRegistrationForm(forms.Form):
+    TITLE_CHOICES = [
+        ('Dr', 'Dr'),
+        ('Mr', 'Mr'),
+        ('Mrs', 'Mrs'),
+        ('Ms', 'Ms'),
+        ('Prof', 'Prof'),
+    ]
+    title = forms.ChoiceField(choices=TITLE_CHOICES, label="Title")
+    first_name = forms.CharField(label="First Name")
+    last_name = forms.CharField(label="Last Name")
+    phone = forms.CharField(label="Phone Number")
+    username = forms.CharField(label="Username")
+    email = forms.EmailField(label="Email")
+    password = forms.CharField(widget=forms.PasswordInput, label="Password")
+    clinic_name = forms.CharField(label="Clinic Name")
+    
+    # Add required clinic fields
+    clinic_address = forms.CharField(label="Clinic Address", widget=forms.Textarea(attrs={'rows': 3}))
+    clinic_phone = forms.CharField(label="Clinic Phone")
+    clinic_email = forms.EmailField(label="Clinic Email")
+    
+    # Default clinic type choices
+    CLINIC_TYPE_CHOICES = [
+        ('GENERAL', 'General Clinic'),
+        ('EYE', 'Eye Clinic'),
+        ('DENTAL', 'Dental Clinic'),
+    ]
+    
+    # Dynamic clinic_type field - will be replaced in __init__
+    clinic_type = forms.ChoiceField(
+        choices=CLINIC_TYPE_CHOICES, 
+        label="Clinic Type",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    amount = forms.IntegerField(widget=forms.HiddenInput)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Dynamically get all clinic types from the database to include any existing values
+        try:
+            from core.models import Clinic
+            existing_types = set(Clinic.objects.values_list('clinic_type', flat=True).distinct())
+            
+            # Start with the standard choices
+            choices = list(self.CLINIC_TYPE_CHOICES)
+            
+            # Add any additional types from the database not in our standard choices
+            standard_values = [choice[0] for choice in self.CLINIC_TYPE_CHOICES]
+            for clinic_type in existing_types:
+                if clinic_type and clinic_type not in standard_values:
+                    choices.append((clinic_type, f'Other Clinic Type ({clinic_type})'))
+            
+            # Update the choices
+            self.fields['clinic_type'].choices = choices
+            
+        except (ImportError, Exception) as e:
+            # If there's any error, keep the default choices
+            pass
         
 
 

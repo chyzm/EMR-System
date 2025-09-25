@@ -1,0 +1,146 @@
+{% comment %} {% extends "base.html" %} {% endcomment %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Facility | DurielMedic+</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    .hero-gradient { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Navigation -->
+  <nav class="bg-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 flex items-center">
+            <a href="{% url 'core:home' %}">
+              <span class="text-blue-900 font-bold text-xl">DURIELMEDIC+</span>
+            </a>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Already have an account? Login</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl w-full space-y-8">
+      <div>
+        <div class="hero-gradient rounded-lg text-white p-6 mb-6 text-center relative">
+          {% if plan_type == 'TRIAL' %}
+            <div class="absolute top-0 right-0 bg-green-100 text-green-900 px-4 py-1 rounded-bl-lg font-semibold">
+              14-Day Trial
+            </div>
+          {% endif %}
+          <h2 class="text-3xl font-bold mb-2">Register Your Facility</h2>
+          <p class="text-xl opacity-90">Get started with our {{ plan_type }} plan</p>
+
+          <div class="mt-4 inline-flex items-center gap-2 bg-white text-blue-900 px-4 py-1 rounded-full text-sm font-semibold">
+            {% if plan_type == 'TRIAL' %}
+              <span class="text-green-700 font-bold">Free</span>
+              <span class="text-gray-600">/ 14 days</span>
+              <span class="inline-flex items-center text-green-700">
+                <i class="fas fa-check-circle mr-1"></i>No card required
+              </span>
+            {% elif plan_type == 'MONTHLY' %}
+              <span class="font-bold">₦15,000</span><span class="text-gray-600">/ month</span>
+            {% else %}
+              <span class="font-bold">₦150,000</span><span class="text-gray-600">/ year</span>
+              <span class="inline-flex items-center text-green-700">
+                <i class="fas fa-badge-percent mr-1"></i>Save ₦30,000
+              </span>
+            {% endif %}
+          </div>
+        </div>
+        
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+          <div class="p-6">
+            <form method="post" class="space-y-6">
+              {% csrf_token %}
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for field in form %}
+                  {% if field.name == 'amount' %}
+                    {{ field.as_hidden }}
+                  {% else %}
+                    <div class="{% if forloop.counter > 4 %}md:col-span-2{% endif %}">
+                      <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ field.label }}{% if field.field.required %}<span class="text-red-500">*</span>{% endif %}
+                      </label>
+                      <div class="mt-1">
+                        {% if field.field.widget.input_type == 'select' %}
+                          <select name="{{ field.name }}" id="{{ field.id_for_label }}"
+                                  class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm {% if field.errors %}border-red-500{% endif %}">
+                            {% for value, text in field.field.choices %}
+                              <option value="{{ value }}" {% if field.value == value %}selected{% endif %}>{{ text }}</option>
+                            {% endfor %}
+                          </select>
+                        {% else %}
+                          <input type="{{ field.field.widget.input_type }}" name="{{ field.name }}" id="{{ field.id_for_label }}"
+                                value="{{ field.value|default:'' }}"
+                                class="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm {% if field.errors %}border-red-500{% endif %}">
+                        {% endif %}
+                      </div>
+                      {% if field.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ field.errors.0 }}</p>
+                      {% endif %}
+                      {% if field.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ field.help_text }}</p>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+
+              <div class="flex items-center">
+                <input id="terms" name="terms" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" required>
+                <label for="terms" class="ml-2 block text-sm text-gray-700">
+                  I agree to the <a href="#" class="text-blue-600 hover:text-blue-500">Terms of Service</a> and
+                  <a href="#" class="text-blue-600 hover:text-blue-500">Privacy Policy</a>
+                </label>
+              </div>
+
+              <button type="submit" class="w-full bg-blue-900 hover:bg-blue-800 text-white font-semibold py-3 rounded-lg">
+                {% if plan_type == 'TRIAL' %}Start Free Trial{% else %}Proceed to Payment{% endif %}
+              </button>
+            </form>
+          </div>
+          
+          <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+            <div class="text-center text-sm text-gray-600">
+              <p>Already have an account? <a href="{% url 'login' %}" class="text-blue-600 hover:text-blue-500 font-medium">Sign in</a></p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-6 text-center">
+          <div class="inline-flex items-center text-sm text-gray-600">
+            <i class="fas fa-lock text-green-500 mr-2"></i>
+            <span>Your information is secure and encrypted</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-blue-900 text-white py-8 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <p>&copy; 2025 Duriel Tech Solutions. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

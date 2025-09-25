@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Select a Subscription Plan</h2>
+<ul>
+    {% for plan in plans %}
+    <li>
+        <strong>{{ plan.name }}</strong> - ₦{{ plan.price }}
+        <a href="{% url 'core:register_facility' plan.type %}">Register</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

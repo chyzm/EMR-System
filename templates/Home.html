@@ -223,7 +223,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         <div class="fade-in">
           <h1 class="text-4xl md:text-5xl font-bold mb-6">Revolutionizing Healthcare Management</h1>
-          <p class="text-xl mb-8">DurielMedic+ is a comprehensive EMR system designed to streamline operations for hospitals, eye clinics, and dental practices.</p>
+          <p class="text-xl mb-8">DurielMedic+ by SUAVEDEF is a comprehensive EMR system designed to streamline operations for hospitals, eye clinics, and dental practices.</p>
           <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
             <a href="#contact" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold text-center hover:bg-blue-50 transition-colors">Get Started</a>
             <a href="#features" class="px-6 py-3 rounded-lg border-2 border-white text-white font-semibold text-center hover:bg-white hover:text-blue-900 transition-colors">Explore Features</a>
@@ -552,93 +552,87 @@
 
 
     <!-- Pricing Section -->
-  <section id="pricing" class="py-16 bg-white">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-16">
-        <h2 class="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
-        <p class="text-xl text-gray-600 max-w-3xl mx-auto">Choose the plan that works best for your healthcare practice with no hidden fees.</p>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        <!-- Monthly Plan -->
-        <div class="bg-white rounded-xl p-8 shadow-lg border border-gray-200 relative">
-          <div class="absolute top-0 right-0 bg-blue-100 text-blue-900 px-4 py-1 rounded-bl-lg font-semibold">
-            Popular
-          </div>
-          <h3 class="text-2xl font-bold text-gray-900 mb-4">Monthly Plan</h3>
-          <div class="mb-6">
-            <span class="text-4xl font-bold text-gray-900">₦15,000</span>
-            <span class="text-gray-600">/month</span>
-          </div>
-          <p class="text-gray-600 mb-6">Perfect for smaller practices or those wanting to try our system.</p>
-          <ul class="space-y-3" style="margin-bottom: 4rem;">
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>All features included</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>Standard support</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>No long-term commitment</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>Monthly billing</span>
-            </li>
-          </ul>
-          <a href="#contact" class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-5">
-            Get Started
-          </a>
+      <section id="pricing" class="py-16 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16">
+          <h2 class="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">Choose the plan that works best for your healthcare practice with no hidden fees.</p>
         </div>
 
-        <!-- Yearly Plan -->
-        <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-blue-900 relative">
-          <div class="absolute top-0 right-0 bg-blue-900 text-white px-4 py-1 rounded-bl-lg font-semibold">
-            Save 17%
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <!-- 14-Day Trial -->
+          <div class="bg-white rounded-xl p-8 shadow-lg border border-gray-200 relative">
+            <div class="absolute top-0 right-0 bg-green-100 text-green-900 px-4 py-1 rounded-bl-lg font-semibold">
+              Start Free
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">14-Day Trial</h3>
+            <div class="mb-6">
+              <span class="text-4xl font-bold text-gray-900">Free</span>
+              <span class="text-gray-600">/14 days</span>
+            </div>
+            <p class="text-gray-600 mb-6">Try every feature. No card required.</p>
+            <ul class="space-y-3" style="margin-bottom: 8rem;">
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>All features included</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>No payment needed</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>Convert to paid anytime</span></li>
+            </ul>
+            <a href="{% url 'core:register_facility' 'TRIAL' %}"
+              class="block w-full bg-green-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">
+              Start Free Trial
+            </a>
           </div>
-          <h3 class="text-2xl font-bold text-gray-900 mb-4">Yearly Plan</h3>
-          <div class="mb-2">
-            <span class="text-4xl font-bold text-gray-900">₦150,000</span>
-            <span class="text-gray-600">/year</span>
+
+          <!-- Monthly Plan -->
+          <div class="bg-white rounded-xl p-8 shadow-lg border border-gray-200 relative">
+            <div class="absolute top-0 right-0 bg-blue-100 text-blue-900 px-4 py-1 rounded-bl-lg font-semibold">Popular</div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">Monthly Plan</h3>
+            <div class="mb-6">
+              <span class="text-4xl font-bold text-gray-900">₦15,000</span>
+              <span class="text-gray-600">/month</span>
+            </div>
+            <p class="text-gray-600 mb-6">Perfect for smaller practices or those wanting to try our system.</p>
+            <ul class="space-y-3" style="margin-bottom: 4rem;">
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>All features included</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>Standard support</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>No long-term commitment</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>Monthly billing</span></li>
+            </ul>
+            <a href="{% url 'core:register_facility' 'MONTHLY' %}"
+              class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors mt-5">
+              Get Started
+            </a>
           </div>
-          <div class="mb-4">
-            <span class="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-semibold">
-              Save ₦30,000
-            </span>
+
+          <!-- Yearly Plan -->
+          <div class="bg-white rounded-xl p-8 shadow-lg border-2 border-blue-900 relative">
+            <div class="absolute top-0 right-0 bg-blue-900 text-white px-4 py-1 rounded-bl-lg font-semibold">Save 17%</div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-4">Yearly Plan</h3>
+            <div class="mb-2">
+              <span class="text-4xl font-bold text-gray-900">₦150,000</span>
+              <span class="text-gray-600">/year</span>
+            </div>
+            <div class="mb-4">
+              <span class="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-semibold">Save ₦30,000</span>
+            </div>
+            <p class="text-gray-600 mb-6">Ideal for established practices looking for the best value.</p>
+            <ul class="space-y-3 mb-8">
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>All features included</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>Priority support</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>Free setup assistance</span></li>
+              <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i><span>One annual payment</span></li>
+            </ul>
+            <a href="{% url 'core:register_facility' 'YEARLY' %}"
+              class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">
+              Get Started
+            </a>
           </div>
-          <p class="text-gray-600 mb-6">Ideal for established practices looking for the best value.</p>
-          <ul class="space-y-3 mb-8">
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>All features included</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>Priority support</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>Free setup assistance</span>
-            </li>
-            <li class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-2"></i>
-              <span>One annual payment</span>
-            </li>
-          </ul>
-          <a href="#contact" class="block w-full bg-blue-900 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">
-            Get Started
-          </a>
+        </div>
+
+        <div class="mt-12 text-center">
+          <p class="text-gray-600">Need a customized plan? <a href="#contact" class="text-blue-900 font-semibold hover:underline">Contact us</a> for enterprise solutions.</p>
         </div>
       </div>
-
-      <div class="mt-12 text-center">
-        <p class="text-gray-600">Need a customized plan? <a href="#contact" class="text-blue-900 font-semibold hover:underline">Contact us</a> for enterprise solutions.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
   <!-- CTA Section -->
   <section class="py-16 cta-gradient text-white">

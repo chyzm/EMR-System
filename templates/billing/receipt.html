@@ -143,7 +143,21 @@
     <!-- Footer -->
     <div class="bg-gray-50 px-8 py-4 text-center text-sm text-gray-500 border-t border-gray-200 print:border-t-2 print:border-gray-300">
         <p>For any questions, please contact our billing department</p>
-        <p class="mt-1">© {% now "Y" %} One Life Clinic. All rights reserved.</p>
+        <p class="mt-1">
+          © {% now "Y" %}
+          {% if clinic_name %}
+            {{ clinic_name }}
+          {% elif payment.billing.clinic %}
+            {{ payment.billing.clinic.name }}
+          {% elif request.session.clinic_name %}
+            {{ request.session.clinic_name }}
+          {% elif request.user.is_authenticated and request.user.primary_clinic %}
+            {{ request.user.primary_clinic.name }}
+          {% else %}
+            Your Clinic
+          {% endif %}.
+          All rights reserved.
+        </p>
     </div>
 </div>
 

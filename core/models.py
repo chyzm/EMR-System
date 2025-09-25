@@ -1,6 +1,6 @@
 # from time import timezone as tz
 from django.utils import timezone as tz
-
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinLengthValidator
@@ -32,9 +32,46 @@ class Clinic(models.Model):
     logo = models.ImageField(upload_to='clinic_logos/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    subscription_type = models.CharField(
+        max_length=10,
+        choices=(('TRIAL','Trial'), ('MONTHLY', 'Monthly'), ('YEARLY', 'Yearly')),
+        null=True, blank=True
+    )
+    subscription_start_date = models.DateField(null=True, blank=True)
+    subscription_end_date = models.DateField(null=True, blank=True)
+    is_subscription_active = models.BooleanField(default=False)
+    last_reminder_sent = models.CharField(
+        max_length=8,
+        choices=(('NONE', 'None'), ('D14', '14 days'), ('D7', '7 days'), ('D0', 'Expiry day')),
+        default='NONE'
+    ) 
+    
     
     def __str__(self):
         return f"{self.get_clinic_type_display()} - {self.name}"
+    
+    def days_until_expiration(self):
+        if not self.subscription_end_date:
+            return None
+        return (self.subscription_end_date - tz.now().date()).days
+
+    def set_subscription(self, plan_type: str):
+        TRIAL_DAYS = 14  # set to 7 if you want a 7-day trial
+        today = tz.now().date()
+        self.subscription_type = plan_type
+        self.subscription_start_date = today
+        if plan_type == 'TRIAL':
+            self.subscription_end_date = today + timedelta(days=TRIAL_DAYS)
+        elif plan_type == 'MONTHLY':
+            self.subscription_end_date = today + timedelta(days=30)
+        else:  # YEARLY
+            self.subscription_end_date = today + timedelta(days=365)
+        self.is_subscription_active = True
+        self.last_reminder_sent = 'NONE'
+        self.save(update_fields=[
+            'subscription_type','subscription_start_date','subscription_end_date',
+            'is_subscription_active','last_reminder_sent'
+        ])
 
 class CustomUser(AbstractUser):
     TITLE_CHOICES = (

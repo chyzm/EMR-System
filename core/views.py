@@ -24,7 +24,7 @@ from django.db.models import Sum
 from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required
-from DurielMedicApp.models import Appointment, MedicalRecord  
+from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
@@ -574,9 +574,9 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Patient
     template_name = 'patients/patient_detail.html'
     context_object_name = 'patient'
-    
+
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST']
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST']
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -689,6 +689,19 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         except EmptyPage:
             bills = bills_paginator.page(bills_paginator.num_pages)
         context['bills'] = bills
+
+        # Physiotherapy Records Pagination - Most recent first (for GENERAL clinic)
+        if self.request.session.get('clinic_type') == 'GENERAL':
+            physio_records_list = PhysiotherapyRecord.objects.filter(patient=patient).order_by('-created_at')
+            physio_paginator = Paginator(physio_records_list, items_per_page)
+            physio_page = self.request.GET.get('physio_page', 1)
+            try:
+                physiotherapy_records = physio_paginator.page(physio_page)
+            except PageNotAnInteger:
+                physiotherapy_records = physio_paginator.page(1)
+            except EmptyPage:
+                physiotherapy_records = physio_paginator.page(physio_paginator.num_pages)
+            context['physiotherapy_records'] = physiotherapy_records
 
         return context
 

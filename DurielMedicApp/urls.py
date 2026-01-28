@@ -17,6 +17,7 @@ urlpatterns = [
     path('patients/<str:patient_id>/medical-records/add/', views.add_medical_record, name='add_medical_record'),
     path('medical-records/<int:record_id>/edit/', views.edit_medical_record, name='edit_medical_record'),
     path('medical-records/<int:record_id>/delete/', views.delete_medical_record, name='delete_medical_record'),
+    path('medical-records/<int:record_id>/export-pdf/', views.export_medical_record_pdf, name='export_medical_record_pdf'),
     
     # Appointments
     path('appointments/', AppointmentListView.as_view(), name='appointment_list'),
@@ -61,4 +62,10 @@ urlpatterns = [
     
     # Reports
     path('reports/generate/', views.generate_report, name='generate_report'),
+
+    # Physiotherapy Records
+    path('patients/<str:patient_id>/physiotherapy-records/add/', views.add_physiotherapy_record, name='add_physiotherapy_record'),
+    path('physiotherapy-records/<int:record_id>/edit/', views.edit_physiotherapy_record, name='edit_physiotherapy_record'),
+    path('physiotherapy-records/<int:record_id>/delete/', views.delete_physiotherapy_record, name='delete_physiotherapy_record'),
+    path('physiotherapy-records/<int:record_id>/export-pdf/', views.export_physiotherapy_record_pdf, name='export_physiotherapy_record_pdf'),
 ]

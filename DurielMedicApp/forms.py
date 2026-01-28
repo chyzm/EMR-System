@@ -4,7 +4,7 @@ from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from core.models import Patient, Prescription
-from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp
+from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord
 
 class VitalsForm(forms.ModelForm):
     class Meta:
@@ -208,5 +208,36 @@ class MedicalRecordForm(forms.ModelForm):
             'imaging_results': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter imaging results...'}),
             'allergies': forms.Textarea(attrs={'rows': 2, 'class': 'form-control', 'placeholder': 'Enter known allergies...'}),
             'procedures': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter procedures performed...'}),
+            'additional_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter any additional notes...'}),
+        }
+
+
+class PhysiotherapyRecordForm(forms.ModelForm):
+    class Meta:
+        model = PhysiotherapyRecord
+        fields = [
+            'chief_complaint',
+            'history_of_present_illness',
+            'past_medical_history',
+            'physical_examination',
+            'diagnosis',
+            'treatment_goals',
+            'treatment_plan',
+            'exercises_prescribed',
+            'modalities_used',
+            'progress_notes',
+            'additional_notes',
+        ]
+        widgets = {
+            'chief_complaint': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter chief complaint...'}),
+            'history_of_present_illness': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter history of present illness...'}),
+            'past_medical_history': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter past medical history...'}),
+            'physical_examination': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter physical examination findings...'}),
+            'diagnosis': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter diagnosis...'}),
+            'treatment_goals': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter treatment goals...'}),
+            'treatment_plan': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter treatment plan...'}),
+            'exercises_prescribed': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter exercises prescribed...'}),
+            'modalities_used': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter modalities used (e.g., ultrasound, TENS, heat/cold therapy)...'}),
+            'progress_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter progress notes...'}),
             'additional_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter any additional notes...'}),
         }

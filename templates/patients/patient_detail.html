@@ -175,216 +175,509 @@
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Records</h2>
         {% if request.session.clinic_type == "GENERAL" %}
-            {% if request.user.role in 'DOCTOR' %}
-            <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="text-sm hover:underline">Add Record</a>
+            {% if request.user.role == 'DOCTOR' %}
+            <a href="{% url 'DurielMedicApp:add_medical_record' patient.pk %}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
+                <i class="fas fa-plus mr-1"></i>Add Record
+            </a>
             {% endif %}
         {% endif %}
         {% if request.session.clinic_type == "EYE" %}
-            {% if request.user.role in 'OPTOMETRIST' %}
-            <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="text-sm hover:underline">Add Record</a>
+            {% if request.user.role == 'OPTOMETRIST' %}
+            <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
+                <i class="fas fa-plus mr-1"></i>Add Record
+            </a>
             {% endif %}
         {% endif %}
     </div>
+
     <div class="divide-y" id="medical-records-list">
         {% if request.session.clinic_type == "GENERAL" %}
             {% for record in medical_records %}
-            <div class="p-4 hover:bg-gray-50">
+            <div class="p-4 hover:bg-gray-50 border-l-4 border-blue-500">
                 <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="font-medium">{{ record.title }}</h3>
-                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
-                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
-                        </p>
-                        {% if request.user.role in 'DOCTOR' %}
-                        <div class="mt-2">
-                            <a href="{% url 'DurielMedicApp:edit_medical_record' record.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="{% url 'DurielMedicApp:delete_medical_record' record.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                    <!-- Left: Date and Snippet -->
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded">
+                                {{ record.created_at|date:"M j, Y" }}
+                            </span>
+                            <span class="text-xs text-gray-500">
+                                by {{ record.created_by.get_full_name|default:"Unknown" }}
+                            </span>
                         </div>
+
+                        <!-- Snippet Preview -->
+                        <div class="text-sm text-gray-700 space-y-1">
+                            {% if record.diagnosis %}
+                            <p><span class="font-medium text-gray-900">Diagnosis:</span> {{ record.diagnosis|truncatewords:15 }}</p>
+                            {% endif %}
+                            {% if record.chief_complaint %}
+                            <p><span class="font-medium text-gray-900">Chief Complaint:</span> {{ record.chief_complaint|truncatewords:10 }}</p>
+                            {% endif %}
+                            {% if not record.diagnosis and not record.chief_complaint %}
+                            <p class="text-gray-500 italic">No diagnosis or complaint recorded</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Right: Action Buttons -->
+                    <div class="flex items-center gap-2 ml-4">
+                        <!-- View Button -->
+                        <button onclick="openRecordModal({{ record.id }})"
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded transition">
+                            <i class="fas fa-eye mr-1"></i>View
+                        </button>
+
+                        <!-- PDF Export -->
+                        <a href="{% url 'DurielMedicApp:export_medical_record_pdf' record.id %}"
+                           class="bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-1.5 rounded transition">
+                            <i class="fas fa-file-pdf mr-1"></i>PDF
+                        </a>
+
+                        {% if request.user.role == 'DOCTOR' %}
+                        <!-- Edit Button -->
+                        <a href="{% url 'DurielMedicApp:edit_medical_record' record.id %}"
+                           class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded transition">
+                            <i class="fas fa-edit mr-1"></i>Edit
+                        </a>
+
+                        <!-- Delete Button -->
+                        <a href="{% url 'DurielMedicApp:delete_medical_record' record.id %}"
+                           class="bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-1.5 rounded transition"
+                           onclick="return confirm('Are you sure you want to delete this record?');">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </a>
                         {% endif %}
                     </div>
                 </div>
             </div>
             {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No medical records found
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-file-medical text-4xl mb-3 text-gray-300"></i>
+                <p>No medical records found</p>
             </div>
             {% endfor %}
         {% elif request.session.clinic_type == "EYE" %}
             <!-- Eye Medical Records -->
             {% for record in eye_medical_records %}
-            <div class="p-4 hover:bg-gray-50">
+            <div class="p-4 hover:bg-gray-50 border-l-4 border-green-500">
                 <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="font-medium">{{ record.title }}</h3>
-                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
-                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
-                        </p>
-                        {% if request.user.role in 'OPTOMETRIST' %}
-                        <div class="mt-2">
-                            <a href="{% url 'DurielEyeApp:edit_eye_medical_record' record.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="{% url 'DurielEyeApp:delete_eye_medical_record' record.id %}" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded">
+                                {{ record.created_at|date:"M j, Y" }}
+                            </span>
+                            <span class="text-xs text-gray-500">
+                                by {{ record.created_by.get_full_name|default:"Unknown" }}
+                            </span>
                         </div>
+                        <div class="text-sm text-gray-700">
+                            <p><span class="font-medium">{{ record.get_record_type_display }}</span></p>
+                            <p class="text-gray-600">{{ record.description|truncatewords:20 }}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 ml-4">
+                        <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded">
+                            <i class="fas fa-eye mr-1"></i>View
+                        </button>
+                        {% if request.user.role == 'OPTOMETRIST' %}
+                        <a href="{% url 'DurielEyeApp:edit_eye_medical_record' record.id %}"
+                           class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded">
+                            <i class="fas fa-edit mr-1"></i>Edit
+                        </a>
+                        <a href="{% url 'DurielEyeApp:delete_eye_medical_record' record.id %}"
+                           class="bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-1.5 rounded"
+                           onclick="return confirm('Are you sure?');">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </a>
                         {% endif %}
                     </div>
                 </div>
             </div>
             {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No eye medical records found
-            </div>
-            {% endfor %}
-        {% else %}
-            <!-- Show all medical records if no specific clinic type -->
-            {% for record in medical_records %}
-            <div class="p-4 hover:bg-gray-50">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="font-medium">{{ record.title }}</h3>
-                        <p class="text-sm text-gray-600">{{ record.get_record_type_display }}</p>
-                        <p class="mt-2 text-gray-700">{{ record.description }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            {{ record.created_at|date:"M j, Y" }} by {{ record.created_by.get_full_name }}
-                        </p>
-                        {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
-                        <div class="mt-2">
-                            <a href="#" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
-                            <a href="#" class="text-red-600 hover:text-red-800 text-sm">Delete</a>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div class="p-4 text-center text-gray-500">
-                No medical records found
+            <div class="p-8 text-center text-gray-500">
+                <i class="fas fa-eye text-4xl mb-3 text-gray-300"></i>
+                <p>No eye medical records found</p>
             </div>
             {% endfor %}
         {% endif %}
 
         <!-- Medical Records Pagination -->
-        {% if request.session.clinic_type == "GENERAL" %}
-            {% if medical_records.has_other_pages %}
-            <div class="px-6 py-4 bg-gray-50 border-t">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-700">
-                        Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
-                    </div>
-                    <div class="flex space-x-1">
-                        {% if medical_records.has_previous %}
-                            <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Previous
-                            </a>
+        {% if request.session.clinic_type == "GENERAL" and medical_records.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
+                </div>
+                <div class="flex space-x-1">
+                    {% if medical_records.has_previous %}
+                        <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Previous</a>
+                    {% endif %}
+                    {% for num in medical_records.paginator.page_range %}
+                        {% if medical_records.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
+                            <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">{{ num }}</a>
                         {% endif %}
-                        
-                        {% for num in medical_records.paginator.page_range %}
-                            {% if medical_records.number == num %}
-                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
-                            {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
-                                <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                    {{ num }}
-                                </a>
-                            {% endif %}
-                        {% endfor %}
-                        
-                        {% if medical_records.has_next %}
-                            <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Next
-                            </a>
-                        {% endif %}
-                    </div>
+                    {% endfor %}
+                    {% if medical_records.has_next %}
+                        <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Next</a>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
-        {% elif request.session.clinic_type == "EYE" %}
-            {% if eye_medical_records.has_other_pages %}
-            <div class="px-6 py-4 bg-gray-50 border-t">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-700">
-                        Showing {{ eye_medical_records.start_index }} to {{ eye_medical_records.end_index }} of {{ eye_medical_records.paginator.count }} records
-                    </div>
-                    <div class="flex space-x-1">
-                        {% if eye_medical_records.has_previous %}
-                            <a href="?eye_medical_page={{ eye_medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Previous
-                            </a>
+        </div>
+        {% endif %}
+
+        {% if request.session.clinic_type == "EYE" and eye_medical_records.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ eye_medical_records.start_index }} to {{ eye_medical_records.end_index }} of {{ eye_medical_records.paginator.count }} records
+                </div>
+                <div class="flex space-x-1">
+                    {% if eye_medical_records.has_previous %}
+                        <a href="?eye_medical_page={{ eye_medical_records.previous_page_number }}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Previous</a>
+                    {% endif %}
+                    {% for num in eye_medical_records.paginator.page_range %}
+                        {% if eye_medical_records.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > eye_medical_records.number|add:'-3' and num < eye_medical_records.number|add:'3' %}
+                            <a href="?eye_medical_page={{ num }}"
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">{{ num }}</a>
                         {% endif %}
-                        
-                        {% for num in eye_medical_records.paginator.page_range %}
-                            {% if eye_medical_records.number == num %}
-                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
-                            {% elif num > eye_medical_records.number|add:'-3' and num < eye_medical_records.number|add:'3' %}
-                                <a href="?eye_medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                    {{ num }}
-                                </a>
-                            {% endif %}
-                        {% endfor %}
-                        
-                        {% if eye_medical_records.has_next %}
-                            <a href="?eye_medical_page={{ eye_medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Next
-                            </a>
-                        {% endif %}
-                    </div>
+                    {% endfor %}
+                    {% if eye_medical_records.has_next %}
+                        <a href="?eye_medical_page={{ eye_medical_records.next_page_number }}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Next</a>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
-        {% else %}
-            {% if medical_records.has_other_pages %}
-            <div class="px-6 py-4 bg-gray-50 border-t">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-700">
-                        Showing {{ medical_records.start_index }} to {{ medical_records.end_index }} of {{ medical_records.paginator.count }} records
-                    </div>
-                    <div class="flex space-x-1">
-                        {% if medical_records.has_previous %}
-                            <a href="?medical_page={{ medical_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Previous
-                            </a>
-                        {% endif %}
-                        
-                        {% for num in medical_records.paginator.page_range %}
-                            {% if medical_records.number == num %}
-                                <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
-                            {% elif num > medical_records.number|add:'-3' and num < medical_records.number|add:'3' %}
-                                <a href="?medical_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                                   class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                    {{ num }}
-                                </a>
-                            {% endif %}
-                        {% endfor %}
-                        
-                        {% if medical_records.has_next %}
-                            <a href="?medical_page={{ medical_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'medical_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
-                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
-                                Next
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
+        </div>
         {% endif %}
     </div>
 </div>
+
+<!-- Medical Record Modal -->
+<div id="recordModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        <!-- Modal Header -->
+        <div class="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
+            <h3 class="text-lg font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Record Details</h3>
+            <button onclick="closeRecordModal()" class="text-white hover:text-gray-300 text-2xl">&times;</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div id="modalContent" class="p-6 overflow-y-auto max-h-[70vh]">
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+                <p class="mt-2 text-gray-600">Loading record...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store all records data for modal display
+const recordsData = {
+    {% for record in medical_records %}
+    {{ record.id }}: {
+        date: "{{ record.created_at|date:'F j, Y' }}",
+        created_by: "{{ record.created_by.get_full_name|default:'Unknown' }}",
+        chief_complaint: `{{ record.chief_complaint|escapejs }}`,
+        history_of_present_illness: `{{ record.history_of_present_illness|escapejs }}`,
+        past_medical_history: `{{ record.past_medical_history|escapejs }}`,
+        diagnosis: `{{ record.diagnosis|escapejs }}`,
+        treatment_plan: `{{ record.treatment_plan|escapejs }}`,
+        lab_results: `{{ record.lab_results|escapejs }}`,
+        imaging_results: `{{ record.imaging_results|escapejs }}`,
+        allergies: `{{ record.allergies|escapejs }}`,
+        procedures: `{{ record.procedures|escapejs }}`,
+        additional_notes: `{{ record.additional_notes|escapejs }}`
+    },
+    {% endfor %}
+};
+
+function openRecordModal(recordId) {
+    const record = recordsData[recordId];
+    if (!record) return;
+
+    const sections = [
+        { title: 'Chief Complaint', content: record.chief_complaint },
+        { title: 'History of Present Illness', content: record.history_of_present_illness },
+        { title: 'Past Medical History', content: record.past_medical_history },
+        { title: 'Diagnosis', content: record.diagnosis },
+        { title: 'Treatment Plan', content: record.treatment_plan },
+        { title: 'Lab Results', content: record.lab_results },
+        { title: 'Imaging Results', content: record.imaging_results },
+        { title: 'Allergies', content: record.allergies },
+        { title: 'Procedures', content: record.procedures },
+        { title: 'Additional Notes', content: record.additional_notes }
+    ];
+
+    let html = `
+        <div class="mb-4 pb-4 border-b">
+            <p class="text-sm text-gray-600">Date: <span class="font-medium text-gray-900">${record.date}</span></p>
+            <p class="text-sm text-gray-600">Recorded by: <span class="font-medium text-gray-900">${record.created_by}</span></p>
+        </div>
+        <div class="space-y-4">
+    `;
+
+    sections.forEach(section => {
+        if (section.content && section.content.trim()) {
+            html += `
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <h4 class="font-semibold text-gray-800 mb-1">${section.title}</h4>
+                    <p class="text-gray-700 whitespace-pre-wrap">${section.content}</p>
+                </div>
+            `;
+        }
+    });
+
+    html += '</div>';
+
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('recordModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeRecordModal() {
+    document.getElementById('recordModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal on outside click
+document.getElementById('recordModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRecordModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeRecordModal();
+});
+</script>
 {% endif %}
-            
+
+<!-- Physiotherapy Records Section -->
+{% if request.session.clinic_type == "GENERAL" %}
+{% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-green-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-walking mr-2"></i>Physiotherapy Records</h2>
+        {% if request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+        <a href="{% url 'DurielMedicApp:add_physiotherapy_record' patient.pk %}" class="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded">
+            <i class="fas fa-plus mr-1"></i>Add Record
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="divide-y" id="physiotherapy-records-list">
+        {% for record in physiotherapy_records %}
+        <div class="p-4 hover:bg-gray-50 border-l-4 border-green-500">
+            <div class="flex justify-between items-start">
+                <!-- Left: Date and Snippet -->
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded">
+                            {{ record.created_at|date:"M j, Y" }}
+                        </span>
+                        <span class="text-xs text-gray-500">
+                            by {{ record.created_by.get_full_name|default:"Unknown" }}
+                        </span>
+                    </div>
+
+                    <!-- Snippet Preview -->
+                    <div class="text-sm text-gray-700 space-y-1">
+                        {% if record.diagnosis %}
+                        <p><span class="font-medium text-gray-900">Diagnosis:</span> {{ record.diagnosis|truncatewords:15 }}</p>
+                        {% endif %}
+                        {% if record.chief_complaint %}
+                        <p><span class="font-medium text-gray-900">Chief Complaint:</span> {{ record.chief_complaint|truncatewords:10 }}</p>
+                        {% endif %}
+                        {% if record.treatment_goals %}
+                        <p><span class="font-medium text-gray-900">Treatment Goals:</span> {{ record.treatment_goals|truncatewords:10 }}</p>
+                        {% endif %}
+                        {% if not record.diagnosis and not record.chief_complaint and not record.treatment_goals %}
+                        <p class="text-gray-500 italic">No diagnosis or complaint recorded</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Right: Action Buttons -->
+                <div class="flex items-center gap-2 ml-4">
+                    <!-- View Button -->
+                    <button onclick="openPhysioRecordModal({{ record.id }})"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-eye mr-1"></i>View
+                    </button>
+
+                    <!-- PDF Export -->
+                    <a href="{% url 'DurielMedicApp:export_physiotherapy_record_pdf' record.id %}"
+                       class="bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-file-pdf mr-1"></i>PDF
+                    </a>
+
+                    {% if request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+                    <!-- Edit Button -->
+                    <a href="{% url 'DurielMedicApp:edit_physiotherapy_record' record.id %}"
+                       class="bg-green-100 hover:bg-green-200 text-green-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-edit mr-1"></i>Edit
+                    </a>
+
+                    <!-- Delete Button -->
+                    <a href="{% url 'DurielMedicApp:delete_physiotherapy_record' record.id %}"
+                       class="bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-1.5 rounded transition"
+                       onclick="return confirm('Are you sure you want to delete this record?');">
+                        <i class="fas fa-trash mr-1"></i>Delete
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-8 text-center text-gray-500">
+            <i class="fas fa-walking text-4xl mb-3 text-gray-300"></i>
+            <p>No physiotherapy records found</p>
+        </div>
+        {% endfor %}
+
+        <!-- Physiotherapy Records Pagination -->
+        {% if physiotherapy_records.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ physiotherapy_records.start_index }} to {{ physiotherapy_records.end_index }} of {{ physiotherapy_records.paginator.count }} records
+                </div>
+                <div class="flex space-x-1">
+                    {% if physiotherapy_records.has_previous %}
+                        <a href="?physio_page={{ physiotherapy_records.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'physio_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Previous</a>
+                    {% endif %}
+                    {% for num in physiotherapy_records.paginator.page_range %}
+                        {% if physiotherapy_records.number == num %}
+                            <span class="px-3 py-2 text-sm bg-green-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > physiotherapy_records.number|add:'-3' and num < physiotherapy_records.number|add:'3' %}
+                            <a href="?physio_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'physio_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    {% if physiotherapy_records.has_next %}
+                        <a href="?physio_page={{ physiotherapy_records.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'physio_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Physiotherapy Record Modal -->
+<div id="physioRecordModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        <!-- Modal Header -->
+        <div class="bg-green-800 text-white px-6 py-4 flex justify-between items-center">
+            <h3 class="text-lg font-semibold"><i class="fas fa-walking mr-2"></i>Physiotherapy Record Details</h3>
+            <button onclick="closePhysioRecordModal()" class="text-white hover:text-gray-300 text-2xl">&times;</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div id="physioModalContent" class="p-6 overflow-y-auto max-h-[70vh]">
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-3xl text-green-600"></i>
+                <p class="mt-2 text-gray-600">Loading record...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store all physiotherapy records data for modal display
+const physioRecordsData = {
+    {% for record in physiotherapy_records %}
+    {{ record.id }}: {
+        date: "{{ record.created_at|date:'F j, Y' }}",
+        created_by: "{{ record.created_by.get_full_name|default:'Unknown' }}",
+        chief_complaint: `{{ record.chief_complaint|escapejs }}`,
+        history_of_present_illness: `{{ record.history_of_present_illness|escapejs }}`,
+        past_medical_history: `{{ record.past_medical_history|escapejs }}`,
+        physical_examination: `{{ record.physical_examination|escapejs }}`,
+        diagnosis: `{{ record.diagnosis|escapejs }}`,
+        treatment_goals: `{{ record.treatment_goals|escapejs }}`,
+        treatment_plan: `{{ record.treatment_plan|escapejs }}`,
+        exercises_prescribed: `{{ record.exercises_prescribed|escapejs }}`,
+        modalities_used: `{{ record.modalities_used|escapejs }}`,
+        progress_notes: `{{ record.progress_notes|escapejs }}`,
+        additional_notes: `{{ record.additional_notes|escapejs }}`
+    },
+    {% endfor %}
+};
+
+function openPhysioRecordModal(recordId) {
+    const record = physioRecordsData[recordId];
+    if (!record) return;
+
+    const sections = [
+        { title: 'Chief Complaint', content: record.chief_complaint },
+        { title: 'History of Present Illness', content: record.history_of_present_illness },
+        { title: 'Past Medical History', content: record.past_medical_history },
+        { title: 'Physical Examination', content: record.physical_examination },
+        { title: 'Diagnosis', content: record.diagnosis },
+        { title: 'Treatment Goals', content: record.treatment_goals },
+        { title: 'Treatment Plan', content: record.treatment_plan },
+        { title: 'Exercises Prescribed', content: record.exercises_prescribed },
+        { title: 'Modalities Used', content: record.modalities_used },
+        { title: 'Progress Notes', content: record.progress_notes },
+        { title: 'Additional Notes', content: record.additional_notes }
+    ];
+
+    let html = `
+        <div class="mb-4 pb-4 border-b">
+            <p class="text-sm text-gray-600">Date: <span class="font-medium text-gray-900">${record.date}</span></p>
+            <p class="text-sm text-gray-600">Recorded by: <span class="font-medium text-gray-900">${record.created_by}</span></p>
+        </div>
+        <div class="space-y-4">
+    `;
+
+    sections.forEach(section => {
+        if (section.content && section.content.trim()) {
+            html += `
+                <div class="border-l-4 border-green-500 pl-4">
+                    <h4 class="font-semibold text-gray-800 mb-1">${section.title}</h4>
+                    <p class="text-gray-700 whitespace-pre-wrap">${section.content}</p>
+                </div>
+            `;
+        }
+    });
+
+    html += '</div>';
+
+    document.getElementById('physioModalContent').innerHTML = html;
+    document.getElementById('physioRecordModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closePhysioRecordModal() {
+    document.getElementById('physioRecordModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close physiotherapy modal on outside click
+document.getElementById('physioRecordModal').addEventListener('click', function(e) {
+    if (e.target === this) closePhysioRecordModal();
+});
+
+// Close physiotherapy modal on Escape key (add to existing handler)
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePhysioRecordModal();
+});
+</script>
+{% endif %}
+{% endif %}
+
     <!-- Eye Exams Section (only for EYE clinic) -->
     {% if request.session.clinic_type == "EYE" and eye_exams %}
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">

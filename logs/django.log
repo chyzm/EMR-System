@@ -279,3 +279,69 @@ Not Found: /ws/notifications/
 "GET /ws/notifications/ HTTP/1.1" 404 25848
 Not Found: /ws/notifications/
 "GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Internal Server Error: /DurielMedicAppmedical-records/2/export-pdf/
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\core\handlers\base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\myenv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\core\decorators.py", line 13, in _wrapped_view
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\User\Desktop\SUAVEDEF\IT\EMR\DurielMedicApp\views.py", line 453, in export_medical_record_pdf
+    from reportlab.lib.pagesizes import A4
+ModuleNotFoundError: No module named 'reportlab'
+"GET /DurielMedicAppmedical-records/2/export-pdf/ HTTP/1.1" 500 90101
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848

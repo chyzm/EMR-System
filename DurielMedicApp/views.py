@@ -10,12 +10,12 @@ from django.contrib.auth import get_user_model
 from core.models import Patient, Clinic, Billing
 from .models import (
     Appointment, Vitals, Admission, FollowUp,
-    Prescription, MedicalRecord
+    Prescription, MedicalRecord, PhysiotherapyRecord
 )
 from core.views import PatientDetailView
 from .forms import (
     VitalsForm, AppointmentForm, FollowUpForm,
-    MedicalRecordForm
+    MedicalRecordForm, PhysiotherapyRecordForm
 )
 from core.forms import PrescriptionForm
 from core.decorators import role_required
@@ -444,6 +444,212 @@ def delete_medical_record(request, record_id):
     messages.success(request, 'Medical record deleted successfully!')
     return redirect('core:patient_detail', pk=patient_id)
 
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def export_medical_record_pdf(request, record_id):
+    """Export a medical record as PDF"""
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT
+
+    record = get_object_or_404(MedicalRecord, pk=record_id)
+    patient = record.patient
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.75*inch, leftMargin=0.75*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=18, spaceAfter=20, textColor=colors.darkblue)
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=12, spaceBefore=15, spaceAfter=8,
+                                   textColor=colors.darkblue, borderPadding=(0, 0, 0, 5))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, spaceAfter=10, leading=14)
+
+    story = []
+
+    # Header
+    story.append(Paragraph(f"Medical Record", title_style))
+    story.append(Paragraph(f"<b>Patient:</b> {patient.full_name}", body_style))
+    story.append(Paragraph(f"<b>Patient ID:</b> {patient.patient_id}", body_style))
+    story.append(Paragraph(f"<b>Date:</b> {record.created_at.strftime('%B %d, %Y')}", body_style))
+    story.append(Paragraph(f"<b>Recorded by:</b> {record.created_by.get_full_name() if record.created_by else 'Unknown'}", body_style))
+    story.append(Spacer(1, 0.3*inch))
+
+    # Sections
+    sections = [
+        ('Chief Complaint', record.chief_complaint),
+        ('History of Present Illness', record.history_of_present_illness),
+        ('Past Medical History', record.past_medical_history),
+        ('Diagnosis', record.diagnosis),
+        ('Treatment Plan', record.treatment_plan),
+        ('Lab Results', record.lab_results),
+        ('Imaging Results', record.imaging_results),
+        ('Allergies', record.allergies),
+        ('Procedures', record.procedures),
+        ('Additional Notes', record.additional_notes),
+    ]
+
+    for title, content in sections:
+        if content and content.strip():
+            story.append(Paragraph(title, heading_style))
+            # Handle line breaks in content
+            content_formatted = content.replace('\n', '<br/>')
+            story.append(Paragraph(content_formatted, body_style))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer, content_type='application/pdf')
+    filename = f"medical_record_{patient.patient_id}_{record.created_at.strftime('%Y%m%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+# --------------------
+# Physiotherapy Records
+# --------------------
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def add_physiotherapy_record(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+    if request.method == 'POST':
+        form = PhysiotherapyRecordForm(request.POST)
+        if form.is_valid():
+            record = form.save(commit=False)
+            record.patient = patient
+            record.created_by = request.user
+            record.save()
+
+            log_action(
+                request,
+                'CREATE',
+                record,
+                details=f"Added physiotherapy record for {patient.full_name}"
+            )
+
+            messages.success(request, 'Physiotherapy record added successfully!')
+            return redirect('core:patient_detail', pk=patient.pk)
+    else:
+        form = PhysiotherapyRecordForm()
+
+    return render(request, 'physiotherapy_records/add_physiotherapy_record.html', {
+        'form': form,
+        'patient': patient
+    })
+
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def edit_physiotherapy_record(request, record_id):
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    if request.method == 'POST':
+        form = PhysiotherapyRecordForm(request.POST, instance=record)
+        if form.is_valid():
+            form.save()
+
+            log_action(
+                request,
+                'UPDATE',
+                record,
+                details=f"Updated physiotherapy record for {record.patient.full_name}"
+            )
+
+            messages.success(request, 'Physiotherapy record updated successfully!')
+            return redirect('core:patient_detail', pk=record.patient.pk)
+    else:
+        form = PhysiotherapyRecordForm(instance=record)
+
+    return render(request, 'physiotherapy_records/edit_physiotherapy_record.html', {
+        'form': form,
+        'record': record
+    })
+
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def delete_physiotherapy_record(request, record_id):
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    patient_id = record.patient.pk
+
+    log_action(
+        request,
+        'DELETE',
+        record,
+        details=f"Deleted physiotherapy record for {record.patient.full_name}"
+    )
+
+    record.delete()
+    messages.success(request, 'Physiotherapy record deleted successfully!')
+    return redirect('core:patient_detail', pk=patient_id)
+
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def export_physiotherapy_record_pdf(request, record_id):
+    """Export a physiotherapy record as PDF"""
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib import colors
+
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    patient = record.patient
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.75*inch, leftMargin=0.75*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=18, spaceAfter=20, textColor=colors.darkgreen)
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=12, spaceBefore=15, spaceAfter=8,
+                                   textColor=colors.darkgreen, borderPadding=(0, 0, 0, 5))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, spaceAfter=10, leading=14)
+
+    story = []
+
+    # Header
+    story.append(Paragraph(f"Physiotherapy Record", title_style))
+    story.append(Paragraph(f"<b>Patient:</b> {patient.full_name}", body_style))
+    story.append(Paragraph(f"<b>Patient ID:</b> {patient.patient_id}", body_style))
+    story.append(Paragraph(f"<b>Date:</b> {record.created_at.strftime('%B %d, %Y')}", body_style))
+    story.append(Paragraph(f"<b>Recorded by:</b> {record.created_by.get_full_name() if record.created_by else 'Unknown'}", body_style))
+    story.append(Spacer(1, 0.3*inch))
+
+    # Sections
+    sections = [
+        ('Chief Complaint', record.chief_complaint),
+        ('History of Present Illness', record.history_of_present_illness),
+        ('Past Medical History', record.past_medical_history),
+        ('Physical Examination', record.physical_examination),
+        ('Diagnosis', record.diagnosis),
+        ('Treatment Goals', record.treatment_goals),
+        ('Treatment Plan', record.treatment_plan),
+        ('Exercises Prescribed', record.exercises_prescribed),
+        ('Modalities Used', record.modalities_used),
+        ('Progress Notes', record.progress_notes),
+        ('Additional Notes', record.additional_notes),
+    ]
+
+    for title, content in sections:
+        if content and content.strip():
+            story.append(Paragraph(title, heading_style))
+            content_formatted = content.replace('\n', '<br/>')
+            story.append(Paragraph(content_formatted, body_style))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer, content_type='application/pdf')
+    filename = f"physiotherapy_record_{patient.patient_id}_{record.created_at.strftime('%Y%m%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 def patient_search_api(request):

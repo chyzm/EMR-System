@@ -86,9 +86,36 @@ class FollowUp(models.Model):
     completed = models.BooleanField(default=False)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"Follow-up for {self.patient.full_name} on {self.scheduled_date}"
+
+
+class PhysiotherapyRecord(models.Model):
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='physiotherapy_records')
+
+    # Physiotherapy-specific fields
+    chief_complaint = models.TextField(blank=True, verbose_name="Chief Complaint")
+    history_of_present_illness = models.TextField(blank=True, verbose_name="History of Present Illness")
+    past_medical_history = models.TextField(blank=True, verbose_name="Past Medical History")
+    physical_examination = models.TextField(blank=True, verbose_name="Physical Examination")
+    diagnosis = models.TextField(blank=True, verbose_name="Diagnosis")
+    treatment_goals = models.TextField(blank=True, verbose_name="Treatment Goals")
+    treatment_plan = models.TextField(blank=True, verbose_name="Treatment Plan")
+    exercises_prescribed = models.TextField(blank=True, verbose_name="Exercises Prescribed")
+    modalities_used = models.TextField(blank=True, verbose_name="Modalities Used")
+    progress_notes = models.TextField(blank=True, verbose_name="Progress Notes")
+    additional_notes = models.TextField(blank=True, verbose_name="Additional Notes")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Physiotherapy Record for {self.patient.full_name} - {self.created_at.strftime('%Y-%m-%d')}"
 
 
 

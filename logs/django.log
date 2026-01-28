@@ -97,3 +97,53 @@ Not Found: /.well-known/appspecific/com.chrome.devtools.json
 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 25632
 Not Found: /.well-known/appspecific/com.chrome.devtools.json
 "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 25632
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /.well-known/appspecific/com.chrome.devtools.json
+"GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 25941
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /admin/login/
+"GET /admin/login/?next=/admin/library/schoolrecord/ HTTP/1.1" 404 25867
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848
+Not Found: /ws/notifications/
+"GET /ws/notifications/ HTTP/1.1" 404 25848

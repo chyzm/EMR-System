@@ -292,33 +292,27 @@ def manage_user_roles(request):
         )
         clinics = request.user.clinic.all()
 
-    new_user_form = UserCreationWithRoleForm()
-    new_user_form.fields['clinic'].queryset = clinics
-    role_forms = {user.id: UserEditForm(instance=user) for user in users}
+    # Pass request to form for correct queryset
+    new_user_form = UserCreationWithRoleForm(request=request)
+    role_forms = {user.id: UserEditForm(instance=user, request=request) for user in users}
 
     if request.method == 'POST':
         if 'create_user' in request.POST:
-            new_user_form = UserCreationWithRoleForm(request.POST)
+            new_user_form = UserCreationWithRoleForm(request.POST, request=request)
             if new_user_form.is_valid():
                 user = new_user_form.save(commit=False)
-                
-                # For non-superusers, ensure they can't create superusers
                 if not request.user.is_superuser:
                     user.is_superuser = False
-                
                 user.save()
-                new_user_form.save_m2m()  # Save many-to-many relationships
-                
+                new_user_form.save_m2m()
                 return redirect('core:manage_roles')
         elif 'update_role' in request.POST:
             user_id = request.POST.get('user_id')
             user = get_object_or_404(CustomUser, id=user_id)
-            role_form = UserEditForm(request.POST, instance=user)
+            role_form = UserEditForm(request.POST, instance=user, request=request)
             if role_form.is_valid():
-                # For non-superusers, ensure they can't make users superusers
                 if not request.user.is_superuser:
                     role_form.instance.is_superuser = False
-                
                 role_form.save()
                 return redirect('core:manage_roles')
 
@@ -3415,9 +3409,52 @@ def register_facility(request, plan_type):
 
 
 
+# def paystack_payment(request):
+#     reg_data = request.session.get('registration_data')
+#     renewal = request.session.get('renewal')
+#     if not reg_data and not renewal:
+#         return redirect('core:select_plan')
+
+#     headers = {
+#         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+#         "Content-Type": "application/json"
+#     }
+#     callback_url = request.build_absolute_uri(reverse('core:paystack_callback'))
+
+#     if reg_data:
+#         amount = int(reg_data['amount'])
+#         email = reg_data['email']
+#     else:
+#         plan_type = renewal['plan_type']
+#         clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
+#         email = clinic.email or (request.user.email if request.user.is_authenticated else None)
+#         amount = pay_amount_for_plan(plan_type)
+#         if not email:
+#             messages.error(request, "No email found to initialize payment.")
+#             return redirect('core:select_plan')
+
+#     payload = {
+#         "email": email,
+#         "amount": amount * 100,  # kobo
+#         "callback_url": callback_url
+#     }
+#     response = requests.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers)
+#     res_data = response.json()
+#     if res_data.get('status'):
+#         return redirect(res_data['data']['authorization_url'])
+#     messages.error(request, "Payment initialization failed. Try again.")
+#     return redirect('core:select_plan')
+
+
 def paystack_payment(request):
     reg_data = request.session.get('registration_data')
     renewal = request.session.get('renewal')
+    plan_type = request.session.get('plan_type')
+
+    # Bypass Paystack for TRIAL
+    if reg_data and plan_type == 'TRIAL':
+        return redirect('core:paystack_callback')
+
     if not reg_data and not renewal:
         return redirect('core:select_plan')
 

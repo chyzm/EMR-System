@@ -42,6 +42,7 @@ ALLOWED_HOSTS = [
     'www.durielmedic.pythonanywhere.com',
     'durielmedic.com.ng',
     'www.durielmedic.com.ng',
+    'localhost',
     '127.0.0.1']
 
 

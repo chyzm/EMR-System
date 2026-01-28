@@ -5,6 +5,19 @@
 <form method="post" class="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto space-y-5">
   {% csrf_token %}
 
+  <!-- Error Messages -->
+  {% if form.errors %}
+  <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+    {% if form.non_field_errors %}
+      {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    {% else %}
+      <p>Invalid username or password. Please try again.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Username Field -->
   <div>
     <label for="id_username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
@@ -30,7 +43,13 @@
     >
   </div>
 
-  
+  <!-- Forgot Password Link -->
+  <div class="text-right">
+    <a href="{% url 'core:password_reset' %}" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+      Forgot password?
+    </a>
+  </div>
+
  <!-- Clinic Type Selection -->
 {% comment %} <div>
   <label for="clinic_type" class="block text-sm font-medium text-gray-700 mb-1">

@@ -3485,7 +3485,10 @@ def paystack_payment(request):
     res_data = response.json()
     if res_data.get('status'):
         return redirect(res_data['data']['authorization_url'])
-    messages.error(request, "Payment initialization failed. Try again.")
+
+    # Show actual Paystack error message for debugging
+    error_msg = res_data.get('message', 'Unknown error')
+    messages.error(request, f"Payment initialization failed: {error_msg}")
     return redirect('core:select_plan')
 
 

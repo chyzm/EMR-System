@@ -3,29 +3,26 @@ from django.conf import settings
 from core.models import Patient, Clinic, Prescription
 
 class MedicalRecord(models.Model):
-    RECORD_TYPES = (
-        ('DIAGNOSIS', 'Diagnosis'),
-        ('TREATMENT', 'Treatment Plan'),
-        ('PROGRESS', 'Progress Note'),
-        ('LAB', 'Lab Result'),
-        ('IMAGING', 'Imaging Result'),
-        ('PRESCRIPTION', 'Prescription'),
-        ('ALLERGY', 'Allergy'),
-        ('IMMUNIZATION', 'Immunization'),
-        ('PROCEDURE', 'Procedure'),
-        ('OTHER', 'Other'),
-    )
-    
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='medical_records')
-    record_type = models.CharField(max_length=20, choices=RECORD_TYPES)
-    title = models.CharField(max_length=200)
-    description = models.TextField()
+
+    # All sections as separate fields - fill what's relevant
+    chief_complaint = models.TextField(blank=True, verbose_name="Chief Complaint")
+    history_of_present_illness = models.TextField(blank=True, verbose_name="History of Present Illness")
+    past_medical_history = models.TextField(blank=True, verbose_name="Past Medical History")
+    diagnosis = models.TextField(blank=True, verbose_name="Diagnosis")
+    treatment_plan = models.TextField(blank=True, verbose_name="Treatment Plan")
+    lab_results = models.TextField(blank=True, verbose_name="Lab Results")
+    imaging_results = models.TextField(blank=True, verbose_name="Imaging Results")
+    allergies = models.TextField(blank=True, verbose_name="Allergies")
+    procedures = models.TextField(blank=True, verbose_name="Procedures")
+    additional_notes = models.TextField(blank=True, verbose_name="Additional Notes")
+
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
-        return f"{self.record_type} - {self.title}"
+        return f"Medical Record for {self.patient.full_name} - {self.created_at.strftime('%Y-%m-%d')}"
 
 
 class Appointment(models.Model):

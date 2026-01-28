@@ -186,22 +186,27 @@ class AppointmentForm(forms.ModelForm):
 class MedicalRecordForm(forms.ModelForm):
     class Meta:
         model = MedicalRecord
-        fields = ['record_type', 'title', 'description']
+        fields = [
+            'chief_complaint',
+            'history_of_present_illness',
+            'past_medical_history',
+            'diagnosis',
+            'treatment_plan',
+            'lab_results',
+            'imaging_results',
+            'allergies',
+            'procedures',
+            'additional_notes',
+        ]
         widgets = {
-            'description': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
-            'record_type': forms.Select(attrs={'class': 'form-control'}),
-            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'chief_complaint': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter chief complaint...'}),
+            'history_of_present_illness': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter history of present illness...'}),
+            'past_medical_history': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter past medical history...'}),
+            'diagnosis': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter diagnosis...'}),
+            'treatment_plan': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter treatment plan...'}),
+            'lab_results': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter lab results...'}),
+            'imaging_results': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter imaging results...'}),
+            'allergies': forms.Textarea(attrs={'rows': 2, 'class': 'form-control', 'placeholder': 'Enter known allergies...'}),
+            'procedures': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter procedures performed...'}),
+            'additional_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter any additional notes...'}),
         }
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.helper = FormHelper()
-        self.helper.layout = Layout(
-            Row(
-                Column('record_type', css_class='form-group col-md-6 mb-0'),
-                Column('title', css_class='form-group col-md-6 mb-0'),
-                css_class='form-row'
-            ),
-            'description',
-            Submit('submit', 'Save Record')
-        )

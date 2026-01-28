@@ -1,19 +1,124 @@
 {% extends "base.html" %}
-{% load crispy_forms_tags %}
 
 {% block content %}
 <div class="container mx-auto p-6">
-    <h2 class="text-xl font-semibold mb-4">Add Medical Record for {{ patient.full_name }}</h2>
+    <h2 class="text-2xl font-semibold mb-6">Add Medical Record for {{ patient.full_name }}</h2>
+
     <div class="bg-white p-6 rounded shadow-md">
         <form method="post">
             {% csrf_token %}
-            {{ form|crispy }}
-            <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                Save Record
-            </button>
-            <a href="{% url 'core:patient_detail' patient.pk %}" class="ml-2 bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">
-                Cancel
-            </a>
+
+            <div class="space-y-6">
+                <!-- Chief Complaint -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Chief Complaint</h3>
+                    <textarea
+                        name="chief_complaint"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter chief complaint...">{{ form.chief_complaint.value|default:'' }}</textarea>
+                </div>
+
+                <!-- History of Present Illness -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">History of Present Illness</h3>
+                    <textarea
+                        name="history_of_present_illness"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter history of present illness...">{{ form.history_of_present_illness.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Past Medical History -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Past Medical History</h3>
+                    <textarea
+                        name="past_medical_history"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter past medical history...">{{ form.past_medical_history.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Diagnosis -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Diagnosis</h3>
+                    <textarea
+                        name="diagnosis"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter diagnosis...">{{ form.diagnosis.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Treatment Plan -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Treatment Plan</h3>
+                    <textarea
+                        name="treatment_plan"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter treatment plan...">{{ form.treatment_plan.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Lab Results -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Lab Results</h3>
+                    <textarea
+                        name="lab_results"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter lab results...">{{ form.lab_results.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Imaging Results -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Imaging Results</h3>
+                    <textarea
+                        name="imaging_results"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter imaging results...">{{ form.imaging_results.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Allergies -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Allergies</h3>
+                    <textarea
+                        name="allergies"
+                        rows="2"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter known allergies...">{{ form.allergies.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Procedures -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Procedures</h3>
+                    <textarea
+                        name="procedures"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter procedures performed...">{{ form.procedures.value|default:'' }}</textarea>
+                </div>
+
+                <!-- Additional Notes -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 border-b border-gray-300 pb-2 mb-3">Additional Notes</h3>
+                    <textarea
+                        name="additional_notes"
+                        rows="3"
+                        class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter any additional notes...">{{ form.additional_notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="mt-6 flex gap-3">
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">
+                    Save Record
+                </button>
+                <a href="{% url 'core:patient_detail' patient.pk %}" class="bg-gray-300 text-gray-800 px-6 py-2 rounded hover:bg-gray-400 transition">
+                    Cancel
+                </a>
+            </div>
         </form>
     </div>
 </div>

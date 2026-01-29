@@ -1,7 +1,20 @@
+# Environment variables
 .env
-/logs
-/_pycache_
-/db.sqlite3
-/EMR
-/null
-/myenv
+
+# Virtual environments
+myenv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Django
+db.sqlite3
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -31,7 +31,6 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Name</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sample Type</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TAT</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -51,9 +50,6 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ test.get_sample_type_display }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                        &#8358;{{ test.price|floatformat:2 }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ test.turnaround_time|default:"-" }}
@@ -99,8 +95,8 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Name</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sample Type</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TAT</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
             </thead>
@@ -119,11 +115,15 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ test.get_sample_type_display }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                        &#8358;{{ test.price|floatformat:2 }}
-                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {{ test.turnaround_time|default:"-" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if test.is_active %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Inactive</span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                         <a href="{% url 'core:edit_lab_test' test.pk %}" class="text-blue-600 hover:text-blue-900 mr-4">

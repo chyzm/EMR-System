@@ -858,7 +858,8 @@ class LabTestForm(forms.ModelForm):
     """Form for managing lab test catalog"""
     class Meta:
         model = LabTest
-        fields = ['category', 'name', 'code', 'description', 'price', 'sample_type',
+        # Exclude price from the test form; prices are managed via ServicePriceList
+        fields = ['category', 'name', 'code', 'description', 'sample_type',
                   'turnaround_time', 'preparation_instructions', 'reference_range', 'is_active']
         widgets = {
             'category': forms.Select(attrs={
@@ -877,12 +878,7 @@ class LabTestForm(forms.ModelForm):
                 'rows': 2,
                 'placeholder': 'Test description'
             }),
-            'price': forms.NumberInput(attrs={
-                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
-                'step': '0.01',
-                'min': '0',
-                'placeholder': '0.00'
-            }),
+            # price removed from form; use ServicePriceList to manage prices per clinic
             'sample_type': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
             }),

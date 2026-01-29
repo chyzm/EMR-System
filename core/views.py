@@ -817,7 +817,8 @@ def billing_list(request):
     
     context = {
         'bills': bills,
-        'total_amount': bills.aggregate(total=Sum('amount'))['total'] or 0,
+        # Sum final_amount so discounts are reflected in totals
+        'total_amount': bills.aggregate(total=Sum('final_amount'))['total'] or 0,
         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
         'status_filter': status_filter,
         'patient_filter': patient_filter,
@@ -1256,15 +1257,19 @@ def edit_bill(request, pk):
             manual_amount = form.cleaned_data.get('amount', 0)
             updated_bill.amount = service_total + manual_amount
             
-            if updated_bill.paid_amount > updated_bill.amount:
-                messages.error(request, "Paid amount cannot be greater than total amount")
+            # Recalculate discounts/final amount before validating
+            updated_bill.calculate_final_amount()
+            effective_amount = updated_bill.final_amount if updated_bill.final_amount > 0 else updated_bill.amount
+
+            if updated_bill.paid_amount > effective_amount:
+                messages.error(request, "Paid amount cannot be greater than total amount after discount")
                 return render(request, 'billing/billing_form.html', {
-                    'form': form, 
+                    'form': form,
                     'bill': bill,
                     'patients_with_appointments': Patient.objects.filter(clinic_id=clinic_id)
                 })
-            
-            if updated_bill.paid_amount == updated_bill.amount:
+
+            if updated_bill.paid_amount >= effective_amount and effective_amount > 0:
                 updated_bill.status = 'PAID'
             elif updated_bill.paid_amount > 0:
                 updated_bill.status = 'PARTIAL'
@@ -1313,17 +1318,22 @@ def record_payment(request, pk):
             messages.error(request, "Payment amount must be greater than zero")
             return redirect('core:view_bill', pk=bill.pk)
         
-        if payment_amount > (bill.amount - bill.paid_amount):
+        # Use final_amount (after discount) when available to determine outstanding balance
+        effective_amount = bill.final_amount if getattr(bill, 'final_amount', 0) and bill.final_amount > 0 else bill.amount
+        if payment_amount > (effective_amount - bill.paid_amount):
             messages.error(request, "Payment amount exceeds outstanding balance")
             return redirect('core:view_bill', pk=bill.pk)
         
         with transaction.atomic():
             bill.paid_amount += payment_amount
-            
-            if bill.paid_amount == bill.amount:
+
+            # Re-evaluate status against effective amount (final_amount after discount when present)
+            if bill.paid_amount >= effective_amount and effective_amount > 0:
                 bill.status = 'PAID'
-            else:
+            elif bill.paid_amount > 0:
                 bill.status = 'PARTIAL'
+            else:
+                bill.status = 'PENDING'
             
             bill.save()
             
@@ -3546,43 +3556,6 @@ def register_facility(request, plan_type):
 
 
 
-# def paystack_payment(request):
-#     reg_data = request.session.get('registration_data')
-#     renewal = request.session.get('renewal')
-#     if not reg_data and not renewal:
-#         return redirect('core:select_plan')
-
-#     headers = {
-#         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-#         "Content-Type": "application/json"
-#     }
-#     callback_url = request.build_absolute_uri(reverse('core:paystack_callback'))
-
-#     if reg_data:
-#         amount = int(reg_data['amount'])
-#         email = reg_data['email']
-#     else:
-#         plan_type = renewal['plan_type']
-#         clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
-#         email = clinic.email or (request.user.email if request.user.is_authenticated else None)
-#         amount = pay_amount_for_plan(plan_type)
-#         if not email:
-#             messages.error(request, "No email found to initialize payment.")
-#             return redirect('core:select_plan')
-
-#     payload = {
-#         "email": email,
-#         "amount": amount * 100,  # kobo
-#         "callback_url": callback_url
-#     }
-#     response = requests.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers)
-#     res_data = response.json()
-#     if res_data.get('status'):
-#         return redirect(res_data['data']['authorization_url'])
-#     messages.error(request, "Payment initialization failed. Try again.")
-#     return redirect('core:select_plan')
-
-
 def paystack_payment(request):
     reg_data = request.session.get('registration_data')
     renewal = request.session.get('renewal')
@@ -3639,105 +3612,6 @@ import requests
 from .models import Clinic, CustomUser
 
 
-# def paystack_callback(request):
-#     reference = request.GET.get('reference')
-#     if not reference:
-#         messages.error(request, "Payment reference not found.")
-#         return redirect('core:select_plan')
-
-#     try:
-#         # --- Verify transaction with Paystack ---
-#         verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
-#         headers = {
-#             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-#             "Content-Type": "application/json"
-#         }
-#         response = requests.get(verify_url, headers=headers)
-#         res_data = response.json()
-
-#         if res_data.get('status') and res_data['data']['status'] == 'success':
-#             # --- Get registration data from session ---
-#             data = request.session.get('registration_data')
-#             plan_type = request.session.get('plan_type', 'MONTHLY')
-
-#             if not data:
-#                 messages.error(request, "Registration data not found. Please try registering again.")
-#                 return redirect('core:select_plan')
-
-#             # Required fields
-#             required_fields = ['clinic_name', 'username', 'email', 'password']
-#             for field in required_fields:
-#                 if field not in data:
-#                     messages.error(request, f"Missing required information: {field}. Please try registering again.")
-#                     return redirect('core:select_plan')
-
-#             # Validate clinic_type
-#             VALID_CLINIC_TYPES = ['GENERAL', 'EYE', 'DENTAL']
-#             clinic_type = data.get('clinic_type')
-#             if not clinic_type or clinic_type not in VALID_CLINIC_TYPES:
-#                 clinic_type = 'GENERAL'
-
-#             try:
-#                 # --- Create or get Clinic ---
-#                 clinic, created = Clinic.objects.get_or_create(
-#                     name=data['clinic_name'],
-#                     defaults={
-#                         'clinic_type': clinic_type,
-#                         'address': data.get('clinic_address', ''),
-#                         'phone': data.get('clinic_phone', ''),
-#                         'email': data.get('clinic_email', '')
-#                     }
-#                 )
-
-#                 # --- Create Admin User ---
-#                 user = CustomUser.objects.create_user(
-#                     username=data['username'],
-#                     email=data['email'],
-#                     password=data['password'],
-#                     first_name=data.get('first_name', ''),
-#                     last_name=data.get('last_name', ''),
-#                     is_active=True,
-#                     role='ADMIN'
-#                 )
-#                 user.title = data.get('title', '')
-#                 user.phone = data.get('phone', '')  # ✅ correct field
-#                 user.save()
-
-#                 # Link user to clinic
-#                 user.clinic.add(clinic)
-
-#                 # --- Send activation email ---
-#                 try:
-#                     send_mail(
-#                         "New Clinic Activation",
-#                         f"New clinic '{clinic.name}' activated by {user.username}. Plan: {plan_type}",
-#                         settings.DEFAULT_FROM_EMAIL,
-#                         ['suavedef@gmail.com'],
-#                         fail_silently=True
-#                     )
-#                 except Exception as e:
-#                     print(f"Email sending failed: {str(e)}")  # Log but don’t break
-
-#                 # --- Clear session safely ---
-#                 request.session.pop('registration_data', None)
-#                 request.session.pop('plan_type', None)
-
-#                 messages.success(request, "Payment successful! Your account has been activated.")
-#                 return redirect('core:login')
-
-#             except Exception as e:
-#                 messages.error(request, f"Error creating account: {str(e)}. Please contact support.")
-#                 return redirect('core:select_plan')
-
-#         else:
-#             payment_message = res_data.get('message', 'Unknown error')
-#             plan_type = request.session.get('plan_type', 'MONTHLY')
-#             messages.error(request, f"Payment verification failed: {payment_message}")
-#             return redirect('core:register_facility', plan_type=plan_type)
-
-#     except Exception as e:
-#         messages.error(request, f"An error occurred during payment verification: {str(e)}")
-#         return redirect('core:select_plan')
 
 
 def paystack_callback(request):

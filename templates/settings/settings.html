@@ -41,6 +41,18 @@
         </div>
       </form>
     </div>
+    <div class="mt-6 bg-blue-50 border-l-4 border-blue-200 p-4 rounded">
+      <h3 class="text-sm font-semibold text-blue-800 mb-2">Backups</h3>
+      <p class="text-sm text-blue-700 mb-3">We recommend performing backups monthly. You can export the patient list or download all uploaded patient files.</p>
+      <div class="flex gap-3">
+        <a href="{% url 'core:export_patients_csv' %}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded text-sm text-gray-800 hover:bg-gray-50">
+          <i class="fas fa-file-csv mr-2"></i> Backup Patient List (CSV)
+        </a>
+        <a href="{% url 'core:backup_patients_files' %}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded text-sm text-gray-800 hover:bg-gray-50">
+          <i class="fas fa-download mr-2"></i> Back up Patient Folder (ZIP)
+        </a>
+      </div>
+    </div>
   {% else %}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
       <div class="flex">

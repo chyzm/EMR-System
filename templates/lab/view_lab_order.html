@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800">
+                <i class="fas fa-clipboard-list mr-2 text-blue-600"></i>Lab Order #{{ order.pk }}
+            </h2>
+            <a href="{% url 'core:lab_queue' %}" class="text-gray-600 hover:text-gray-800">
+                <i class="fas fa-arrow-left mr-1"></i>Back to Queue
+            </a>
+        </div>
+
+        <!-- Status Banner -->
+        <div class="mb-6 p-4 rounded-lg {% if order.status == 'COMPLETED' or order.status == 'REVIEWED' %}bg-green-100{% elif order.status == 'PROCESSING' %}bg-purple-100{% elif order.status == 'SAMPLE_COLLECTED' %}bg-blue-100{% else %}bg-yellow-100{% endif %}">
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="font-medium">Status:</span>
+                    <span class="font-bold ml-2">{{ order.get_status_display }}</span>
+                </div>
+                <div>
+                    <span class="font-medium">Priority:</span>
+                    {% if order.priority == 'STAT' %}
+                    <span class="font-bold text-red-600 ml-2">STAT (Immediate)</span>
+                    {% elif order.priority == 'URGENT' %}
+                    <span class="font-bold text-yellow-600 ml-2">Urgent</span>
+                    {% else %}
+                    <span class="ml-2">Routine</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient & Order Info -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="font-semibold text-gray-800 mb-3 border-b pb-2">
+                    <i class="fas fa-user mr-2 text-blue-500"></i>Patient Information
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <p><span class="font-medium">Name:</span> {{ order.patient.full_name }}</p>
+                    <p><span class="font-medium">Patient ID:</span> {{ order.patient.patient_id }}</p>
+                    <p><span class="font-medium">Date of Birth:</span> {{ order.patient.date_of_birth }}</p>
+                    <p><span class="font-medium">Gender:</span> {{ order.patient.get_gender_display }}</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="font-semibold text-gray-800 mb-3 border-b pb-2">
+                    <i class="fas fa-info-circle mr-2 text-blue-500"></i>Order Information
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <p><span class="font-medium">Ordered By:</span> {{ order.ordered_by.get_full_name|default:"Unknown" }}</p>
+                    <p><span class="font-medium">Ordered At:</span> {{ order.ordered_at|date:"M j, Y H:i" }}</p>
+                    {% if order.sample_collected_at %}
+                    <p><span class="font-medium">Sample Collected:</span> {{ order.sample_collected_at|date:"M j, Y H:i" }}</p>
+                    <p><span class="font-medium">Collected By:</span> {{ order.sample_collected_by.get_full_name|default:"Unknown" }}</p>
+                    {% endif %}
+                    {% if order.completed_at %}
+                    <p><span class="font-medium">Completed At:</span> {{ order.completed_at|date:"M j, Y H:i" }}</p>
+                    {% endif %}
+                    {% if order.reviewed_at %}
+                    <p><span class="font-medium">Reviewed By:</span> {{ order.reviewed_by.get_full_name|default:"Unknown" }}</p>
+                    <p><span class="font-medium">Reviewed At:</span> {{ order.reviewed_at|date:"M j, Y H:i" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Clinical Notes -->
+        {% if order.clinical_notes or order.diagnosis %}
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="font-semibold text-gray-800 mb-3 border-b pb-2">
+                <i class="fas fa-notes-medical mr-2 text-blue-500"></i>Clinical Information
+            </h3>
+            {% if order.clinical_notes %}
+            <div class="mb-4">
+                <p class="font-medium text-gray-700">Clinical Notes:</p>
+                <p class="text-gray-600 whitespace-pre-wrap">{{ order.clinical_notes }}</p>
+            </div>
+            {% endif %}
+            {% if order.diagnosis %}
+            <div>
+                <p class="font-medium text-gray-700">Suspected Diagnosis:</p>
+                <p class="text-gray-600 whitespace-pre-wrap">{{ order.diagnosis }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Test Results -->
+        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+            <div class="bg-gray-800 text-white px-6 py-3">
+                <h3 class="font-semibold">
+                    <i class="fas fa-vials mr-2"></i>Ordered Tests & Results
+                </h3>
+            </div>
+            <div class="divide-y">
+                {% for test in order.ordered_tests.all %}
+                {% with result=results_dict|default_if_none:"" %}
+                <div class="p-4 hover:bg-gray-50">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h4 class="font-medium text-gray-900">
+                                {% if test.code %}<span class="font-mono text-xs bg-gray-200 px-1 rounded mr-1">{{ test.code }}</span>{% endif %}
+                                {{ test.name }}
+                            </h4>
+                            <p class="text-sm text-gray-500">
+                                <span class="mr-3"><i class="fas fa-vial mr-1"></i>{{ test.get_sample_type_display }}</span>
+                                <span>&#8358;{{ test.price|floatformat:2 }}</span>
+                            </p>
+                        </div>
+                        {% if results_dict %}
+                        {% with test_result=results_dict|get_item:test.id %}
+                        {% if test_result %}
+                        <span class="px-2 py-1 text-xs rounded-full {% if test_result.is_abnormal %}bg-red-100 text-red-800{% else %}bg-green-100 text-green-800{% endif %}">
+                            {% if test_result.is_abnormal %}Abnormal{% else %}Normal{% endif %}
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-500">Pending</span>
+                        {% endif %}
+                        {% endwith %}
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-500">Pending</span>
+                        {% endif %}
+                    </div>
+
+                    {% if results_dict %}
+                    {% with test_result=results_dict|get_item:test.id %}
+                    {% if test_result %}
+                    <div class="mt-3 bg-gray-50 rounded p-3">
+                        <div class="grid md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="font-medium text-gray-700">Result Value:</p>
+                                <p class="text-gray-900 whitespace-pre-wrap">{{ test_result.result_value }}</p>
+                            </div>
+                            {% if test_result.reference_range %}
+                            <div>
+                                <p class="font-medium text-gray-700">Reference Range:</p>
+                                <p class="text-gray-600">{{ test_result.reference_range }} {{ test_result.unit }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if test_result.result_notes %}
+                        <div class="mt-2">
+                            <p class="font-medium text-gray-700">Notes:</p>
+                            <p class="text-gray-600">{{ test_result.result_notes }}</p>
+                        </div>
+                        {% endif %}
+                        {% if test_result.result_file %}
+                        <div class="mt-2">
+                            <a href="{{ test_result.result_file.url }}" target="_blank"
+                               class="inline-flex items-center text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-file-pdf mr-1"></i>View Result File
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% endif %}
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+
+            <!-- Total -->
+            <div class="bg-gray-100 px-6 py-3 flex justify-between items-center">
+                <span class="font-medium">Total Amount:</span>
+                <span class="text-xl font-bold text-blue-600">&#8358;{{ order.total_price|floatformat:2 }}</span>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3">
+            {% if order.status == 'IN_QUEUE' and request.user.role in 'ADMIN,NURSE,LAB_TECHNICIAN' %}
+            <a href="{% url 'core:collect_sample' order.pk %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition">
+                <i class="fas fa-vial mr-2"></i>Collect Sample
+            </a>
+            {% endif %}
+
+            {% if order.status in 'SAMPLE_COLLECTED,PROCESSING' and request.user.role in 'ADMIN,LAB_TECHNICIAN' %}
+            <a href="{% url 'core:enter_lab_results' order.pk %}" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition">
+                <i class="fas fa-edit mr-2"></i>Enter Results
+            </a>
+            {% endif %}
+
+            {% if order.status == 'COMPLETED' and request.user.role in 'ADMIN,DOCTOR' %}
+            <a href="{% url 'core:mark_lab_reviewed' order.pk %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                <i class="fas fa-check-double mr-2"></i>Mark as Reviewed
+            </a>
+            {% endif %}
+
+            <a href="{% url 'core:patient_detail' order.patient.patient_id %}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg transition">
+                <i class="fas fa-user mr-2"></i>View Patient
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

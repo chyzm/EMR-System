@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold text-gray-800">
+            <i class="fas fa-history mr-2 text-blue-600"></i>Lab History - {{ patient.full_name }}
+        </h2>
+        <a href="{% url 'core:patient_detail' patient.patient_id %}" class="text-gray-600 hover:text-gray-800">
+            <i class="fas fa-arrow-left mr-1"></i>Back to Patient
+        </a>
+    </div>
+
+    <!-- Patient Info -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center">
+            <div class="bg-blue-500 text-white rounded-full w-12 h-12 flex items-center justify-center mr-4">
+                <i class="fas fa-user"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold text-gray-800">{{ patient.full_name }}</h3>
+                <p class="text-sm text-gray-600">
+                    <span class="mr-3"><i class="fas fa-id-card mr-1"></i>{{ patient.patient_id }}</span>
+                    <span><i class="fas fa-birthday-cake mr-1"></i>{{ patient.date_of_birth }}</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lab Orders Timeline -->
+    <div class="space-y-4">
+        {% for order in orders %}
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="px-6 py-4 border-b {% if order.status == 'REVIEWED' %}bg-green-50{% elif order.status == 'COMPLETED' %}bg-blue-50{% else %}bg-gray-50{% endif %}">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="font-mono text-sm bg-gray-200 px-2 py-1 rounded mr-2">#{{ order.pk }}</span>
+                        <span class="text-gray-600">{{ order.ordered_at|date:"F j, Y, H:i" }}</span>
+                        {% if order.priority == 'STAT' %}
+                        <span class="ml-2 px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">STAT</span>
+                        {% elif order.priority == 'URGENT' %}
+                        <span class="ml-2 px-2 py-1 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800">URGENT</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if order.status == 'REVIEWED' %}
+                        <span class="px-3 py-1 text-sm rounded-full bg-green-100 text-green-800">
+                            <i class="fas fa-check-double mr-1"></i>Reviewed
+                        </span>
+                        {% elif order.status == 'COMPLETED' %}
+                        <span class="px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-800">
+                            <i class="fas fa-check mr-1"></i>Completed
+                        </span>
+                        {% elif order.status == 'PROCESSING' %}
+                        <span class="px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-800">
+                            <i class="fas fa-spinner mr-1"></i>Processing
+                        </span>
+                        {% elif order.status == 'SAMPLE_COLLECTED' %}
+                        <span class="px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-800">
+                            <i class="fas fa-vial mr-1"></i>Sample Collected
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1 text-sm rounded-full bg-yellow-100 text-yellow-800">
+                            <i class="fas fa-clock mr-1"></i>{{ order.get_status_display }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <!-- Ordered Tests -->
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-600 mb-2">Tests Ordered:</p>
+                    <div class="flex flex-wrap gap-2">
+                        {% for test in order.ordered_tests.all %}
+                        <span class="inline-block bg-gray-100 text-gray-800 text-sm px-3 py-1 rounded">
+                            {% if test.code %}{{ test.code }} - {% endif %}{{ test.name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Results Summary (if completed) -->
+                {% if order.status in 'COMPLETED,REVIEWED' %}
+                <div class="mb-4 bg-gray-50 rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600 mb-2">Results Summary:</p>
+                    {% for result in order.results.all %}
+                    <div class="mb-2 last:mb-0">
+                        <span class="font-medium">{{ result.test.name }}:</span>
+                        <span class="{% if result.is_abnormal %}text-red-600 font-medium{% else %}text-gray-700{% endif %}">
+                            {{ result.result_value|truncatewords:10 }}
+                            {% if result.is_abnormal %}<i class="fas fa-exclamation-triangle ml-1"></i>{% endif %}
+                        </span>
+                    </div>
+                    {% empty %}
+                    <p class="text-gray-500 italic">No results recorded yet</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Metadata -->
+                <div class="flex flex-wrap gap-4 text-sm text-gray-500">
+                    <span><i class="fas fa-user-md mr-1"></i>Ordered by: {{ order.ordered_by.get_full_name|default:"Unknown" }}</span>
+                    {% if order.reviewed_by %}
+                    <span><i class="fas fa-check-circle mr-1"></i>Reviewed by: {{ order.reviewed_by.get_full_name }}</span>
+                    {% endif %}
+                    <span><i class="fas fa-money-bill mr-1"></i>Total: &#8358;{{ order.total_price|floatformat:2 }}</span>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-4">
+                    <a href="{% url 'core:view_lab_order' order.pk %}" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-eye mr-1"></i>View Full Details
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            <i class="fas fa-flask text-4xl mb-3 text-gray-300"></i>
+            <p>No lab orders found for this patient</p>
+            {% if request.user.role == 'DOCTOR' %}
+            <a href="{% url 'core:order_lab_tests' patient.patient_id %}" class="mt-4 inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                <i class="fas fa-plus mr-2"></i>Order Lab Tests
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="mt-6 flex justify-center">
+        <div class="flex space-x-1">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}"
+               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}"
+               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

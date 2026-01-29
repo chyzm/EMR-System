@@ -90,6 +90,7 @@ class CustomUser(AbstractUser):
         ('OPTOMETRIST', 'Optometrist'),
         ('PHYSIOTHERAPIST', 'Physiotherapist'),
         ('RECEPTIONIST', 'Receptionist'),
+        ('LAB_TECHNICIAN', 'Lab Technician'),
     )
     
     role = models.CharField(max_length=15, choices=ROLES, default='DOCTOR')
@@ -206,7 +207,13 @@ class Billing(models.Model):
         ('PARTIAL', 'Partially Paid'),
         ('CANCELLED', 'Cancelled'),
     )
-    
+
+    DISCOUNT_TYPE_CHOICES = (
+        ('NONE', 'No Discount'),
+        ('PERCENTAGE', 'Percentage'),
+        ('FIXED', 'Fixed Amount'),
+    )
+
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='bills')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='bills')
     appointment_content_type = models.ForeignKey(
@@ -214,35 +221,79 @@ class Billing(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}  # restrict to your models
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}
     )
     appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
     appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
-    services = models.ManyToManyField('ServicePriceList', blank=True, related_name='bills')  # <- added
+    services = models.ManyToManyField('ServicePriceList', blank=True, related_name='bills')
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     service_date = models.DateField()
     due_date = models.DateField()
     description = models.TextField(blank=True)
+
+    # Discount fields
+    discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPE_CHOICES, default='NONE')
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Percentage (0-100) or fixed amount")
+    discount_reason = models.CharField(max_length=255, blank=True)
+    discount_applied_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='applied_discounts'
+    )
+    discount_applied_at = models.DateTimeField(null=True, blank=True)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    final_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.SET_NULL, 
-        null=True, blank=True, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name='created_bills'
     )
     updated_at = models.DateTimeField(auto_now=True)
 
+    def calculate_discount(self):
+        """Calculate discount amount based on type and value"""
+        from decimal import Decimal
+        if self.discount_type == 'PERCENTAGE':
+            self.discount_amount = (self.amount * self.discount_value) / Decimal('100')
+        elif self.discount_type == 'FIXED':
+            self.discount_amount = min(self.discount_value, self.amount)
+        else:
+            self.discount_amount = Decimal('0.00')
+        return self.discount_amount
+
+    def calculate_final_amount(self):
+        """Calculate final amount after discount"""
+        self.calculate_discount()
+        self.final_amount = self.amount - self.discount_amount
+        return self.final_amount
+
     def get_balance(self):
+        """Get balance based on final amount (after discount)"""
+        if self.final_amount > 0:
+            return self.final_amount - self.paid_amount
         return self.amount - self.paid_amount
 
     def calculate_total(self):
         """Calculate total amount from selected services."""
         total = sum(service.price for service in self.services.all())
         self.amount = total
+        self.calculate_final_amount()
         self.save()
         return total
+
+    def save(self, *args, **kwargs):
+        # Calculate final amount before saving if amount is set
+        if self.amount > 0:
+            self.calculate_final_amount()
+        elif self.final_amount == 0:
+            self.final_amount = self.amount
+        super().save(*args, **kwargs)
 
 
 class Payment(models.Model):
@@ -582,3 +633,272 @@ class NotificationRead(models.Model):
 
     class Meta:
         unique_together = ('user', 'notification')
+
+
+# ========================================
+# Laboratory / Diagnostic Models
+# ========================================
+
+def lab_result_upload_path(instance, filename):
+    """Upload path for lab result files: media/lab_results/{patient_id}/{filename}"""
+    return f'lab_results/{instance.lab_test_order.patient.patient_id}/{filename}'
+
+
+def validate_file_size(value):
+    """Validate file size is under 5MB"""
+    limit = 5 * 1024 * 1024  # 5MB
+    if value.size > limit:
+        raise ValidationError('File size must be under 5MB.')
+
+
+class LabTestCategory(models.Model):
+    """Categories for organizing lab tests (e.g., Blood Tests, Urine Tests, Imaging)"""
+    CATEGORY_TYPES = (
+        ('BLOOD', 'Blood Tests'),
+        ('URINE', 'Urine Tests'),
+        ('IMAGING', 'Imaging/Radiology'),
+        ('MICROBIOLOGY', 'Microbiology'),
+        ('BIOCHEMISTRY', 'Biochemistry'),
+        ('PATHOLOGY', 'Pathology'),
+        ('CARDIOLOGY', 'Cardiology Tests'),
+        ('OTHER', 'Other'),
+    )
+
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_categories')
+    name = models.CharField(max_length=100)
+    category_type = models.CharField(max_length=20, choices=CATEGORY_TYPES, default='OTHER')
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Lab Test Categories"
+        unique_together = ('clinic', 'name')
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.get_category_type_display()})"
+
+
+class LabTest(models.Model):
+    """Catalog of available lab tests at a clinic"""
+    SAMPLE_TYPES = (
+        ('BLOOD', 'Blood'),
+        ('URINE', 'Urine'),
+        ('STOOL', 'Stool'),
+        ('SALIVA', 'Saliva'),
+        ('TISSUE', 'Tissue'),
+        ('SWAB', 'Swab'),
+        ('NONE', 'No Sample Required'),
+        ('OTHER', 'Other'),
+    )
+
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_tests')
+    category = models.ForeignKey(LabTestCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='tests')
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, blank=True, help_text="Unique test code for this clinic")
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    sample_type = models.CharField(max_length=20, choices=SAMPLE_TYPES, default='BLOOD')
+    turnaround_time = models.CharField(max_length=100, blank=True, help_text="e.g., '24 hours', '3-5 days'")
+    preparation_instructions = models.TextField(blank=True, help_text="Patient preparation instructions")
+    reference_range = models.TextField(blank=True, help_text="Normal reference range for this test")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('clinic', 'code')
+        ordering = ['category', 'name']
+
+    def __str__(self):
+        if self.code:
+            return f"{self.code} - {self.name}"
+        return self.name
+
+
+class LabTestOrder(models.Model):
+    """Order for lab tests - links patient/appointment to ordered tests"""
+    STATUS_CHOICES = (
+        ('ORDERED', 'Ordered'),
+        ('IN_QUEUE', 'In Queue'),
+        ('SAMPLE_COLLECTED', 'Sample Collected'),
+        ('PROCESSING', 'Processing'),
+        ('COMPLETED', 'Completed'),
+        ('REVIEWED', 'Reviewed by Doctor'),
+        ('CANCELLED', 'Cancelled'),
+    )
+
+    PRIORITY_CHOICES = (
+        ('ROUTINE', 'Routine'),
+        ('URGENT', 'Urgent'),
+        ('STAT', 'STAT (Immediate)'),
+    )
+
+    patient = models.ForeignKey('Patient', on_delete=models.CASCADE, related_name='lab_orders')
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_orders')
+
+    # Generic relation to appointment (can be Appointment or EyeAppointment)
+    appointment_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}
+    )
+    appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
+    appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+
+    # Ordered tests
+    ordered_tests = models.ManyToManyField(LabTest, related_name='orders')
+
+    # Order details
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ORDERED')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='ROUTINE')
+    clinical_notes = models.TextField(blank=True, help_text="Clinical notes from ordering doctor")
+    diagnosis = models.TextField(blank=True, help_text="Suspected diagnosis")
+
+    # Staff tracking
+    ordered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='lab_orders_created'
+    )
+    sample_collected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_samples_collected'
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_orders_reviewed'
+    )
+
+    # Timestamps
+    ordered_at = models.DateTimeField(auto_now_add=True)
+    sample_collected_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    # Billing reference (optional - for auto-billing)
+    billing = models.ForeignKey(
+        'Billing',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_orders'
+    )
+
+    class Meta:
+        ordering = ['-ordered_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['-ordered_at']),
+        ]
+
+    def __str__(self):
+        return f"Lab Order #{self.pk} - {self.patient.full_name} ({self.get_status_display()})"
+
+    @property
+    def total_price(self):
+        """Calculate total price of all ordered tests"""
+        return sum(test.price for test in self.ordered_tests.all())
+
+    @property
+    def is_complete(self):
+        """Check if all results have been entered"""
+        return self.results.count() == self.ordered_tests.count()
+
+    def mark_sample_collected(self, collected_by):
+        """Mark sample as collected"""
+        self.status = 'SAMPLE_COLLECTED'
+        self.sample_collected_by = collected_by
+        self.sample_collected_at = tz.now()
+        self.save()
+
+    def mark_processing(self):
+        """Mark order as processing"""
+        self.status = 'PROCESSING'
+        self.save()
+
+    def mark_completed(self):
+        """Mark order as completed"""
+        self.status = 'COMPLETED'
+        self.completed_at = tz.now()
+        self.save()
+
+    def mark_reviewed(self, reviewed_by):
+        """Mark order as reviewed by doctor"""
+        self.status = 'REVIEWED'
+        self.reviewed_by = reviewed_by
+        self.reviewed_at = tz.now()
+        self.save()
+
+
+class LabTestResult(models.Model):
+    """Individual test results within a lab order"""
+    from django.core.validators import FileExtensionValidator
+
+    lab_test_order = models.ForeignKey(LabTestOrder, on_delete=models.CASCADE, related_name='results')
+    test = models.ForeignKey(LabTest, on_delete=models.CASCADE, related_name='results')
+
+    # Result data
+    result_value = models.TextField(blank=True, help_text="Test result value/findings")
+    reference_range = models.CharField(max_length=200, blank=True, help_text="Normal reference range")
+    unit = models.CharField(max_length=50, blank=True, help_text="Unit of measurement")
+    is_abnormal = models.BooleanField(default=False, help_text="Flag if result is outside normal range")
+
+    # Result file (PDF, images)
+    result_file = models.FileField(
+        upload_to=lab_result_upload_path,
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png']),
+            validate_file_size
+        ],
+        help_text="Upload result document (PDF, JPG, PNG - max 5MB)"
+    )
+
+    # Notes
+    result_notes = models.TextField(blank=True, help_text="Additional notes about the result")
+    technician_comments = models.TextField(blank=True, help_text="Lab technician comments")
+
+    # Staff tracking
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='lab_results_performed'
+    )
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_results_verified'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('lab_test_order', 'test')
+        ordering = ['test__name']
+
+    def __str__(self):
+        return f"{self.test.name} result for Order #{self.lab_test_order.pk}"
+
+    @property
+    def has_file(self):
+        """Check if result has an uploaded file"""
+        return bool(self.result_file)

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">
+            <i class="fas fa-clipboard-list mr-2 text-blue-600"></i>Order Lab Tests
+        </h2>
+
+        <!-- Patient Info Card -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-center">
+                <div class="bg-blue-500 text-white rounded-full w-12 h-12 flex items-center justify-center mr-4">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-800">{{ patient.full_name }}</h3>
+                    <p class="text-sm text-gray-600">
+                        <span class="mr-3"><i class="fas fa-id-card mr-1"></i>{{ patient.patient_id }}</span>
+                        <span class="mr-3"><i class="fas fa-birthday-cake mr-1"></i>{{ patient.date_of_birth }}</span>
+                        <span><i class="fas fa-venus-mars mr-1"></i>{{ patient.get_gender_display }}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Priority Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>Priority *
+                    </label>
+                    {{ form.priority }}
+                    <p class="text-xs text-gray-500 mt-1">STAT orders will be processed immediately</p>
+                </div>
+
+                <!-- Test Selection by Category -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-vials mr-1"></i>Select Tests *
+                    </label>
+
+                    {% if categories %}
+                    <div class="space-y-4">
+                        {% for category in categories %}
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <div class="bg-gray-100 px-4 py-2 cursor-pointer flex justify-between items-center" onclick="toggleCategory('cat-{{ category.pk }}')">
+                                <span class="font-medium text-gray-800">
+                                    <i class="fas fa-folder mr-2 text-blue-500"></i>{{ category.name }}
+                                    <span class="text-sm text-gray-500">({{ category.tests.count }} tests)</span>
+                                </span>
+                                <i class="fas fa-chevron-down text-gray-500" id="icon-cat-{{ category.pk }}"></i>
+                            </div>
+                            <div id="cat-{{ category.pk }}" class="px-4 py-3 space-y-2">
+                                {% for test in category.tests.all %}
+                                {% if test.is_active %}
+                                <label class="flex items-start p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                    <input type="checkbox" name="ordered_tests" value="{{ test.pk }}"
+                                           class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                    <div class="ml-3 flex-1">
+                                        <div class="flex justify-between">
+                                            <span class="font-medium text-gray-900">
+                                                {% if test.code %}<span class="font-mono text-xs bg-gray-200 px-1 rounded mr-1">{{ test.code }}</span>{% endif %}
+                                                {{ test.name }}
+                                            </span>
+                                            <span class="text-blue-600 font-medium">&#8358;{{ test.price|floatformat:2 }}</span>
+                                        </div>
+                                        <div class="text-sm text-gray-500">
+                                            <span class="mr-3"><i class="fas fa-vial mr-1"></i>{{ test.get_sample_type_display }}</span>
+                                            {% if test.turnaround_time %}
+                                            <span><i class="fas fa-clock mr-1"></i>{{ test.turnaround_time }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if test.preparation_instructions %}
+                                        <div class="text-xs text-orange-600 mt-1">
+                                            <i class="fas fa-info-circle mr-1"></i>{{ test.preparation_instructions|truncatewords:15 }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </label>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-vials text-4xl mb-3 text-gray-300"></i>
+                        <p>No lab tests available. Please contact admin to add tests.</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Clinical Notes -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-notes-medical mr-1"></i>Clinical Notes
+                    </label>
+                    {{ form.clinical_notes }}
+                </div>
+
+                <!-- Diagnosis -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-stethoscope mr-1"></i>Suspected Diagnosis
+                    </label>
+                    {{ form.diagnosis }}
+                </div>
+
+                <!-- Summary -->
+                <div id="orderSummary" class="hidden mb-6 bg-gray-50 rounded-lg p-4">
+                    <h4 class="font-medium text-gray-800 mb-2">Order Summary</h4>
+                    <div id="selectedTests" class="text-sm text-gray-600"></div>
+                    <div class="mt-2 font-medium text-lg text-blue-600">
+                        Total: &#8358;<span id="totalPrice">0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                        <i class="fas fa-paper-plane mr-2"></i>Submit Order
+                    </button>
+                    <a href="{% url 'core:patient_detail' patient.patient_id %}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg transition">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleCategory(catId) {
+    const content = document.getElementById(catId);
+    const icon = document.getElementById('icon-' + catId);
+    content.classList.toggle('hidden');
+    icon.classList.toggle('fa-chevron-down');
+    icon.classList.toggle('fa-chevron-up');
+}
+
+// Track selected tests and update summary
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('input[name="ordered_tests"]');
+    const summary = document.getElementById('orderSummary');
+    const selectedTestsDiv = document.getElementById('selectedTests');
+    const totalPriceSpan = document.getElementById('totalPrice');
+
+    const testPrices = {
+        {% for category in categories %}
+        {% for test in category.tests.all %}
+        {{ test.pk }}: { name: "{{ test.name }}", price: {{ test.price }} },
+        {% endfor %}
+        {% endfor %}
+    };
+
+    function updateSummary() {
+        let total = 0;
+        let selected = [];
+
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const testId = cb.value;
+                const test = testPrices[testId];
+                if (test) {
+                    total += test.price;
+                    selected.push(test.name);
+                }
+            }
+        });
+
+        if (selected.length > 0) {
+            summary.classList.remove('hidden');
+            selectedTestsDiv.innerHTML = selected.map(name => `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">${name}</span>`).join('');
+            totalPriceSpan.textContent = total.toFixed(2);
+        } else {
+            summary.classList.add('hidden');
+        }
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateSummary);
+    });
+});
+</script>
+{% endblock %}

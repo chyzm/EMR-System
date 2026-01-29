@@ -287,14 +287,29 @@ li ul[id*="_error"] {
                 {% endif %}
 
               {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
-              <a href="{% url 'core:billing_list' %}" 
+              <a href="{% url 'core:billing_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-money-bill-wave mr-3"></i>
                 Billing
               </a>
               {% endif %}
-              
-              
+
+              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,LAB_TECHNICIAN' %}
+              <a href="{% url 'core:lab_queue' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-flask mr-3"></i>
+                Lab Queue
+              </a>
+              {% endif %}
+
+              {% if request.user.role == 'ADMIN' %}
+              <a href="{% url 'core:lab_test_list' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-vials mr-3"></i>
+                Lab Management
+              </a>
+              {% endif %}
+
               {% if request.user.role == 'ADMIN' %}
               {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:generate_report' %}" 
@@ -556,13 +571,29 @@ li ul[id*="_error"] {
           {% endif %}
       
           {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
-          <a href="{% url 'core:billing_list' %}" 
+          <a href="{% url 'core:billing_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-money-bill-wave mr-3"></i>
             Billing
           </a>
           {% endif %}
-      
+
+          {% if request.user.role in 'ADMIN,DOCTOR,NURSE,LAB_TECHNICIAN' %}
+          <a href="{% url 'core:lab_queue' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-flask mr-3"></i>
+            Lab Queue
+          </a>
+          {% endif %}
+
+          {% if request.user.role == 'ADMIN' %}
+          <a href="{% url 'core:lab_test_list' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-vials mr-3"></i>
+            Lab Management
+          </a>
+          {% endif %}
+
           {% if request.user.role == 'ADMIN' %}
               {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:generate_report' %}" 

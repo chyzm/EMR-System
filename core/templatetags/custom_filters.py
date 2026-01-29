@@ -44,3 +44,11 @@ def divide(value, arg):
         return float(value) / float(arg) if float(arg) != 0 else 0
     except (ValueError, TypeError):
         return 0
+
+
+@register.filter
+def get_item(dictionary, key):
+    """Get item from dictionary by key."""
+    if dictionary is None:
+        return None
+    return dictionary.get(key)

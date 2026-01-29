@@ -7,14 +7,59 @@
   <div class="bg-white shadow rounded-lg p-6">
     <h1 class="text-2xl font-bold mb-4">Bill Detail</h1>
 
-    <p><strong>Patient:</strong> {{ bill.patient.full_name }}</p>
-    <p><strong>Amount:</strong> ₦{{ bill.amount }}</p>
-    <p><strong>Paid:</strong> ₦{{ bill.paid_amount }}</p>
-    <p><strong>Balance:</strong> ₦{{ bill.get_balance }}</p>
-    <p><strong>Status:</strong> {{ bill.get_status_display }}</p>
-    <p><strong>Description:</strong> {{ bill.description }}</p>
-    <p><strong>Service Date:</strong> {{ bill.service_date }}</p>
-    <p><strong>Due Date:</strong> {{ bill.due_date }}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div>
+        <p><strong>Patient:</strong> {{ bill.patient.full_name }}</p>
+        <p><strong>Patient ID:</strong> {{ bill.patient.patient_id }}</p>
+        <p><strong>Service Date:</strong> {{ bill.service_date }}</p>
+        <p><strong>Due Date:</strong> {{ bill.due_date }}</p>
+        <p><strong>Status:</strong>
+          <span class="px-2 py-1 text-sm rounded
+            {% if bill.status == 'PAID' %}bg-green-100 text-green-800
+            {% elif bill.status == 'PARTIAL' %}bg-yellow-100 text-yellow-800
+            {% elif bill.status == 'CANCELLED' %}bg-red-100 text-red-800
+            {% else %}bg-gray-100 text-gray-800{% endif %}">
+            {{ bill.get_status_display }}
+          </span>
+        </p>
+      </div>
+      <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="flex justify-between mb-1">
+          <span class="text-gray-600">Subtotal:</span>
+          <span class="font-medium">₦{{ bill.amount|floatformat:2 }}</span>
+        </div>
+        {% if bill.discount_type != 'NONE' and bill.discount_amount > 0 %}
+        <div class="flex justify-between mb-1 text-yellow-600">
+          <span>
+            Discount ({{ bill.get_discount_type_display }}{% if bill.discount_type == 'PERCENTAGE' %}: {{ bill.discount_value }}%{% endif %}):
+          </span>
+          <span>-₦{{ bill.discount_amount|floatformat:2 }}</span>
+        </div>
+        {% if bill.discount_reason %}
+        <div class="text-xs text-gray-500 mb-1">Reason: {{ bill.discount_reason }}</div>
+        {% endif %}
+        {% endif %}
+        <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+          <span>Final Amount:</span>
+          <span class="text-blue-600">₦{{ bill.final_amount|floatformat:2 }}</span>
+        </div>
+        <div class="flex justify-between text-green-600 mt-1">
+          <span>Paid:</span>
+          <span>₦{{ bill.paid_amount|floatformat:2 }}</span>
+        </div>
+        <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2 {% if bill.get_balance > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+          <span>Balance:</span>
+          <span>₦{{ bill.get_balance|floatformat:2 }}</span>
+        </div>
+      </div>
+    </div>
+
+    {% if bill.description %}
+    <div class="mb-4">
+      <p><strong>Description:</strong></p>
+      <p class="text-gray-600 whitespace-pre-wrap">{{ bill.description }}</p>
+    </div>
+    {% endif %}
 
     {% if bill.payments.exists %}
     <div class="mt-6">

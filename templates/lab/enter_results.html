@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="container mx-auto p-6">
+    <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">
+            <i class="fas fa-edit mr-2 text-purple-600"></i>Enter Lab Results
+        </h2>
+
+        <!-- Order Info -->
+        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600">Patient</p>
+                    <p class="font-semibold text-gray-900">{{ order.patient.full_name }}</p>
+                    <p class="text-sm text-gray-500">{{ order.patient.patient_id }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Order #{{ order.pk }}</p>
+                    <p class="font-semibold {% if order.priority == 'STAT' %}text-red-600{% elif order.priority == 'URGENT' %}text-yellow-600{% else %}text-gray-900{% endif %}">
+                        {{ order.get_priority_display }}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Status</p>
+                    <p class="font-semibold text-purple-600">{{ order.get_status_display }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Entry Form -->
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="space-y-6">
+                {% for test in order.ordered_tests.all %}
+                {% with existing=existing_results|get_item:test.id %}
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="bg-gray-100 px-6 py-3 border-b">
+                        <h3 class="font-semibold text-gray-800">
+                            {% if test.code %}<span class="font-mono text-xs bg-gray-300 px-2 py-1 rounded mr-2">{{ test.code }}</span>{% endif %}
+                            {{ test.name }}
+                        </h3>
+                        <p class="text-sm text-gray-500">
+                            <span class="mr-3"><i class="fas fa-vial mr-1"></i>{{ test.get_sample_type_display }}</span>
+                            {% if test.reference_range %}<span><i class="fas fa-chart-line mr-1"></i>Ref: {{ test.reference_range }}</span>{% endif %}
+                        </p>
+                    </div>
+
+                    <div class="p-6 space-y-4">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <!-- Result Value -->
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Result Value {% if not existing %}<span class="text-red-500">*</span>{% endif %}
+                                </label>
+                                <textarea name="result_value_{{ test.id }}" rows="3"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="Enter test result value/findings">{% if existing %}{{ existing.result_value }}{% endif %}</textarea>
+                            </div>
+
+                            <!-- Reference Range -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Reference Range</label>
+                                <input type="text" name="reference_range_{{ test.id }}"
+                                    value="{% if existing %}{{ existing.reference_range }}{% else %}{{ test.reference_range }}{% endif %}"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="e.g., 4.5-11.0">
+                            </div>
+
+                            <!-- Unit -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                                <input type="text" name="unit_{{ test.id }}"
+                                    value="{% if existing %}{{ existing.unit }}{% endif %}"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="e.g., mg/dL, mmol/L">
+                            </div>
+                        </div>
+
+                        <!-- Abnormal Flag -->
+                        <div class="flex items-center">
+                            <input type="checkbox" name="is_abnormal_{{ test.id }}" id="abnormal_{{ test.id }}"
+                                {% if existing and existing.is_abnormal %}checked{% endif %}
+                                class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded">
+                            <label for="abnormal_{{ test.id }}" class="ml-2 text-sm text-gray-700">
+                                <span class="text-red-600 font-medium">Flag as Abnormal</span>
+                            </label>
+                        </div>
+
+                        <!-- Result File -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Upload Result File (PDF/Image)</label>
+                            <input type="file" name="result_file_{{ test.id }}" accept=".pdf,.jpg,.jpeg,.png"
+                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                            {% if existing and existing.result_file %}
+                            <p class="mt-1 text-sm text-green-600">
+                                <i class="fas fa-check-circle mr-1"></i>Existing file: <a href="{{ existing.result_file.url }}" target="_blank" class="underline">View</a>
+                            </p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Notes -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Result Notes</label>
+                            <textarea name="result_notes_{{ test.id }}" rows="2"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                placeholder="Additional notes about the result">{% if existing %}{{ existing.result_notes }}{% endif %}</textarea>
+                        </div>
+
+                        <!-- Technician Comments -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Technician Comments</label>
+                            <textarea name="technician_comments_{{ test.id }}" rows="2"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                placeholder="Lab technician comments">{% if existing %}{{ existing.technician_comments }}{% endif %}</textarea>
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+
+            <div class="mt-6 flex gap-3">
+                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition">
+                    <i class="fas fa-save mr-2"></i>Save Results
+                </button>
+                <a href="{% url 'core:view_lab_order' order.pk %}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg transition">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -678,6 +678,147 @@ document.addEventListener('keydown', function(e) {
 {% endif %}
 {% endif %}
 
+<!-- Lab Orders Section -->
+{% if request.session.clinic_type == "GENERAL" %}
+{% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'LAB_TECHNICIAN' %}
+<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-purple-800 text-white px-6 py-3 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fas fa-flask mr-2"></i>Lab Orders</h2>
+        <div class="flex gap-2">
+            {% if request.user.role == 'DOCTOR' %}
+            <a href="{% url 'core:order_lab_tests' patient.pk %}" class="bg-purple-600 hover:bg-purple-700 text-white text-sm px-3 py-1 rounded">
+                <i class="fas fa-plus mr-1"></i>Order Tests
+            </a>
+            {% endif %}
+            <a href="{% url 'core:patient_lab_history' patient.pk %}" class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-3 py-1 rounded">
+                <i class="fas fa-history mr-1"></i>View All
+            </a>
+        </div>
+    </div>
+
+    <div class="divide-y" id="lab-orders-list">
+        {% for order in lab_orders %}
+        <div class="p-4 hover:bg-gray-50 border-l-4 {% if order.priority == 'STAT' %}border-red-500{% elif order.priority == 'URGENT' %}border-yellow-500{% else %}border-purple-500{% endif %}">
+            <div class="flex justify-between items-start">
+                <!-- Left: Order Info -->
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-1 rounded">
+                            Order #{{ order.pk }}
+                        </span>
+                        <span class="text-xs text-gray-500">
+                            {{ order.ordered_at|date:"M j, Y H:i" }}
+                        </span>
+                        {% if order.priority == 'STAT' %}
+                        <span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800">STAT</span>
+                        {% elif order.priority == 'URGENT' %}
+                        <span class="px-2 py-1 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800">URGENT</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tests Ordered -->
+                    <div class="text-sm text-gray-700 mb-2">
+                        {% for test in order.ordered_tests.all|slice:":3" %}
+                        <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1">{{ test.name }}</span>
+                        {% endfor %}
+                        {% if order.ordered_tests.count > 3 %}
+                        <span class="text-gray-500 text-xs">+{{ order.ordered_tests.count|add:"-3" }} more</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status -->
+                    <div class="text-sm">
+                        {% if order.status == 'REVIEWED' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800"><i class="fas fa-check-double mr-1"></i>Reviewed</span>
+                        {% elif order.status == 'COMPLETED' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800"><i class="fas fa-check mr-1"></i>Completed</span>
+                        {% elif order.status == 'PROCESSING' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800"><i class="fas fa-spinner mr-1"></i>Processing</span>
+                        {% elif order.status == 'SAMPLE_COLLECTED' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800"><i class="fas fa-vial mr-1"></i>Sample Collected</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800"><i class="fas fa-clock mr-1"></i>{{ order.get_status_display }}</span>
+                        {% endif %}
+                        <span class="text-gray-500 ml-2">by {{ order.ordered_by.get_full_name|default:"Unknown" }}</span>
+                    </div>
+                </div>
+
+                <!-- Right: Action Buttons -->
+                <div class="flex items-center gap-2 ml-4">
+                    <!-- View Button -->
+                    <a href="{% url 'core:view_lab_order' order.pk %}"
+                       class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-eye mr-1"></i>View
+                    </a>
+
+                    {% if order.status == 'IN_QUEUE' and request.user.role in 'ADMIN,NURSE,LAB_TECHNICIAN' %}
+                    <a href="{% url 'core:collect_sample' order.pk %}"
+                       class="bg-green-100 hover:bg-green-200 text-green-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-vial mr-1"></i>Collect
+                    </a>
+                    {% endif %}
+
+                    {% if order.status in 'SAMPLE_COLLECTED,PROCESSING' and request.user.role in 'ADMIN,LAB_TECHNICIAN' %}
+                    <a href="{% url 'core:enter_lab_results' order.pk %}"
+                       class="bg-purple-100 hover:bg-purple-200 text-purple-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-edit mr-1"></i>Results
+                    </a>
+                    {% endif %}
+
+                    {% if order.status == 'COMPLETED' and request.user.role in 'ADMIN,DOCTOR' %}
+                    <a href="{% url 'core:mark_lab_reviewed' order.pk %}"
+                       class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded transition">
+                        <i class="fas fa-check-double mr-1"></i>Review
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-8 text-center text-gray-500">
+            <i class="fas fa-flask text-4xl mb-3 text-gray-300"></i>
+            <p>No lab orders found</p>
+            {% if request.user.role == 'DOCTOR' %}
+            <a href="{% url 'core:order_lab_tests' patient.pk %}" class="mt-4 inline-block text-purple-600 hover:text-purple-800">
+                <i class="fas fa-plus mr-1"></i>Order Lab Tests
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Lab Orders Pagination -->
+        {% if lab_orders.has_other_pages %}
+        <div class="px-6 py-4 bg-gray-50 border-t">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing {{ lab_orders.start_index }} to {{ lab_orders.end_index }} of {{ lab_orders.paginator.count }} orders
+                </div>
+                <div class="flex space-x-1">
+                    {% if lab_orders.has_previous %}
+                        <a href="?lab_page={{ lab_orders.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'lab_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Previous</a>
+                    {% endif %}
+                    {% for num in lab_orders.paginator.page_range %}
+                        {% if lab_orders.number == num %}
+                            <span class="px-3 py-2 text-sm bg-purple-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > lab_orders.number|add:'-3' and num < lab_orders.number|add:'3' %}
+                            <a href="?lab_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'lab_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    {% if lab_orders.has_next %}
+                        <a href="?lab_page={{ lab_orders.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'lab_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+                           class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">Next</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
     <!-- Eye Exams Section (only for EYE clinic) -->
     {% if request.session.clinic_type == "EYE" and eye_exams %}
     <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">

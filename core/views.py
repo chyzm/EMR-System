@@ -576,7 +576,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     context_object_name = 'patient'
 
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST']
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'LAB_TECHNICIAN']
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -702,6 +702,20 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             except EmptyPage:
                 physiotherapy_records = physio_paginator.page(physio_paginator.num_pages)
             context['physiotherapy_records'] = physiotherapy_records
+
+        # Lab Orders Pagination - Most recent first
+        lab_orders_list = LabTestOrder.objects.filter(patient=patient).select_related(
+            'ordered_by', 'reviewed_by'
+        ).prefetch_related('ordered_tests', 'results').order_by('-ordered_at')
+        lab_paginator = Paginator(lab_orders_list, items_per_page)
+        lab_page = self.request.GET.get('lab_page', 1)
+        try:
+            lab_orders = lab_paginator.page(lab_page)
+        except PageNotAnInteger:
+            lab_orders = lab_paginator.page(1)
+        except EmptyPage:
+            lab_orders = lab_paginator.page(lab_paginator.num_pages)
+        context['lab_orders'] = lab_orders
 
         return context
 
@@ -1021,8 +1035,17 @@ def create_bill(request, patient_id=None):
             if not bill.paid_amount:
                 bill.paid_amount = 0
 
-            # --- Set status ---
-            if bill.paid_amount >= bill.amount and bill.amount > 0:
+            # --- Handle discount ---
+            if bill.discount_type != 'NONE' and bill.discount_value > 0:
+                bill.discount_applied_by = request.user
+                bill.discount_applied_at = timezone.now()
+
+            # Calculate final amount (this is done in model save, but we need it for status)
+            bill.calculate_final_amount()
+
+            # --- Set status based on final_amount (after discount) ---
+            effective_amount = bill.final_amount if bill.final_amount > 0 else bill.amount
+            if bill.paid_amount >= effective_amount and effective_amount > 0:
                 bill.status = 'PAID'
             elif bill.paid_amount > 0:
                 bill.status = 'PARTIAL'
@@ -1732,6 +1755,13 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from .models import Clinic
 from .forms import ClinicLogoForm
+import csv
+import io
+import zipfile
+from django.http import HttpResponse, StreamingHttpResponse
+from django.core.files.storage import default_storage
+from django.utils.text import slugify
+from django.apps import apps
 
 @login_required
 def settings_view(request):
@@ -1758,6 +1788,100 @@ def settings_view(request):
         'form': form,
         'clinic': clinic,
     })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def export_patients_csv(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, 'No clinic selected')
+        return redirect('core:settings')
+
+    patients = Patient.objects.filter(clinic_id=clinic_id).order_by('last_name', 'first_name')
+
+    # CSV response
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="patients_export.csv"'
+
+    writer = csv.writer(response)
+    # Header
+    writer.writerow(['patient_id', 'first_name', 'last_name', 'date_of_birth', 'gender', 'contact', 'email', 'address', 'emergency_contact', 'created_at'])
+
+    for p in patients:
+        writer.writerow([
+            p.patient_id,
+            p.first_name,
+            p.last_name,
+            p.date_of_birth,
+            p.gender,
+            p.contact,
+            p.email or '',
+            p.address or '',
+            p.emergency_contact or '',
+            p.created_at,
+        ])
+
+    return response
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+def backup_patients_files(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, 'No clinic selected')
+        return redirect('core:settings')
+
+    patients = Patient.objects.filter(clinic_id=clinic_id).order_by('last_name', 'first_name')
+
+    # Create in-memory ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for p in patients:
+            # folder name per patient
+            folder_name = f"{slugify(p.full_name)}_{p.patient_id}"
+
+            # Include patient profile picture if present
+            if getattr(p, 'profile_picture'):
+                try:
+                    file_field = p.profile_picture
+                    if file_field and file_field.name and default_storage.exists(file_field.name):
+                        with default_storage.open(file_field.name, 'rb') as fh:
+                            arcname = f"{folder_name}/{file_field.name.split('/')[-1]}"
+                            zf.writestr(arcname, fh.read())
+                except Exception:
+                    pass
+
+            # Scan related models in installed apps for FileField attached to this patient
+            for model in apps.get_models():
+                # Only consider models that have a FK named 'patient'
+                try:
+                    if any(f.name == 'patient' for f in model._meta.fields):
+                        # find FileField fields on this model
+                        file_fields = [f for f in model._meta.fields if f.get_internal_type() in ('FileField', 'ImageField')]
+                        if not file_fields:
+                            continue
+                        # Query instances linked to patient
+                        instances = model.objects.filter(patient=p)
+                        for inst in instances:
+                            for ff in file_fields:
+                                val = getattr(inst, ff.name)
+                                if val and getattr(val, 'name', None) and default_storage.exists(val.name):
+                                    try:
+                                        with default_storage.open(val.name, 'rb') as fh:
+                                            arcname = f"{folder_name}/{val.name.split('/')[-1]}"
+                                            zf.writestr(arcname, fh.read())
+                                    except Exception:
+                                        # skip problematic files
+                                        continue
+                except Exception:
+                    continue
+
+    zip_buffer.seek(0)
+    response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+    response['Content-Disposition'] = 'attachment; filename=patient_files_backup.zip'
+    return response
     
     
     
@@ -3855,3 +3979,462 @@ def notify_user(user, message, link=None, clinic=None, app_name=None):
             }
         }
     )
+
+
+# ========================================
+# Laboratory / Diagnostic Views
+# ========================================
+
+from .models import LabTestCategory, LabTest, LabTestOrder, LabTestResult
+from .forms import (LabTestCategoryForm, LabTestForm, LabTestOrderForm,
+                    LabTestResultForm, SampleCollectionForm)
+
+
+# ----- Lab Test Category Management (ADMIN) -----
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def lab_category_list(request):
+    """List all lab test categories for the clinic"""
+    clinic_id = request.session.get('clinic_id')
+    categories = LabTestCategory.objects.filter(clinic_id=clinic_id).order_by('name')
+
+    return render(request, 'lab/lab_category_list.html', {
+        'categories': categories
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def add_lab_category(request):
+    """Add a new lab test category"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+
+    if request.method == 'POST':
+        form = LabTestCategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save(commit=False)
+            category.clinic = clinic
+            category.save()
+
+            log_action(request, 'CREATE', category,
+                       details=f"Added lab category: {category.name}")
+            messages.success(request, f"Lab category '{category.name}' added successfully!")
+            return redirect('core:lab_category_list')
+    else:
+        form = LabTestCategoryForm()
+
+    return render(request, 'lab/lab_category_form.html', {
+        'form': form,
+        'title': 'Add Lab Category'
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def edit_lab_category(request, pk):
+    """Edit a lab test category"""
+    clinic_id = request.session.get('clinic_id')
+    category = get_object_or_404(LabTestCategory, pk=pk, clinic_id=clinic_id)
+
+    if request.method == 'POST':
+        form = LabTestCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            log_action(request, 'UPDATE', category,
+                       details=f"Updated lab category: {category.name}")
+            messages.success(request, f"Lab category '{category.name}' updated successfully!")
+            return redirect('core:lab_category_list')
+    else:
+        form = LabTestCategoryForm(instance=category)
+
+    return render(request, 'lab/lab_category_form.html', {
+        'form': form,
+        'category': category,
+        'title': 'Edit Lab Category'
+    })
+
+
+# ----- Lab Test Catalog Management (ADMIN) -----
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def lab_test_list(request):
+    """List all lab tests for the clinic"""
+    clinic_id = request.session.get('clinic_id')
+    tests = LabTest.objects.filter(clinic_id=clinic_id).select_related('category').order_by('category__name', 'name')
+
+    # Group tests by category
+    categories = LabTestCategory.objects.filter(clinic_id=clinic_id).prefetch_related('tests')
+
+    # Explicitly expose uncategorized tests so the template can render them clearly
+    uncategorized_tests = tests.filter(category__isnull=True).order_by('name')
+
+    return render(request, 'lab/lab_test_list.html', {
+        'tests': tests,
+        'categories': categories,
+        'uncategorized_tests': uncategorized_tests,
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def add_lab_test(request):
+    """Add a new lab test to the catalog"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    # Check if clinic has any active categories
+    categories_exist = LabTestCategory.objects.filter(clinic=clinic, is_active=True).exists()
+
+    if request.method == 'POST':
+        form = LabTestForm(request.POST, clinic=clinic)
+        if form.is_valid():
+            test = form.save(commit=False)
+            test.clinic = clinic
+            test.save()
+
+            log_action(request, 'CREATE', test,
+                       details=f"Added lab test: {test.name}")
+            # If test saved without a category, prompt user to assign one immediately
+            if not test.category:
+                messages.warning(request, (
+                    "Lab test saved without a category. "
+                    "Please assign a category to keep the catalog organized."))
+                # Redirect to lab test list and trigger a modal prompt via query params
+                list_url = f"{reverse('core:lab_test_list')}?prompt_assign=1&test={test.pk}"
+                return redirect(list_url)
+
+            messages.success(request, f"Lab test '{test.name}' added successfully!")
+            return redirect('core:lab_test_list')
+    else:
+        form = LabTestForm(clinic=clinic)
+
+    return render(request, 'lab/lab_test_form.html', {
+        'form': form,
+        'title': 'Add Lab Test',
+        'no_categories': not categories_exist,
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def edit_lab_test(request, pk):
+    """Edit a lab test"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    test = get_object_or_404(LabTest, pk=pk, clinic_id=clinic_id)
+
+    if request.method == 'POST':
+        form = LabTestForm(request.POST, instance=test, clinic=clinic)
+        if form.is_valid():
+            form.save()
+            log_action(request, 'UPDATE', test,
+                       details=f"Updated lab test: {test.name}")
+            messages.success(request, f"Lab test '{test.name}' updated successfully!")
+            return redirect('core:lab_test_list')
+    else:
+        form = LabTestForm(instance=test, clinic=clinic)
+
+    return render(request, 'lab/lab_test_form.html', {
+        'form': form,
+        'test': test,
+        'title': 'Edit Lab Test'
+    })
+
+
+# ----- Lab Order Management (DOCTOR) -----
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR')
+def order_lab_tests(request, patient_id):
+    """Order lab tests for a patient"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=clinic)
+
+    if request.method == 'POST':
+        form = LabTestOrderForm(request.POST, clinic=clinic)
+        if form.is_valid():
+            order = form.save(commit=False)
+            order.patient = patient
+            order.clinic = clinic
+            order.ordered_by = request.user
+            order.status = 'IN_QUEUE'
+            order.save()
+            form.save_m2m()  # Save the many-to-many ordered_tests
+
+            log_action(request, 'CREATE', order,
+                       details=f"Ordered lab tests for {patient.full_name}: {', '.join([t.name for t in order.ordered_tests.all()])}")
+
+            messages.success(request, f"Lab tests ordered successfully for {patient.full_name}!")
+            return redirect('core:patient_detail', pk=patient.patient_id)
+    else:
+        form = LabTestOrderForm(clinic=clinic)
+
+    # Group tests by category for display
+    categories = LabTestCategory.objects.filter(
+        clinic=clinic, is_active=True
+    ).prefetch_related(
+        'tests'
+    ).filter(tests__is_active=True).distinct()
+
+    return render(request, 'lab/order_lab_tests.html', {
+        'form': form,
+        'patient': patient,
+        'categories': categories
+    })
+
+
+# ----- Lab Queue (NURSE, LAB_TECHNICIAN) -----
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
+def lab_queue(request):
+    """View lab queue with pending orders"""
+    clinic_id = request.session.get('clinic_id')
+
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    priority_filter = request.GET.get('priority', '')
+    search_query = request.GET.get('search', '')
+
+    orders = LabTestOrder.objects.filter(
+        clinic_id=clinic_id
+    ).exclude(
+        status__in=['REVIEWED', 'CANCELLED']
+    ).select_related(
+        'patient', 'ordered_by', 'sample_collected_by'
+    ).prefetch_related('ordered_tests').order_by(
+        # STAT first, then URGENT, then ROUTINE
+        models.Case(
+            models.When(priority='STAT', then=0),
+            models.When(priority='URGENT', then=1),
+            models.When(priority='ROUTINE', then=2),
+            output_field=models.IntegerField()
+        ),
+        '-ordered_at'
+    )
+
+    if status_filter:
+        orders = orders.filter(status=status_filter)
+
+    if priority_filter:
+        orders = orders.filter(priority=priority_filter)
+
+    if search_query:
+        orders = orders.filter(
+            Q(patient__first_name__icontains=search_query) |
+            Q(patient__last_name__icontains=search_query) |
+            Q(patient__patient_id__icontains=search_query)
+        )
+
+    # Pagination
+    paginator = Paginator(orders, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Stats for dashboard
+    stats = {
+        'total_pending': orders.filter(status='IN_QUEUE').count(),
+        'sample_collected': orders.filter(status='SAMPLE_COLLECTED').count(),
+        'processing': orders.filter(status='PROCESSING').count(),
+        'completed': orders.filter(status='COMPLETED').count(),
+        'stat_orders': orders.filter(priority='STAT').count(),
+    }
+
+    return render(request, 'lab/lab_queue.html', {
+        'orders': page_obj,
+        'page_obj': page_obj,
+        'stats': stats,
+        'status_filter': status_filter,
+        'priority_filter': priority_filter,
+        'search_query': search_query,
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
+def view_lab_order(request, order_id):
+    """View details of a lab order"""
+    clinic_id = request.session.get('clinic_id')
+    order = get_object_or_404(
+        LabTestOrder.objects.select_related(
+            'patient', 'ordered_by', 'sample_collected_by', 'reviewed_by'
+        ).prefetch_related('ordered_tests', 'results'),
+        pk=order_id,
+        clinic_id=clinic_id
+    )
+
+    # Get results for each ordered test
+    results_dict = {r.test_id: r for r in order.results.all()}
+
+    return render(request, 'lab/view_lab_order.html', {
+        'order': order,
+        'results_dict': results_dict
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'NURSE', 'LAB_TECHNICIAN')
+def collect_sample(request, order_id):
+    """Mark sample as collected"""
+    clinic_id = request.session.get('clinic_id')
+    order = get_object_or_404(LabTestOrder, pk=order_id, clinic_id=clinic_id)
+
+    if order.status not in ['ORDERED', 'IN_QUEUE']:
+        messages.error(request, "Sample has already been collected or processed.")
+        return redirect('core:view_lab_order', order_id=order_id)
+
+    if request.method == 'POST':
+        form = SampleCollectionForm(request.POST)
+        if form.is_valid():
+            order.mark_sample_collected(request.user)
+
+            log_action(request, 'UPDATE', order,
+                       details=f"Sample collected for lab order #{order.pk} - {order.patient.full_name}")
+
+            messages.success(request, f"Sample collected for {order.patient.full_name}!")
+            return redirect('core:lab_queue')
+    else:
+        form = SampleCollectionForm()
+
+    return render(request, 'lab/collect_sample.html', {
+        'form': form,
+        'order': order
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'LAB_TECHNICIAN')
+def enter_lab_results(request, order_id):
+    """Enter results for lab tests"""
+    clinic_id = request.session.get('clinic_id')
+    order = get_object_or_404(
+        LabTestOrder.objects.prefetch_related('ordered_tests', 'results'),
+        pk=order_id,
+        clinic_id=clinic_id
+    )
+
+    if order.status not in ['SAMPLE_COLLECTED', 'PROCESSING']:
+        messages.error(request, "Cannot enter results at this stage.")
+        return redirect('core:view_lab_order', order_id=order_id)
+
+    # Get existing results
+    existing_results = {r.test_id: r for r in order.results.all()}
+
+    if request.method == 'POST':
+        all_valid = True
+        results_saved = 0
+
+        for test in order.ordered_tests.all():
+            # Check if result data was submitted for this test
+            result_value = request.POST.get(f'result_value_{test.id}', '').strip()
+            if not result_value:
+                continue
+
+            # Get or create result
+            result, created = LabTestResult.objects.get_or_create(
+                lab_test_order=order,
+                test=test,
+                defaults={'performed_by': request.user}
+            )
+
+            # Update result fields
+            result.result_value = result_value
+            result.reference_range = request.POST.get(f'reference_range_{test.id}', test.reference_range)
+            result.unit = request.POST.get(f'unit_{test.id}', '')
+            result.is_abnormal = request.POST.get(f'is_abnormal_{test.id}') == 'on'
+            result.result_notes = request.POST.get(f'result_notes_{test.id}', '')
+            result.technician_comments = request.POST.get(f'technician_comments_{test.id}', '')
+            result.performed_by = request.user
+
+            # Handle file upload
+            file_key = f'result_file_{test.id}'
+            if file_key in request.FILES:
+                result.result_file = request.FILES[file_key]
+
+            result.save()
+            results_saved += 1
+
+        if results_saved > 0:
+            # Update order status
+            if order.is_complete:
+                order.mark_completed()
+            else:
+                order.mark_processing()
+
+            log_action(request, 'UPDATE', order,
+                       details=f"Entered {results_saved} lab result(s) for order #{order.pk}")
+
+            messages.success(request, f"{results_saved} result(s) saved successfully!")
+            return redirect('core:view_lab_order', order_id=order_id)
+        else:
+            messages.warning(request, "No results were entered.")
+
+    return render(request, 'lab/enter_results.html', {
+        'order': order,
+        'existing_results': existing_results
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR')
+def mark_lab_reviewed(request, order_id):
+    """Mark lab order as reviewed by doctor"""
+    clinic_id = request.session.get('clinic_id')
+    order = get_object_or_404(LabTestOrder, pk=order_id, clinic_id=clinic_id)
+
+    if order.status != 'COMPLETED':
+        messages.error(request, "Lab results are not yet complete.")
+        return redirect('core:view_lab_order', order_id=order_id)
+
+    order.mark_reviewed(request.user)
+
+    log_action(request, 'UPDATE', order,
+               details=f"Reviewed lab results for order #{order.pk} - {order.patient.full_name}")
+
+    messages.success(request, f"Lab results marked as reviewed for {order.patient.full_name}!")
+    return redirect('core:patient_detail', pk=order.patient.patient_id)
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
+def patient_lab_history(request, patient_id):
+    """View all lab orders for a patient"""
+    clinic_id = request.session.get('clinic_id')
+    clinic = get_object_or_404(Clinic, id=clinic_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=clinic)
+
+    orders = LabTestOrder.objects.filter(
+        patient=patient,
+        clinic=clinic
+    ).select_related(
+        'ordered_by', 'reviewed_by'
+    ).prefetch_related(
+        'ordered_tests', 'results'
+    ).order_by('-ordered_at')
+
+    # Pagination
+    paginator = Paginator(orders, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'lab/patient_lab_history.html', {
+        'patient': patient,
+        'orders': page_obj,
+        'page_obj': page_obj
+    })

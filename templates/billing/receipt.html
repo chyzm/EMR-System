@@ -59,6 +59,16 @@
                 <h3 class="text-sm font-medium text-gray-500 mb-2">BILL DETAILS</h3>
                 <p class="font-medium text-gray-800">Bill #{{ payment.billing.id }}</p>
                 <p class="text-sm text-gray-500">{{ payment.billing.description|truncatechars:30 }}</p>
+                <div class="mt-2 text-sm">
+                    <p><span class="text-gray-500">Subtotal:</span> <span class="font-medium">₦{{ payment.billing.amount|floatformat:2 }}</span></p>
+                    {% if payment.billing.discount_type != 'NONE' and payment.billing.discount_amount > 0 %}
+                    <p class="text-yellow-600">
+                        <span>Discount:</span>
+                        <span class="font-medium">-₦{{ payment.billing.discount_amount|floatformat:2 }}</span>
+                    </p>
+                    {% endif %}
+                    <p><span class="text-gray-500">Final Amount:</span> <span class="font-medium text-blue-600">₦{{ payment.billing.final_amount|floatformat:2 }}</span></p>
+                </div>
             </div>
         </div>
 

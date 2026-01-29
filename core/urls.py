@@ -96,6 +96,8 @@ urlpatterns = [
     
     # settings
     path('settings/', views.settings_view, name='settings'),
+    path('settings/export/patients/csv/', views.export_patients_csv, name='export_patients_csv'),
+    path('settings/backup/patients/files/', views.backup_patients_files, name='backup_patients_files'),
     
     
     path('toggle-superuser/<int:user_id>/', views.toggle_superuser, name='toggle_superuser'),
@@ -163,4 +165,31 @@ urlpatterns = [
     
     # Re-subscribe (renew) for existing clinics
     path('subscribe/<int:clinic_id>/<str:plan_type>/', views.start_renewal, name='start_renewal'),
+
+    # ========================================
+    # Laboratory / Diagnostic URLs
+    # ========================================
+
+    # Lab Test Categories (Admin)
+    path('lab/categories/', views.lab_category_list, name='lab_category_list'),
+    path('lab/categories/add/', views.add_lab_category, name='add_lab_category'),
+    path('lab/categories/<int:pk>/edit/', views.edit_lab_category, name='edit_lab_category'),
+
+    # Lab Test Catalog (Admin)
+    path('lab/tests/', views.lab_test_list, name='lab_test_list'),
+    path('lab/tests/add/', views.add_lab_test, name='add_lab_test'),
+    path('lab/tests/<int:pk>/edit/', views.edit_lab_test, name='edit_lab_test'),
+
+    # Lab Ordering (Doctor)
+    path('patients/<str:patient_id>/lab/order/', views.order_lab_tests, name='order_lab_tests'),
+
+    # Lab Queue (Nurse, Lab Technician)
+    path('lab/queue/', views.lab_queue, name='lab_queue'),
+    path('lab/orders/<int:order_id>/', views.view_lab_order, name='view_lab_order'),
+    path('lab/orders/<int:order_id>/collect-sample/', views.collect_sample, name='collect_sample'),
+    path('lab/orders/<int:order_id>/enter-results/', views.enter_lab_results, name='enter_lab_results'),
+    path('lab/orders/<int:order_id>/mark-reviewed/', views.mark_lab_reviewed, name='mark_lab_reviewed'),
+
+    # Patient Lab History
+    path('patients/<str:patient_id>/lab/history/', views.patient_lab_history, name='patient_lab_history'),
 ]

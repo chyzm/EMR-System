@@ -366,26 +366,59 @@ class BillingForm(forms.ModelForm):
 
     class Meta:
         model = Billing
-        exclude = ['appointment', 'appointment_content_type', 'appointment_object_id']
-        fields = ['patient', 'appointment', 'service_date', 'due_date', 'amount', 'paid_amount', 'description']
+        exclude = ['appointment', 'appointment_content_type', 'appointment_object_id',
+                   'discount_applied_by', 'discount_applied_at', 'discount_amount', 'final_amount']
+        fields = ['patient', 'service_date', 'due_date', 'amount', 'paid_amount', 'description',
+                  'discount_type', 'discount_value', 'discount_reason']
         widgets = {
             'service_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'due_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'description': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'discount_type': forms.Select(attrs={'class': 'form-control', 'id': 'discount-type'}),
+            'discount_value': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'id': 'discount-value',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': '0.00'
+            }),
+            'discount_reason': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Reason for discount (optional)'
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
         super().__init__(*args, **kwargs)
-        
+
         if clinic_id:
             self.fields['services'].queryset = ServicePriceList.objects.filter(
-                clinic_id=clinic_id, 
+                clinic_id=clinic_id,
                 is_active=True
             ).order_by('name')
-            
+
         if not self.instance.pk:
             self.initial['paid_amount'] = 0
+            self.initial['discount_type'] = 'NONE'
+            self.initial['discount_value'] = 0
+
+    def clean(self):
+        cleaned_data = super().clean()
+        discount_type = cleaned_data.get('discount_type')
+        discount_value = cleaned_data.get('discount_value', 0) or 0
+        amount = cleaned_data.get('amount', 0) or 0
+
+        if discount_type == 'PERCENTAGE':
+            if discount_value < 0 or discount_value > 100:
+                raise forms.ValidationError("Percentage discount must be between 0 and 100.")
+        elif discount_type == 'FIXED':
+            if discount_value < 0:
+                raise forms.ValidationError("Fixed discount cannot be negative.")
+            if discount_value > amount:
+                raise forms.ValidationError("Fixed discount cannot exceed the total amount.")
+
+        return cleaned_data
 
 
 
@@ -744,50 +777,239 @@ class FacilityRegistrationForm(forms.Form):
     email = forms.EmailField(label="Email")
     password = forms.CharField(widget=forms.PasswordInput, label="Password")
     clinic_name = forms.CharField(label="Clinic Name")
-    
+
     # Add required clinic fields
     clinic_address = forms.CharField(label="Clinic Address", widget=forms.Textarea(attrs={'rows': 3}))
     clinic_phone = forms.CharField(label="Clinic Phone")
     clinic_email = forms.EmailField(label="Clinic Email")
-    
+
     # Default clinic type choices
     CLINIC_TYPE_CHOICES = [
         ('GENERAL', 'General Clinic'),
         ('EYE', 'Eye Clinic'),
         ('DENTAL', 'Dental Clinic'),
     ]
-    
+
     # Dynamic clinic_type field - will be replaced in __init__
     clinic_type = forms.ChoiceField(
-        choices=CLINIC_TYPE_CHOICES, 
+        choices=CLINIC_TYPE_CHOICES,
         label="Clinic Type",
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     amount = forms.IntegerField(widget=forms.HiddenInput)
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Dynamically get all clinic types from the database to include any existing values
         try:
             from core.models import Clinic
             existing_types = set(Clinic.objects.values_list('clinic_type', flat=True).distinct())
-            
+
             # Start with the standard choices
             choices = list(self.CLINIC_TYPE_CHOICES)
-            
+
             # Add any additional types from the database not in our standard choices
             standard_values = [choice[0] for choice in self.CLINIC_TYPE_CHOICES]
             for clinic_type in existing_types:
                 if clinic_type and clinic_type not in standard_values:
                     choices.append((clinic_type, f'Other Clinic Type ({clinic_type})'))
-            
+
             # Update the choices
             self.fields['clinic_type'].choices = choices
-            
+
         except (ImportError, Exception) as e:
             # If there's any error, keep the default choices
             pass
+
+
+# ========================================
+# Laboratory / Diagnostic Forms
+# ========================================
+
+from .models import LabTestCategory, LabTest, LabTestOrder, LabTestResult
+
+
+class LabTestCategoryForm(forms.ModelForm):
+    """Form for managing lab test categories"""
+    class Meta:
+        model = LabTestCategory
+        fields = ['name', 'category_type', 'description', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'Category name'
+            }),
+            'category_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 3,
+                'placeholder': 'Category description (optional)'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+            }),
+        }
+
+
+class LabTestForm(forms.ModelForm):
+    """Form for managing lab test catalog"""
+    class Meta:
+        model = LabTest
+        fields = ['category', 'name', 'code', 'description', 'price', 'sample_type',
+                  'turnaround_time', 'preparation_instructions', 'reference_range', 'is_active']
+        widgets = {
+            'category': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'Test name'
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'Test code (e.g., CBC, LFT)'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Test description'
+            }),
+            'price': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': '0.00'
+            }),
+            'sample_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            'turnaround_time': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'e.g., 24 hours, 3-5 days'
+            }),
+            'preparation_instructions': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Patient preparation instructions (e.g., fasting required)'
+            }),
+            'reference_range': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Normal reference range'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+
+        if clinic:
+            self.fields['category'].queryset = LabTestCategory.objects.filter(
+                clinic=clinic, is_active=True
+            ).order_by('name')
+        else:
+            self.fields['category'].queryset = LabTestCategory.objects.none()
+
+        self.fields['category'].empty_label = "Select category (optional)"
+        self.fields['category'].required = False
+
+
+class LabTestOrderForm(forms.ModelForm):
+    """Form for ordering lab tests"""
+    ordered_tests = forms.ModelMultipleChoiceField(
+        queryset=LabTest.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'lab-test-checkbox'
+        }),
+        required=True,
+        label="Select Tests"
+    )
+
+    class Meta:
+        model = LabTestOrder
+        fields = ['priority', 'clinical_notes', 'diagnosis', 'ordered_tests']
+        widgets = {
+            'priority': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            'clinical_notes': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 3,
+                'placeholder': 'Clinical notes / reason for ordering tests'
+            }),
+            'diagnosis': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Suspected diagnosis'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+
+        if clinic:
+            self.fields['ordered_tests'].queryset = LabTest.objects.filter(
+                clinic=clinic, is_active=True
+            ).select_related('category').order_by('category__name', 'name')
+
+
+class LabTestResultForm(forms.ModelForm):
+    """Form for entering lab test results"""
+    class Meta:
+        model = LabTestResult
+        fields = ['result_value', 'reference_range', 'unit', 'is_abnormal',
+                  'result_file', 'result_notes', 'technician_comments']
+        widgets = {
+            'result_value': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 3,
+                'placeholder': 'Enter test result value/findings'
+            }),
+            'reference_range': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'e.g., 4.5-11.0'
+            }),
+            'unit': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'e.g., mg/dL, mmol/L'
+            }),
+            'is_abnormal': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded'
+            }),
+            'result_file': forms.FileInput(attrs={
+                'class': 'block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100',
+                'accept': '.pdf,.jpg,.jpeg,.png'
+            }),
+            'result_notes': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Additional notes about the result'
+            }),
+            'technician_comments': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+                'rows': 2,
+                'placeholder': 'Lab technician comments'
+            }),
+        }
+
+
+class SampleCollectionForm(forms.Form):
+    """Form for marking sample collection"""
+    collection_notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+            'rows': 2,
+            'placeholder': 'Notes about sample collection (optional)'
+        })
+    )
         
 
 

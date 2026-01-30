@@ -268,28 +268,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email settings (for password reset and notifications)
 
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-
-# EMAIL_HOST = "smtp0001.neo.space"
-# EMAIL_PORT = 465
-
-# EMAIL_USE_SSL = True
-# EMAIL_USE_TLS = False
-
-# EMAIL_HOST_USER = "info@durielmedic.com.ng"
-# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
-
-# DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <info@durielmedic.com.ng>'
-
-
-
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_HOST_USER = 'suavedef@gmail.com'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp0001.neo.space"
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = "info@durielmedic.com.ng"
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
-EMAIL_USE_TLS = True 
-DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <suavedef@gmail.com>'
+DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <info@durielmedic.com.ng>'
+
+
+
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_HOST_USER = 'suavedef@gmail.com'
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
+# EMAIL_USE_TLS = True 
+# DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <suavedef@gmail.com>'
 
 # AI Assist
 AI_API_KEY = os.getenv("OPENROUTER_API_KEY")

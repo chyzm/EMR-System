@@ -66,7 +66,6 @@
                                                 {% if test.code %}<span class="font-mono text-xs bg-gray-200 px-1 rounded mr-1">{{ test.code }}</span>{% endif %}
                                                 {{ test.name }}
                                             </span>
-                                            <span class="text-blue-600 font-medium">&#8358;{{ test.price|floatformat:2 }}</span>
                                         </div>
                                         <div class="text-sm text-gray-500">
                                             <span class="mr-3"><i class="fas fa-vial mr-1"></i>{{ test.get_sample_type_display }}</span>
@@ -115,9 +114,6 @@
                 <div id="orderSummary" class="hidden mb-6 bg-gray-50 rounded-lg p-4">
                     <h4 class="font-medium text-gray-800 mb-2">Order Summary</h4>
                     <div id="selectedTests" class="text-sm text-gray-600"></div>
-                    <div class="mt-2 font-medium text-lg text-blue-600">
-                        Total: &#8358;<span id="totalPrice">0.00</span>
-                    </div>
                 </div>
 
                 <div class="flex gap-3">
@@ -147,26 +143,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const checkboxes = document.querySelectorAll('input[name="ordered_tests"]');
     const summary = document.getElementById('orderSummary');
     const selectedTestsDiv = document.getElementById('selectedTests');
-    const totalPriceSpan = document.getElementById('totalPrice');
 
-    const testPrices = {
+    const testNames = {
         {% for category in categories %}
         {% for test in category.tests.all %}
-        {{ test.pk }}: { name: "{{ test.name }}", price: {{ test.price }} },
+        {{ test.pk }}: { name: "{{ test.name }}" },
         {% endfor %}
         {% endfor %}
     };
 
     function updateSummary() {
-        let total = 0;
         let selected = [];
 
         checkboxes.forEach(cb => {
             if (cb.checked) {
                 const testId = cb.value;
-                const test = testPrices[testId];
+                const test = testNames[testId];
                 if (test) {
-                    total += test.price;
                     selected.push(test.name);
                 }
             }
@@ -175,7 +168,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selected.length > 0) {
             summary.classList.remove('hidden');
             selectedTestsDiv.innerHTML = selected.map(name => `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">${name}</span>`).join('');
-            totalPriceSpan.textContent = total.toFixed(2);
         } else {
             summary.classList.add('hidden');
         }

@@ -41,8 +41,13 @@
                 <p><strong>Blood Group:</strong> {{ patient.blood_group }}</p>
                 <p><strong>Allergies:</strong> {{ patient.allergies|default:"None recorded" }}</p>
                 <p><strong>Contact:</strong> {{ patient.contact }}</p>
+                <p><strong>Email:</strong> {{ patient.email|default:"Not provided" }}</p>
                 <p><strong>Address:</strong> {{ patient.address }}</p>
                 <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact }} ({{ patient.emergency_contact_name|default:"No name provided" }})</p>
+                {% if active_admission %}
+                <p><strong>Admission:</strong> {{ active_admission.ward }} ({{ active_admission.date_admitted|date:"M j, Y H:i" }})</p>
+                <p><strong>Admitted By:</strong> {{ active_admission.admitted_by.get_full_name|default:"-" }}</p>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -133,6 +138,8 @@
                 
                     {% if patient.status == 'CONSULTATION_COMPLETE' or patient.status == 'ADMITTED' and request.user.role == 'DOCTOR' %}
                         {% if patient.status == 'CONSULTATION_COMPLETE' %}
+                            <a href="{% url 'DurielMedicApp:finish_consultation' patient_id=patient.patient_id %}"
+                               class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded">Finish</a>
                             <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" 
                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Schedule Follow-up</a>
                             <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
@@ -142,21 +149,12 @@
                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Discharge</a>
                     {% endif %}
 
-                    {% for follow_up in patient.follow_ups.all %}
-                        {% if not follow_up.completed %}
-                        <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
-                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-                        Complete Follow-up
-                        </a>
-                        {% endif %}
-                    {% endfor %}
-                
                     {% if patient.status == 'FOLLOW_UP' %}
                         {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
                             {% for follow_up in patient.follow_ups.all %}
                                 {% if not follow_up.completed %}
                                     <a href="{% url 'DurielMedicApp:complete_follow_up' pk=follow_up.id %}" 
-                                       class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Complete Follow-up</a>
+                                       class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Complete Follow-up</a>
                                 {% endif %}
                             {% endfor %}
                         {% endif %}

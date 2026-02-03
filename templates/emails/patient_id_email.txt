@@ -1,0 +1,15 @@
+Hello {{ patient.first_name }},
+
+Welcome to {{ clinic.name }}.
+
+Your Patient ID is: {{ patient_id }}
+
+Please keep this ID safe. You may be asked for it when booking appointments or at check-in.
+
+If you have any questions, contact us:
+{% if clinic.phone %}Phone: {{ clinic.phone }}{% endif %}
+{% if clinic.email %}Email: {{ clinic.email }}{% endif %}
+{% if clinic.address %}Address: {{ clinic.address }}{% endif %}
+
+Thank you,
+{{ clinic.name }}

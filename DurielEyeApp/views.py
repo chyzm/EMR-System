@@ -34,6 +34,8 @@ from core.utils import log_action
 from core.decorators import clinic_selected_required
 from django.db.models import Prefetch
 from django.utils import timezone
+from core.decorators import role_required
+from django.db import models
 
 
 
@@ -351,7 +353,36 @@ class EyeAppointmentListView(ListView):
         user = self.request.user
         if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
             qs = qs.filter(Q(provider=user) | Q(patient__created_by=user))
-        return qs.order_by('-date', '-start_time')
+        today = timezone.localdate()
+        qs = qs.annotate(
+            day_bucket=models.Case(
+                models.When(date=today, then=Value(0)),
+                models.When(date__gt=today, then=Value(1)),
+                default=Value(2),
+                output_field=models.IntegerField(),
+            )
+        )
+        return qs.order_by('day_bucket', 'date', 'start_time')
+
+
+@login_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+def today_appointment_count(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        return JsonResponse({'count': 0})
+
+    today = timezone.localdate()
+    count = EyeAppointment.objects.filter(
+        clinic_id=clinic_id,
+        provider=request.user,
+        date=today,
+        status='SCHEDULED',
+    ).exclude(
+        patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
+    ).count()
+
+    return JsonResponse({'count': count})
 
 
 
@@ -470,6 +501,11 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
         form.instance.clinic_id = clinic_id
         form.instance.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
         appointment = form.save()
+
+        patient = getattr(appointment, "patient", None)
+        if patient and patient.status in ["DISCHARGED", "FOLLOW_UP_COMPLETE"]:
+            patient.status = "REGISTERED"
+            patient.save(update_fields=["status"])
 
         # Create notification for staff in the same clinic
         staff_users = CustomUser.objects.filter(
@@ -796,6 +832,10 @@ def delete_eye_medical_record(request, record_id):
 @login_required
 def begin_eye_consultation(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id)
+
+    if patient.status != 'IN_CONSULTATION':
+        patient.status = 'IN_CONSULTATION'
+        patient.save(update_fields=['status'])
     
     # Get latest appointment
     appointment = EyeAppointment.objects.filter(patient=patient).order_by('-date').first()

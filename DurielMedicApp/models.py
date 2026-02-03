@@ -70,11 +70,48 @@ class Vitals(models.Model):
 
 
 class Admission(models.Model):
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
-    reason = models.TextField()
-    date_admitted = models.DateTimeField(auto_now_add=True)
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='admissions')
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='admissions', null=True, blank=True)
     ward = models.CharField(max_length=50)
+    reason = models.TextField()
+    admitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='admissions_created',
+    )
+    date_admitted = models.DateTimeField(auto_now_add=True)
+
     discharged = models.BooleanField(default=False)
+    discharged_at = models.DateTimeField(null=True, blank=True)
+    discharged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='admissions_discharged',
+    )
+
+    class Meta:
+        ordering = ['-date_admitted']
+        indexes = [
+            models.Index(fields=['clinic']),
+            models.Index(fields=['discharged']),
+            models.Index(fields=['-date_admitted']),
+        ]
+
+    @property
+    def status(self):
+        return 'DISCHARGED' if self.discharged else 'ADMITTED'
+
+    def save(self, *args, **kwargs):
+        if not self.clinic and self.patient_id:
+            self.clinic = self.patient.clinic
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Admission - {self.patient.full_name} ({self.ward})"
 
 
 class FollowUp(models.Model):

@@ -75,10 +75,17 @@ class FollowUpForm(forms.ModelForm):
 class AdmissionForm(forms.ModelForm):
     class Meta:
         model = Admission
-        fields = '__all__'
+        fields = ['ward', 'reason']
         widgets = {
-            'patient': forms.HiddenInput(),
-            'reason': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'ward': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+                'placeholder': 'e.g., Ward A'
+            }),
+            'reason': forms.Textarea(attrs={
+                'rows': 3,
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 h-32',
+                'placeholder': 'Reason for admission...'
+            }),
         }
 
 # class AppointmentForm(forms.ModelForm):

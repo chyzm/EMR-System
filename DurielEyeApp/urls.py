@@ -28,6 +28,7 @@ urlpatterns = [
     path('appointments/<int:pk>/complete/', views.mark_eye_appointment_completed, name='mark_completed'),
     path('appointments/<int:pk>/cancel/', views.mark_eye_appointment_cancelled, name='mark_cancelled'),
     path('api/appointments/check/', views.check_eye_appointment_availability, name='check_appointment_availability'),
+    path('api/appointments/today-count/', views.today_appointment_count, name='today_appointment_count'),
 
     # Eye Exams
     path('appointments/<int:appointment_id>/record-exam/',views.record_eye_exam,name='record_eye_exam'),

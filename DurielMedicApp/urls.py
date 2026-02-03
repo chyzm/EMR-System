@@ -29,6 +29,7 @@ urlpatterns = [
     path('appointments/<int:pk>/complete/', views.mark_appointment_completed, name='mark_completed'),
     path('appointments/<int:pk>/cancel/', views.mark_appointment_cancelled, name='mark_cancelled'),
     path('api/appointments/check/', views.check_appointment_availability, name='check_appointment_availability'),
+    path('api/appointments/today-count/', views.today_appointment_count, name='today_appointment_count'),
 
     # Notifications
     # path('notifications/mark-read/<int:pk>/', views.mark_notification_read, name='mark_notification_read'),
@@ -43,6 +44,8 @@ urlpatterns = [
     # Admission
     path('patients/<str:patient_id>/admit/', views.admit_patient, name='admit_patient'),
     path('patients/<str:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),
+    path('admissions/', views.admission_list, name='admission_list'),
+    path('admissions/<int:admission_id>/discharge/', views.discharge_admission, name='discharge_admission'),
 
     
     # Patient status
@@ -51,6 +54,7 @@ urlpatterns = [
     # Consultation
     path('patients/<str:patient_id>/begin-consultation/', views.begin_consultation, name='begin_consultation'),
     path('patients/<str:patient_id>/complete-consultation/', views.complete_consultation, name='complete_consultation'),
+    path('patients/<str:patient_id>/finish-consultation/', views.finish_consultation, name='finish_consultation'),
     path('patients/<str:patient_id>/schedule-follow-up/', views.schedule_follow_up, name='schedule_follow_up'),
 
     # Follow Up

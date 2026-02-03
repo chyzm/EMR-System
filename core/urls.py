@@ -185,6 +185,8 @@ urlpatterns = [
 
     # Lab Queue (Nurse, Lab Technician)
     path('lab/queue/', views.lab_queue, name='lab_queue'),
+    path('lab/queue/count/', views.lab_queue_count, name='lab_queue_count'),
+    path('lab/history/', views.lab_history, name='lab_history'),
     path('lab/orders/<int:order_id>/', views.view_lab_order, name='view_lab_order'),
     path('lab/orders/<int:order_id>/collect-sample/', views.collect_sample, name='collect_sample'),
     path('lab/orders/<int:order_id>/enter-results/', views.enter_lab_results, name='enter_lab_results'),

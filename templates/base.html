@@ -239,16 +239,34 @@ li ul[id*="_error"] {
           
               {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
               {% if request.session.clinic_type == "GENERAL" %}
+              {% url 'DurielMedicApp:today_appointment_count' as appt_today_count_url %}
               <a href="{% url 'DurielMedicApp:appointment_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
-                Appointments
+                <span class="flex-1">Appointments</span>
+                {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+                <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                      data-count-url="{{ appt_today_count_url }}"></span>
+                {% endif %}
               </a>
+
+              {% if request.user.role in 'ADMIN,DOCTOR,NURSE' %}
+              <a href="{% url 'DurielMedicApp:admission_list' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'admission' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-bed-pulse mr-3"></i>
+                Admissions
+              </a>
+              {% endif %}
               {% elif request.session.clinic_type == "EYE" %}
+              {% url 'DurielEyeApp:today_appointment_count' as appt_today_count_url %}
               <a href="{% url 'DurielEyeApp:appointment_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
-                Appointments
+                <span class="flex-1">Appointments</span>
+                {% if request.user.role in 'DOCTOR,OPTOMETRIST' and appt_today_count_url %}
+                <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                      data-count-url="{{ appt_today_count_url }}"></span>
+                {% endif %}
               </a>
               {% endif %}
               {% endif %}
@@ -298,7 +316,8 @@ li ul[id*="_error"] {
               <a href="{% url 'core:lab_queue' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-flask mr-3"></i>
-                Lab Queue
+                <span class="flex-1">Lab Queue</span>
+                <span class="js-lab-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
               </a>
               {% endif %}
 
@@ -521,16 +540,34 @@ li ul[id*="_error"] {
       
           {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
           {% if request.session.clinic_type == "GENERAL" %}
+          {% url 'DurielMedicApp:today_appointment_count' as appt_today_count_url %}
           <a href="{% url 'DurielMedicApp:appointment_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-calendar-alt mr-3"></i>
-            Appointments
+            <span class="flex-1">Appointments</span>
+            {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+            <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                  data-count-url="{{ appt_today_count_url }}"></span>
+            {% endif %}
           </a>
+
+          {% if request.user.role in 'ADMIN,DOCTOR,NURSE' %}
+          <a href="{% url 'DurielMedicApp:admission_list' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'admission' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-bed-pulse mr-3"></i>
+            Admissions
+          </a>
+          {% endif %}
           {% elif request.session.clinic_type == "EYE" %}
+          {% url 'DurielEyeApp:today_appointment_count' as appt_today_count_url %}
           <a href="{% url 'DurielEyeApp:appointment_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-calendar-alt mr-3"></i>
-            Appointments
+            <span class="flex-1">Appointments</span>
+            {% if request.user.role in 'DOCTOR,OPTOMETRIST' and appt_today_count_url %}
+            <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                  data-count-url="{{ appt_today_count_url }}"></span>
+            {% endif %}
           </a>
           {% endif %}
           {% endif %}
@@ -582,7 +619,8 @@ li ul[id*="_error"] {
           <a href="{% url 'core:lab_queue' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-flask mr-3"></i>
-            Lab Queue
+            <span class="flex-1">Lab Queue</span>
+            <span class="js-lab-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
           </a>
           {% endif %}
 
@@ -706,6 +744,79 @@ li ul[id*="_error"] {
           link.classList.add('active');
         }
       });
+    });
+
+    // Lab queue badge polling (every 30 seconds)
+    document.addEventListener('DOMContentLoaded', function() {
+      const badges = document.querySelectorAll('.js-lab-queue-count');
+      if (!badges.length) return;
+
+      const url = "{% url 'core:lab_queue_count' %}";
+
+      async function refreshLabQueueCount() {
+        try {
+          const res = await fetch(url, { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          const count = Number(data.count || 0);
+
+          badges.forEach(badge => {
+            if (count > 0) {
+              badge.textContent = String(count);
+              badge.classList.remove('hidden');
+            } else {
+              badge.textContent = '';
+              badge.classList.add('hidden');
+            }
+          });
+        } catch (e) {
+          // ignore polling errors
+        }
+      }
+
+      refreshLabQueueCount();
+      setInterval(refreshLabQueueCount, 30000);
+    });
+
+    // Today's appointments badge polling (every 30 seconds)
+    document.addEventListener('DOMContentLoaded', function() {
+      const badges = Array.from(document.querySelectorAll('.js-appointment-today-count'));
+      if (!badges.length) return;
+
+      const groups = new Map();
+      for (const badge of badges) {
+        const url = badge.getAttribute('data-count-url');
+        if (!url) continue;
+        if (!groups.has(url)) groups.set(url, []);
+        groups.get(url).push(badge);
+      }
+      if (!groups.size) return;
+
+      async function refreshAppointmentCounts() {
+        for (const [url, badgeEls] of groups.entries()) {
+          try {
+            const res = await fetch(url, { credentials: 'same-origin' });
+            if (!res.ok) continue;
+            const data = await res.json();
+            const count = Number(data.count || 0);
+
+            badgeEls.forEach(el => {
+              if (count > 0) {
+                el.textContent = String(count);
+                el.classList.remove('hidden');
+              } else {
+                el.textContent = '';
+                el.classList.add('hidden');
+              }
+            });
+          } catch (e) {
+            // ignore polling errors
+          }
+        }
+      }
+
+      refreshAppointmentCounts();
+      setInterval(refreshAppointmentCounts, 30000);
     });
      
     // Add Font Awesome if not already loaded

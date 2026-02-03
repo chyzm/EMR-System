@@ -186,9 +186,19 @@ class Patient(models.Model):
     from django.db.models import Sum
 
     def get_outstanding_balance(self):
-        from django.db.models import Sum, F
-        result = self.bills.aggregate(total=Sum(F('amount') - F('paid_amount')))
-        return result['total']  # Remove the "or 0" to return None when no bills exist
+        from django.db.models import Sum, F, Case, When, DecimalField, ExpressionWrapper
+        effective_amount = Case(
+            When(discount_type__in=['PERCENTAGE', 'FIXED'], then=F('final_amount')),
+            When(final_amount__gt=0, then=F('final_amount')),
+            default=F('amount'),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+        outstanding = ExpressionWrapper(
+            effective_amount - F('paid_amount'),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+        result = self.bills.aggregate(total=Sum(outstanding))
+        return result['total']
     
     def has_billing_records(self):
         return self.bills.exists()   # Assuming a reverse relation exists
@@ -273,11 +283,22 @@ class Billing(models.Model):
         self.final_amount = self.amount - self.discount_amount
         return self.final_amount
 
+    def get_effective_amount(self):
+        """
+        Amount due after discount.
+
+        Uses stored final_amount when a discount is applied (even if it becomes 0),
+        and falls back to amount for legacy records where final_amount may be 0.
+        """
+        if self.discount_type != 'NONE' or self.discount_amount > 0 or self.discount_value > 0:
+            return self.final_amount
+        if self.final_amount and self.final_amount > 0:
+            return self.final_amount
+        return self.amount
+
     def get_balance(self):
         """Get balance based on final amount (after discount)"""
-        if self.final_amount > 0:
-            return self.final_amount - self.paid_amount
-        return self.amount - self.paid_amount
+        return self.get_effective_amount() - self.paid_amount
 
     def calculate_total(self):
         """Calculate total amount from selected services."""

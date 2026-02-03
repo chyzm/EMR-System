@@ -1,8 +1,10 @@
 {% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block title %}Eye Appointments{% endblock %}
 
 {% block content %}
+{% now "Y-m-d" as today_str %}
 <div class="container mx-auto px-4 py-6">
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Eye Clinic Appointments</h1>
@@ -45,7 +47,19 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-          {% for appointment in appointments %}
+          {% if appointments %}
+          {% regroup appointments by date as appointment_groups %}
+          {% for group in appointment_groups %}
+          <tr class="bg-blue-50">
+            <td colspan="7" class="px-6 py-3 text-sm font-semibold text-blue-900">
+              {% if group.grouper|date:"Y-m-d" == today_str %}
+                Today — {{ group.grouper|date:"l, M j, Y" }}
+              {% else %}
+                {{ group.grouper|date:"l, M j, Y" }}
+              {% endif %}
+            </td>
+          </tr>
+          {% for appointment in group.list %}
           <tr class="hover:bg-gray-50">
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center">
@@ -95,16 +109,22 @@
            
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
               <a href="{% url 'DurielEyeApp:appointment_detail' appointment.pk %}" class="text-blue-600 hover:text-blue-900 mr-3"><i class="fas fa-eye"></i></a>
+              {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
+              <a href="{% url 'DurielEyeApp:begin_consultation' appointment.patient_id %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-stethoscope"></i></a>
+              {% else %}
               <a href="{% url 'core:patient_detail' appointment.patient_id %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-stethoscope"></i></a>
+              {% endif %}
               <a href="{% url 'DurielEyeApp:appointment_update' appointment.pk %}" class="text-green-600 hover:text-green-900 mr-3"><i class="fas fa-edit"></i></a>
               <a href="{% url 'DurielEyeApp:appointment_delete' appointment.pk %}" class="text-red-600 hover:text-red-900"><i class="fas fa-trash"></i></a>
             </td>
           </tr>
-          {% empty %}
+          {% endfor %}
+          {% endfor %}
+          {% else %}
           <tr>
             <td colspan="7" class="px-6 py-4 text-center text-gray-500">No appointments found</td>
           </tr>
-          {% endfor %}
+          {% endif %}
         </tbody>
       </table>
     </div>

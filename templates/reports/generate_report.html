@@ -69,15 +69,15 @@
             <ul class="space-y-2">
                 <li class="flex justify-between">
                     <span>Total Billed:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0 }}</span>
+                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0|floatformat:2 }}</span>
                 </li>
                 <li class="flex justify-between">
                     <span>Total Paid:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_paid|default:0 }}</span>
+                    <span class="font-medium">₦{{ financial_stats.total_paid|default:0|floatformat:2 }}</span>
                 </li>
                 <li class="flex justify-between">
                     <span>Outstanding:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0|subtract:financial_stats.total_paid|default:0 }}</span>
+                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0|subtract:financial_stats.total_paid|default:0|floatformat:2 }}</span>
                 </li>
             </ul>
         </div>

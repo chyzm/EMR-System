@@ -3,6 +3,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction
+from django.db import models
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
@@ -188,6 +189,26 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return queryset.order_by('-date', '-start_time')
 
 
+@login_required
+@role_required('DOCTOR')
+def today_appointment_count(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        return JsonResponse({'count': 0})
+
+    today = timezone.localdate()
+    count = Appointment.objects.filter(
+        clinic_id=clinic_id,
+        provider=request.user,
+        date=today,
+        status='SCHEDULED',
+    ).exclude(
+        patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
+    ).count()
+
+    return JsonResponse({'count': count})
+
+
 
 class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Appointment
@@ -209,6 +230,11 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         
         appointment = form.save(commit=False)
         appointment.save()
+
+        patient = appointment.patient
+        if patient and patient.status in ['DISCHARGED', 'FOLLOW_UP_COMPLETE']:
+            patient.status = 'REGISTERED'
+            patient.save(update_fields=['status'])
         
         # ✅ Manual logging
         log_action(
@@ -304,63 +330,6 @@ def record_vitals(request, patient_id):
         'patient': patient,
         'appointment': appointment
     })
-
-
-# --------------------
-# Admissions
-# --------------------
-@login_required
-@role_required('DOCTOR', 'NURSE')
-def admit_patient(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
-    if request.method == 'POST':
-        ward = request.POST.get('ward')
-        reason = request.POST.get('reason')
-        Admission.objects.create(patient=patient, ward=ward, reason=reason)
-        messages.success(request, "Patient admitted successfully.")
-        return redirect('core:patient_detail', pk=patient_id)
-    return render(request, 'DurielMedicApp/admit_patient.html', {'patient': patient})
-
-
-@login_required
-def discharge_patient(request, admission_id):
-    admission = get_object_or_404(Admission, pk=admission_id)
-    admission.discharged = True
-    admission.save()
-    messages.success(request, "Patient discharged successfully.")
-    return redirect('core:patient_detail', pk=admission.patient.pk)
-
-
-# --------------------
-# Follow-ups
-# --------------------
-@login_required
-def create_follow_up(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
-    if request.method == 'POST':
-        form = FollowUpForm(request.POST)
-        if form.is_valid():
-            follow_up = form.save(commit=False)
-            follow_up.patient = patient
-            follow_up.created_by = request.user
-            follow_up.save()
-            
-            # ✅ Add manual logging
-            log_action(
-                request,
-                'CREATE',
-                follow_up,
-                details=f"Created follow-up for {patient.full_name}"
-            )
-            
-            
-            
-            messages.success(request, "Follow-up created successfully.")
-            return redirect('core:patient_detail', pk=patient_id)
-    else:
-        form = FollowUpForm()
-    return render(request, 'DurielMedicApp/followup_form.html', {'form': form, 'patient': patient})
-
 
 
 # --------------------
@@ -798,18 +767,41 @@ class FollowUpUpdateView(LoginRequiredMixin, UpdateView):
 @role_required('DOCTOR', 'NURSE')
 def admit_patient(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id)
+    clinic_id = request.session.get('clinic_id')
+    if clinic_id and str(patient.clinic_id) != str(clinic_id):
+        messages.error(request, "Patient does not belong to the selected clinic.")
+        return redirect('core:patient_detail', pk=patient_id)
     
     # Allow admission from multiple states
     if patient.status not in ['VITALS_TAKEN', 'CONSULTATION_COMPLETE']:
         messages.error(request, "Patient must have vitals taken or consultation completed first")
         return redirect('core:patient_detail', pk=patient_id)
-    
+
     if request.method == 'POST':
+        if Admission.objects.filter(patient=patient, discharged=False).exists():
+            messages.warning(request, "This patient already has an active admission.")
+            return redirect('core:patient_detail', pk=patient_id)
+
         form = AdmissionForm(request.POST)
         if form.is_valid():
             admission = form.save(commit=False)
             admission.patient = patient
+            admission.clinic = patient.clinic
+            admission.admitted_by = request.user
             admission.save()
+            ward = getattr(admission, 'ward', None)
+
+            # If there is a scheduled appointment for today, mark it completed
+            today = timezone.localdate()
+            appt = Appointment.objects.filter(
+                clinic_id=clinic_id,
+                patient=patient,
+                date=today,
+                status='SCHEDULED',
+            ).order_by('-start_time').first()
+            if appt:
+                appt.status = 'COMPLETED'
+                appt.save(update_fields=['status'])
             
             # ✅ Add manual logging
             log_action(
@@ -825,13 +817,36 @@ def admit_patient(request, patient_id):
             messages.success(request, "Patient admitted successfully!")
             return redirect('core:patient_detail', pk=patient_id)
     else:
-        form = AdmissionForm(initial={'patient': patient})
+        form = AdmissionForm()
     
     return render(request, 'admission/admit_patient.html', {
         'form': form,
         'patient': patient,
         'from_consultation': patient.status == 'CONSULTATION_COMPLETE'
     })
+
+
+@login_required
+@role_required('DOCTOR')
+def finish_consultation(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id)
+
+    if patient.status not in ['CONSULTATION_COMPLETE', 'FOLLOW_UP_COMPLETE']:
+        messages.error(request, "Patient is not ready to be finished.")
+        return redirect('core:patient_detail', pk=patient_id)
+
+    patient.status = 'DISCHARGED'
+    patient.save(update_fields=['status'])
+
+    log_action(
+        request,
+        'UPDATE',
+        patient,
+        details=f"Finished consultation for {patient.full_name}"
+    )
+
+    messages.success(request, "Consultation finished.")
+    return redirect('core:patient_detail', pk=patient_id)
     
     
     
@@ -864,7 +879,9 @@ def discharge_patient(request, patient_id):
         return redirect('core:patient_detail', pk=patient_id)
     
     admission.discharged = True
-    admission.save()
+    admission.discharged_at = timezone.now()
+    admission.discharged_by = request.user
+    admission.save(update_fields=['discharged', 'discharged_at', 'discharged_by'])
     
     # ✅ Add manual logging
     log_action(
@@ -874,12 +891,98 @@ def discharge_patient(request, patient_id):
         details=f"Discharged patient {admission.patient.full_name}"
     )
     
-    # Reset patient status
-    patient.status = 'REGISTERED'
-    patient.save()
+    patient.status = 'DISCHARGED'
+    patient.save(update_fields=['status'])
     
     messages.success(request, "Patient discharged successfully")
     return redirect('core:patient_detail', pk=patient_id)
+
+
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def admission_list(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
+    status_filter = request.GET.get('status', 'ACTIVE')
+    ward_filter = request.GET.get('ward', '').strip()
+    search_query = request.GET.get('search', '').strip()
+
+    admissions = Admission.objects.select_related(
+        'patient', 'clinic', 'admitted_by', 'discharged_by'
+    ).filter(
+        clinic_id=clinic_id
+    )
+
+    if status_filter == 'ACTIVE':
+        admissions = admissions.filter(discharged=False)
+    elif status_filter == 'DISCHARGED':
+        admissions = admissions.filter(discharged=True)
+
+    if ward_filter:
+        admissions = admissions.filter(ward__icontains=ward_filter)
+
+    if search_query:
+        admissions = admissions.filter(
+            Q(patient__first_name__icontains=search_query) |
+            Q(patient__last_name__icontains=search_query) |
+            Q(patient__patient_id__icontains=search_query)
+        )
+
+    stats = {
+        'active': Admission.objects.filter(clinic_id=clinic_id, discharged=False).count(),
+        'discharged': Admission.objects.filter(clinic_id=clinic_id, discharged=True).count(),
+    }
+
+    paginator = Paginator(admissions.order_by('-date_admitted'), 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+
+    return render(request, 'admission/admission_list.html', {
+        'admissions': page_obj,
+        'page_obj': page_obj,
+        'stats': stats,
+        'status_filter': status_filter,
+        'ward_filter': ward_filter,
+        'search_query': search_query,
+        'querystring': query_params.urlencode(),
+    })
+
+
+@require_POST
+@login_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def discharge_admission(request, admission_id):
+    clinic_id = request.session.get('clinic_id')
+    admission = get_object_or_404(Admission, pk=admission_id, clinic_id=clinic_id)
+    patient = admission.patient
+
+    if admission.discharged:
+        messages.warning(request, "Admission is already discharged.")
+        return redirect('DurielMedicApp:admission_list')
+
+    admission.discharged = True
+    admission.discharged_at = timezone.now()
+    admission.discharged_by = request.user
+    admission.save(update_fields=['discharged', 'discharged_at', 'discharged_by'])
+
+    patient.status = 'DISCHARGED'
+    patient.save(update_fields=['status'])
+
+    log_action(
+        request,
+        'UPDATE',
+        admission,
+        details=f"Discharged patient {patient.full_name}"
+    )
+
+    messages.success(request, "Admission discharged.")
+    return redirect('DurielMedicApp:admission_list')
 
 
 
@@ -992,6 +1095,11 @@ def add_appointment(request):
             appointment.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
             appointment.status = 'SCHEDULED'
             appointment.save()
+
+            patient = appointment.patient
+            if patient and patient.status in ['DISCHARGED', 'FOLLOW_UP_COMPLETE']:
+                patient.status = 'REGISTERED'
+                patient.save(update_fields=['status'])
             
             # Notify all staff in this clinic
             staff_users = User.objects.filter(clinic__id=clinic_id, is_active=True)
@@ -1266,6 +1374,18 @@ def complete_consultation(request, patient_id):
         with transaction.atomic():
             patient.status = 'CONSULTATION_COMPLETE'
             patient.save()
+
+            # Mark today's scheduled appointment as completed (so it doesn't look like a new appointment was scheduled)
+            today = timezone.localdate()
+            appt = Appointment.objects.filter(
+                clinic_id=clinic_id,
+                patient=patient,
+                date=today,
+                status='SCHEDULED',
+            ).order_by('-start_time').first()
+            if appt:
+                appt.status = 'COMPLETED'
+                appt.save(update_fields=['status'])
             
             
             # ✅ Add manual logging for consultation completion
@@ -1362,7 +1482,7 @@ def complete_follow_up(request, pk):
     else:
         messages.warning(request, "This follow-up was already completed.")
     
-    return redirect('DurielMedicApp:patient_detail', pk=patient.pk)
+    return redirect('core:patient_detail', pk=patient.patient_id)
 
 
 
@@ -1408,12 +1528,18 @@ def generate_report(request):
         created_at__range=[start_date, end_date]
     ).aggregate(total=Count('patient_id'))
 
-    financial_stats = Billing.objects.filter(
-        clinic_id=clinic_id,
-        service_date__range=[start_date.date(), end_date.date()]
-    ).aggregate(
-        total_amount=Sum('amount'),
-        total_paid=Sum('paid_amount')
+    effective_amount_expr = models.Case(
+        models.When(discount_type__in=['PERCENTAGE', 'FIXED'], then=F('final_amount')),
+        models.When(final_amount__gt=0, then=F('final_amount')),
+        default=F('amount'),
+        output_field=DecimalField(max_digits=10, decimal_places=2),
+    )
+
+    # Match /billing/ totals (all bills in clinic, discount-aware).
+    bills_for_totals = Billing.objects.filter(clinic_id=clinic_id).annotate(effective_amount=effective_amount_expr)
+    financial_stats = bills_for_totals.aggregate(
+        total_amount=Coalesce(Sum('effective_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
     )
 
     context = {
@@ -1485,10 +1611,17 @@ def generate_financial_report(start_date, end_date, clinic_id):
             service_date__range=[start_date.date(), end_date.date()]
         ).select_related('patient').order_by('service_date')
 
+        effective_amount_expr = models.Case(
+            models.When(discount_type__in=['PERCENTAGE', 'FIXED'], then=F('final_amount')),
+            models.When(final_amount__gt=0, then=F('final_amount')),
+            default=F('amount'),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+
         # Calculate totals for the report
         totals = bills.aggregate(
-            total_billed=Sum('amount'),
-            total_paid=Sum('paid_amount'),
+            total_billed=Coalesce(Sum(effective_amount_expr), Value(0, output_field=DecimalField())),
+            total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
         )
         totals['outstanding'] = (totals['total_billed'] or 0) - (totals['total_paid'] or 0)
 
@@ -1505,7 +1638,7 @@ def generate_financial_report(start_date, end_date, clinic_id):
         
         # Write bill details
         for bill in bills:
-            amount = bill.amount or 0
+            amount = bill.get_effective_amount() or 0
             paid = bill.paid_amount or 0
             balance = amount - paid
 

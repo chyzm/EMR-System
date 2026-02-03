@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;">
+    <div style="max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:#ffffff;border-radius:10px;padding:24px;border:1px solid #e6e8f0;">
+        <h2 style="margin:0 0 12px 0;color:#0f172a;font-size:20px;">{{ clinic.name }}</h2>
+        <p style="margin:0 0 12px 0;color:#334155;line-height:1.5;">
+          Hello {{ patient.first_name }},
+        </p>
+        <p style="margin:0 0 16px 0;color:#334155;line-height:1.5;">
+          Welcome to {{ clinic.name }}. Your Patient ID is:
+        </p>
+        <div style="display:inline-block;background:#0ea5e9;color:#ffffff;border-radius:8px;padding:10px 14px;font-size:18px;font-weight:700;letter-spacing:0.5px;">
+          {{ patient_id }}
+        </div>
+        <p style="margin:16px 0 0 0;color:#334155;line-height:1.5;">
+          Please keep this ID safe. You may be asked for it when booking appointments or at check-in.
+        </p>
+        <hr style="border:none;border-top:1px solid #e6e8f0;margin:20px 0;">
+        <p style="margin:0;color:#64748b;font-size:13px;line-height:1.6;">
+          {% if clinic.phone %}<strong>Phone:</strong> {{ clinic.phone }}<br>{% endif %}
+          {% if clinic.email %}<strong>Email:</strong> {{ clinic.email }}<br>{% endif %}
+          {% if clinic.address %}<strong>Address:</strong> {{ clinic.address }}{% endif %}
+        </p>
+      </div>
+      <p style="margin:12px 0 0 0;color:#94a3b8;font-size:12px;">
+        This message was sent by {{ clinic.name }}.
+      </p>
+    </div>
+  </body>
+</html>

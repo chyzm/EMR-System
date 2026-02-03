@@ -1,8 +1,12 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
+from django.conf import settings
+from email.utils import parseaddr
 from crum import get_current_request
-from .models import ActionLog
+from .models import ActionLog, Patient
 
 @receiver(post_save)
 def log_save_action(sender, instance, created, **kwargs):
@@ -138,3 +142,51 @@ def log_failed_login(sender, credentials, request, **kwargs):
         )
     except Exception:
         pass
+
+
+@receiver(post_save, sender=Patient)
+def send_patient_id_email(sender, instance, created, **kwargs):
+    if not created:
+        return
+    if not instance.email:
+        return
+
+    clinic = instance.clinic
+    if not clinic:
+        return
+
+    subject = f"{clinic.name} - Your Patient ID"
+
+    context = {
+        'clinic': clinic,
+        'patient': instance,
+        'patient_id': instance.patient_id,
+    }
+
+    text_body = render_to_string('emails/patient_id_email.txt', context)
+    html_body = render_to_string('emails/patient_id_email.html', context)
+
+    sender_address = getattr(settings, 'EMAIL_HOST_USER', None)
+    if not sender_address:
+        _, sender_address = parseaddr(getattr(settings, 'DEFAULT_FROM_EMAIL', '') or '')
+    if not sender_address:
+        sender_address = getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+
+    from_email = f"{clinic.name} <{sender_address}>"
+
+    try:
+        email_kwargs = {
+            'subject': subject,
+            'body': text_body,
+            'from_email': from_email,
+            'to': [instance.email],
+        }
+        if getattr(clinic, 'email', None):
+            email_kwargs['reply_to'] = [clinic.email]
+
+        msg = EmailMultiAlternatives(**email_kwargs)
+        msg.attach_alternative(html_body, "text/html")
+        msg.send()
+    except Exception:
+        # Never block patient creation if email sending fails
+        return

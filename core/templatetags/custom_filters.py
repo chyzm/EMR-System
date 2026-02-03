@@ -17,7 +17,8 @@ def mul(value, arg):
 def subtract(value, arg):
     """Subtract arg from value."""
     try:
-        return float(value) - float(arg)
+        from decimal import Decimal
+        return Decimal(str(value or 0)) - Decimal(str(arg or 0))
     except (ValueError, TypeError):
         return 0
 

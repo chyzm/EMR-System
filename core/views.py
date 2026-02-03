@@ -24,7 +24,7 @@ from django.db.models import Sum
 from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required
-from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord  
+from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord, Admission  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
@@ -43,6 +43,7 @@ from django.utils import timezone
 from DurielMedicApp.models import Appointment
 from DurielEyeApp.models import EyeAppointment
 from django.contrib.contenttypes.models import ContentType
+from django.db.models.functions import Concat
 from datetime import timedelta
 
 
@@ -80,20 +81,49 @@ class CustomLoginView(LoginView):
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        # If no clinic in session but user has primary_clinic, set it
-        if not self.request.session.get('clinic_id') and self.request.user.primary_clinic:
-            self.request.session['clinic_id'] = self.request.user.primary_clinic.id
-            self.request.session['clinic_type'] = self.request.user.primary_clinic.clinic_type
-            self.request.session['clinic_name'] = self.request.user.primary_clinic.name
+        user = self.request.user
+        clinic_id = self.request.session.get('clinic_id')
+        clinic_type = self.request.session.get('clinic_type')
+        clinic_name = self.request.session.get('clinic_name')
 
-            # Now that clinic exists, it's safe to log login here
-            from .utils import log_login
-            log_login(self.request, self.request.user)
-        else:
-            # No clinic yet — mark pending (handled inside log_login)
-            from .utils import log_login
-            log_login(self.request, self.request.user)
+        # Re-hydrate clinic context after session timeout
+        if not clinic_id:
+            chosen_clinic = None
+            if getattr(user, 'primary_clinic', None):
+                chosen_clinic = user.primary_clinic
+            else:
+                try:
+                    clinics = list(user.clinic.all())
+                except Exception:
+                    clinics = []
 
+                if len(clinics) == 1:
+                    chosen_clinic = clinics[0]
+
+            if chosen_clinic:
+                self.request.session['clinic_id'] = chosen_clinic.id
+                self.request.session['clinic_type'] = chosen_clinic.clinic_type
+                self.request.session['clinic_name'] = chosen_clinic.name
+            else:
+                # If user belongs to multiple clinics and has no primary clinic, force clinic selection.
+                from .utils import log_login
+                log_login(self.request, user)
+                return redirect('core:select_clinic')
+        elif clinic_id and (not clinic_type or not clinic_name):
+            try:
+                clinic = Clinic.objects.get(id=clinic_id)
+                self.request.session['clinic_type'] = clinic.clinic_type
+                self.request.session['clinic_name'] = clinic.name
+            except Clinic.DoesNotExist:
+                self.request.session.pop('clinic_id', None)
+                self.request.session.pop('clinic_type', None)
+                self.request.session.pop('clinic_name', None)
+                from .utils import log_login
+                log_login(self.request, user)
+                return redirect('core:select_clinic')
+
+        from .utils import log_login
+        log_login(self.request, user)
         return response
 
 
@@ -509,6 +539,9 @@ class PatientUpdateView(UpdateView):
     form_class = PatientForm
     template_name = 'patients/edit_patient.html'
     success_url = reverse_lazy('core:patient_list')
+
+    def get_success_url(self):
+        return reverse('core:patient_detail', kwargs={'pk': self.object.patient_id})
     
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -589,6 +622,13 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         appointment = patient.appointments.filter(status='SCHEDULED').first()
         if appointment:
             context['vitals'] = getattr(appointment, 'vitals', None)
+
+        context['active_admission'] = Admission.objects.filter(
+            patient=patient,
+            discharged=False,
+        ).select_related(
+            'admitted_by', 'discharged_by', 'clinic'
+        ).order_by('-date_admitted').first()
 
         # Medical Records Pagination (show for both GENERAL and EYE clinics)
         medical_records_list = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
@@ -815,10 +855,17 @@ def billing_list(request):
     if date_to:
         bills = bills.filter(service_date__lte=date_to)
     
+    effective_amount_expr = models.Case(
+        models.When(discount_type__in=['PERCENTAGE', 'FIXED'], then=models.F('final_amount')),
+        models.When(final_amount__gt=0, then=models.F('final_amount')),
+        default=models.F('amount'),
+        output_field=models.DecimalField(max_digits=10, decimal_places=2),
+    )
+    bills = bills.annotate(effective_amount=effective_amount_expr)
+
     context = {
         'bills': bills,
-        # Sum final_amount so discounts are reflected in totals
-        'total_amount': bills.aggregate(total=Sum('final_amount'))['total'] or 0,
+        'total_amount': bills.aggregate(total=Sum('effective_amount'))['total'] or 0,
         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
         'status_filter': status_filter,
         'patient_filter': patient_filter,
@@ -1044,8 +1091,8 @@ def create_bill(request, patient_id=None):
             # Calculate final amount (this is done in model save, but we need it for status)
             bill.calculate_final_amount()
 
-            # --- Set status based on final_amount (after discount) ---
-            effective_amount = bill.final_amount if bill.final_amount > 0 else bill.amount
+            # --- Set status based on amount after discount ---
+            effective_amount = bill.get_effective_amount()
             if bill.paid_amount >= effective_amount and effective_amount > 0:
                 bill.status = 'PAID'
             elif bill.paid_amount > 0:
@@ -1259,7 +1306,7 @@ def edit_bill(request, pk):
             
             # Recalculate discounts/final amount before validating
             updated_bill.calculate_final_amount()
-            effective_amount = updated_bill.final_amount if updated_bill.final_amount > 0 else updated_bill.amount
+            effective_amount = updated_bill.get_effective_amount()
 
             if updated_bill.paid_amount > effective_amount:
                 messages.error(request, "Paid amount cannot be greater than total amount after discount")
@@ -1318,8 +1365,8 @@ def record_payment(request, pk):
             messages.error(request, "Payment amount must be greater than zero")
             return redirect('core:view_bill', pk=bill.pk)
         
-        # Use final_amount (after discount) when available to determine outstanding balance
-        effective_amount = bill.final_amount if getattr(bill, 'final_amount', 0) and bill.final_amount > 0 else bill.amount
+        # Use amount after discount to determine outstanding balance
+        effective_amount = bill.get_effective_amount()
         if payment_amount > (effective_amount - bill.paid_amount):
             messages.error(request, "Payment amount exceeds outstanding balance")
             return redirect('core:view_bill', pk=bill.pk)
@@ -1452,7 +1499,7 @@ def generate_receipt(request, pk):
         'bill': bill,
         'payment': payment,
         'payments': payments,
-        'outstanding': bill.amount - bill.paid_amount,
+        'outstanding': bill.get_balance(),
         'today': timezone.now().date(),
         'clinic_name': clinic_name,
     }
@@ -4080,13 +4127,23 @@ def lab_queue(request):
     status_filter = request.GET.get('status', '')
     priority_filter = request.GET.get('priority', '')
     search_query = request.GET.get('search', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    month_filter = request.GET.get('month', '')
+    test_query = request.GET.get('test', '')
 
     orders = LabTestOrder.objects.filter(
         clinic_id=clinic_id
     ).exclude(
-        status__in=['REVIEWED', 'CANCELLED']
+        status__in=['CANCELLED']
     ).select_related(
         'patient', 'ordered_by', 'sample_collected_by'
+    ).annotate(
+        patient_full_name=Concat(
+            models.F('patient__first_name'),
+            models.Value(' '),
+            models.F('patient__last_name'),
+        )
     ).prefetch_related('ordered_tests').order_by(
         # STAT first, then URGENT, then ROUTINE
         models.Case(
@@ -4106,10 +4163,27 @@ def lab_queue(request):
 
     if search_query:
         orders = orders.filter(
+            Q(patient_full_name__icontains=search_query) |
             Q(patient__first_name__icontains=search_query) |
             Q(patient__last_name__icontains=search_query) |
             Q(patient__patient_id__icontains=search_query)
         )
+
+    if date_from:
+        orders = orders.filter(ordered_at__date__gte=date_from)
+    if date_to:
+        orders = orders.filter(ordered_at__date__lte=date_to)
+
+    if month_filter and len(month_filter) == 7 and month_filter[4] == '-':
+        try:
+            year = int(month_filter[:4])
+            month = int(month_filter[5:7])
+            orders = orders.filter(ordered_at__year=year, ordered_at__month=month)
+        except ValueError:
+            pass
+
+    if test_query:
+        orders = orders.filter(ordered_tests__name__icontains=test_query).distinct()
 
     # Pagination
     paginator = Paginator(orders, 20)
@@ -4122,8 +4196,12 @@ def lab_queue(request):
         'sample_collected': orders.filter(status='SAMPLE_COLLECTED').count(),
         'processing': orders.filter(status='PROCESSING').count(),
         'completed': orders.filter(status='COMPLETED').count(),
+        'reviewed': orders.filter(status='REVIEWED').count(),
         'stat_orders': orders.filter(priority='STAT').count(),
     }
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
 
     return render(request, 'lab/lab_queue.html', {
         'orders': page_obj,
@@ -4132,6 +4210,103 @@ def lab_queue(request):
         'status_filter': status_filter,
         'priority_filter': priority_filter,
         'search_query': search_query,
+        'date_from': date_from,
+        'date_to': date_to,
+        'month_filter': month_filter,
+        'test_query': test_query,
+        'querystring': query_params.urlencode(),
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
+def lab_queue_count(request):
+    """Return count of new/pending lab orders for polling badge."""
+    clinic_id = request.session.get('clinic_id')
+    count = LabTestOrder.objects.filter(
+        clinic_id=clinic_id,
+        status='IN_QUEUE',
+    ).count()
+    return JsonResponse({'count': count})
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
+def lab_history(request):
+    """Clinic-wide lab history (includes reviewed orders)."""
+    clinic_id = request.session.get('clinic_id')
+
+    status_filter = request.GET.get('status', '')
+    priority_filter = request.GET.get('priority', '')
+    search_query = request.GET.get('search', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    month_filter = request.GET.get('month', '')
+    test_query = request.GET.get('test', '')
+
+    orders = LabTestOrder.objects.filter(
+        clinic_id=clinic_id
+    ).exclude(
+        status__in=['CANCELLED']
+    ).select_related(
+        'patient', 'ordered_by', 'sample_collected_by', 'reviewed_by'
+    ).annotate(
+        patient_full_name=Concat(
+            models.F('patient__first_name'),
+            models.Value(' '),
+            models.F('patient__last_name'),
+        )
+    ).prefetch_related('ordered_tests').order_by('-ordered_at')
+
+    if status_filter:
+        orders = orders.filter(status=status_filter)
+    if priority_filter:
+        orders = orders.filter(priority=priority_filter)
+
+    if search_query:
+        orders = orders.filter(
+            Q(patient_full_name__icontains=search_query) |
+            Q(patient__first_name__icontains=search_query) |
+            Q(patient__last_name__icontains=search_query) |
+            Q(patient__patient_id__icontains=search_query)
+        )
+
+    if date_from:
+        orders = orders.filter(ordered_at__date__gte=date_from)
+    if date_to:
+        orders = orders.filter(ordered_at__date__lte=date_to)
+
+    if month_filter and len(month_filter) == 7 and month_filter[4] == '-':
+        try:
+            year = int(month_filter[:4])
+            month = int(month_filter[5:7])
+            orders = orders.filter(ordered_at__year=year, ordered_at__month=month)
+        except ValueError:
+            pass
+
+    if test_query:
+        orders = orders.filter(ordered_tests__name__icontains=test_query).distinct()
+
+    paginator = Paginator(orders, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+
+    return render(request, 'lab/lab_history.html', {
+        'orders': page_obj,
+        'page_obj': page_obj,
+        'status_filter': status_filter,
+        'priority_filter': priority_filter,
+        'search_query': search_query,
+        'date_from': date_from,
+        'date_to': date_to,
+        'month_filter': month_filter,
+        'test_query': test_query,
+        'querystring': query_params.urlencode(),
     })
 
 

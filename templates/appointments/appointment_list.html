@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+
 {% block title %}Appointments - DurielMedic+{% endblock %}
 
 {% block content %}
+{% now "Y-m-d" as today_str %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <div class="flex justify-between items-center mb-6">
         <div>
@@ -30,7 +32,19 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for appointment in appointments %}
+                    {% if appointments %}
+                    {% regroup appointments by date as appointment_groups %}
+                    {% for group in appointment_groups %}
+                    <tr class="bg-blue-50">
+                        <td colspan="6" class="px-6 py-3 text-sm font-semibold text-blue-900">
+                            {% if group.grouper|date:"Y-m-d" == today_str %}
+                                Today — {{ group.grouper|date:"l, M j, Y" }}
+                            {% else %}
+                                {{ group.grouper|date:"l, M j, Y" }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% for appointment in group.list %}
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
@@ -74,7 +88,7 @@
                         </td>
 
                        <td class="py-4 whitespace-nowrap text-center text-sm font-medium">
-    <div x-data="{ open: false }" class="inline-block">
+                    <div x-data="{ open: false }" class="inline-block">
         <!-- Three Dots Button -->
         <button @click="open = true"
                 type="button"
@@ -99,10 +113,17 @@
                     </a>
                     {% endif %}
 
-                    <a href="{% url 'core:patient_detail' appointment.patient_id %}"
-                       class="block px-4 py-2 text-sm text-green-700 hover:bg-green-100 rounded text-center">
-                        📋 Consultation
-                    </a>
+                    {% if request.user.role == 'DOCTOR' %}
+                        <a href="{% url 'DurielMedicApp:begin_consultation' appointment.patient_id %}"
+                           class="block px-4 py-2 text-sm text-green-700 hover:bg-green-100 rounded text-center">
+                            📋 Consultation
+                        </a>
+                    {% else %}
+                        <a href="{% url 'core:patient_detail' appointment.patient_id %}"
+                           class="block px-4 py-2 text-sm text-green-700 hover:bg-green-100 rounded text-center">
+                            📋 Consultation
+                        </a>
+                    {% endif %}
 
                     <form action="{% url 'DurielMedicApp:mark_completed' appointment.pk %}" method="post">
                         {% csrf_token %}
@@ -145,11 +166,13 @@
 </td>
 
                     </tr>
-                    {% empty %}
+                    {% endfor %}
+                    {% endfor %}
+                    {% else %}
                     <tr>
                         <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No appointments found.</td>
                     </tr>
-                    {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>

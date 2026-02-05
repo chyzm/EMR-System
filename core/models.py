@@ -87,6 +87,7 @@ class CustomUser(AbstractUser):
         ('ADMIN', 'Administrator'),
         ('DOCTOR', 'Doctor'),
         ('NURSE', 'Nurse'),
+        ('PHARMACIST', 'Pharmacist'),
         ('OPTOMETRIST', 'Optometrist'),
         ('PHYSIOTHERAPIST', 'Physiotherapist'),
         ('RECEPTIONIST', 'Receptionist'),

@@ -57,7 +57,7 @@ User = get_user_model()
 
 
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
 
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
@@ -173,7 +173,11 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     
     def get_queryset(self):
         clinic_id = self.request.session.get('clinic_id')
-        queryset = Appointment.objects.all()
+        queryset = Appointment.objects.all().select_related('patient', 'provider', 'clinic').annotate(
+            has_vitals=models.Exists(
+                Vitals.objects.filter(appointment_id=models.OuterRef('pk'))
+            )
+        )
 
         if clinic_id:
             queryset = queryset.filter(clinic_id=clinic_id)
@@ -295,10 +299,18 @@ def appointment_detail(request, pk):
 @role_required('NURSE', 'DOCTOR')
 def record_vitals(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id)
-    appointment = patient.appointments.filter(status='SCHEDULED').order_by('-date', '-start_time').first()
+    today = timezone.localdate()
+    appointment = patient.appointments.filter(
+        status__in=['SCHEDULED', 'COMPLETED'],
+        date=today,
+    ).order_by('-start_time').first()
 
     if not appointment:
         messages.error(request, "No active appointment found for this patient.")
+        return redirect('core:patient_detail', pk=patient_id)
+
+    if Vitals.objects.filter(appointment=appointment).exists():
+        messages.info(request, "Vitals have already been recorded for this active appointment.")
         return redirect('core:patient_detail', pk=patient_id)
 
     if request.method == 'POST':
@@ -316,9 +328,10 @@ def record_vitals(request, patient_id):
                 details=f"Recorded vitals for {patient.full_name}"
             )
 
-            # Update patient status
-            patient.status = 'VITALS_TAKEN'
-            patient.save()
+            # Update patient status (don't overwrite later workflow states)
+            if patient.status == 'REGISTERED':
+                patient.status = 'VITALS_TAKEN'
+                patient.save(update_fields=['status'])
 
             messages.success(request, "Vitals recorded successfully!")
             return redirect('core:patient_detail', pk=patient_id)
@@ -1368,14 +1381,12 @@ def complete_consultation(request, patient_id):
         messages.error(request, "No clinic associated with this patient or session")
         return redirect('core:patient_detail', pk=patient_id)
 
-    consultation_fee = Decimal('10000.00')  # Example amount
-
     try:
         with transaction.atomic():
             patient.status = 'CONSULTATION_COMPLETE'
             patient.save()
 
-            # Mark today's scheduled appointment as completed (so it doesn't look like a new appointment was scheduled)
+            # Mark today's scheduled appointment as completed so it doesn't show as scheduled again
             today = timezone.localdate()
             appt = Appointment.objects.filter(
                 clinic_id=clinic_id,
@@ -1386,8 +1397,7 @@ def complete_consultation(request, patient_id):
             if appt:
                 appt.status = 'COMPLETED'
                 appt.save(update_fields=['status'])
-            
-            
+
             # ✅ Add manual logging for consultation completion
             log_action(
                 request,
@@ -1396,31 +1406,10 @@ def complete_consultation(request, patient_id):
                 details=f"Completed consultation for {patient.full_name}"
             )
 
-            bill = Billing.objects.create(
-                patient=patient,
-                amount=consultation_fee,
-                description=f"Consultation fee - {date.today()}",
-                service_date=date.today(),
-                due_date=date.today() + timedelta(days=14),
-                created_by=request.user,
-                clinic_id=clinic_id  # Use clinic_id directly
-            )
-            
-           
-
-            # Send notifications
-            User = get_user_model()
-            for user in User.objects.filter(is_active=True):
-                Notification.objects.create(
-                    user=user,
-                    message=f"New bill for {patient.full_name} - ₦{consultation_fee:,.2f}",
-                    link=reverse('core:view_bill', kwargs={'pk': bill.pk})
-                )
-
-            messages.success(request, "Consultation completed and bill created")
+            messages.success(request, "Consultation completed. Add consultation billing manually if needed.")
     except Exception as e:
         messages.error(request, f"Error completing consultation: {str(e)}")
-    
+     
     return redirect('core:patient_detail', pk=patient_id)
 
 

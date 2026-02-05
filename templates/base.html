@@ -288,7 +288,7 @@ li ul[id*="_error"] {
               {% endif %}
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR,OPTOMETRIST' %}
+              {% if request.user.role in 'ADMIN,DOCTOR,OPTOMETRIST,PHARMACIST' %}
               <a href="{% url 'core:prescription_menu' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>

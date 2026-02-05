@@ -61,7 +61,7 @@ def home_view(request):
 
 # ---------- Role Checks ----------
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
 
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
@@ -609,7 +609,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     context_object_name = 'patient'
 
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'LAB_TECHNICIAN']
+        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'LAB_TECHNICIAN']
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -618,8 +618,12 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         # Define items per page once and reuse everywhere
         items_per_page = 1
 
-        # Get the latest vitals if available (from general appointments)
-        appointment = patient.appointments.filter(status='SCHEDULED').first()
+        # Get the latest vitals if available (from today's active appointment)
+        today = timezone.localdate()
+        appointment = patient.appointments.filter(
+            status__in=['SCHEDULED', 'COMPLETED'],
+            date=today,
+        ).order_by('-start_time').first()
         if appointment:
             context['vitals'] = getattr(appointment, 'vitals', None)
 
@@ -747,6 +751,15 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         lab_orders_list = LabTestOrder.objects.filter(patient=patient).select_related(
             'ordered_by', 'reviewed_by'
         ).prefetch_related('ordered_tests', 'results').order_by('-ordered_at')
+
+        # Keep "Review" visible by prioritizing completed-but-unreviewed orders first.
+        lab_orders_list = lab_orders_list.annotate(
+            _needs_review=models.Case(
+                models.When(status='COMPLETED', then=models.Value(0)),
+                default=models.Value(1),
+                output_field=models.IntegerField(),
+            )
+        ).order_by('_needs_review', '-ordered_at')
         lab_paginator = Paginator(lab_orders_list, items_per_page)
         lab_page = self.request.GET.get('lab_page', 1)
         try:
@@ -2355,7 +2368,7 @@ from django.db.models import F
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def inventory_dashboard(request):
     """Main inventory dashboard with key metrics"""
     clinic_id = request.session.get('clinic_id')
@@ -2462,7 +2475,7 @@ def inventory_dashboard(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def medication_list(request):
     """List all medications for the current clinic"""
     clinic_id = request.session.get('clinic_id')
@@ -2560,7 +2573,7 @@ def medication_list(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def add_medication(request):
     """Add new medication to clinic inventory"""
     clinic_id = request.session.get('clinic_id')
@@ -2603,7 +2616,7 @@ def add_medication(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def edit_medication(request, pk):
     """Edit existing medication"""
     clinic_id = request.session.get('clinic_id')
@@ -2638,7 +2651,7 @@ from django.http import HttpResponse
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def export_medications_csv(request):
     clinic_id = request.session.get('clinic_id')
     medications = ClinicMedication.objects.filter(clinic_id=clinic_id)
@@ -2666,7 +2679,7 @@ def export_medications_csv(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def adjust_stock(request, pk):
     """Adjust stock levels for a medication"""
     clinic_id = request.session.get('clinic_id')
@@ -2728,7 +2741,7 @@ def adjust_stock(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def stock_movements(request, pk):
     """View stock movement history for a medication"""
     clinic_id = request.session.get('clinic_id')
@@ -2743,7 +2756,7 @@ def stock_movements(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def bulk_upload_stock(request):
     """Bulk upload medications via CSV"""
     clinic_id = request.session.get('clinic_id')
@@ -2858,7 +2871,7 @@ from django.utils import timezone
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def dispense_prescription(request, pk):
     """Dispense prescription, deduct stock, and add to billing."""
     prescription = get_object_or_404(Prescription, pk=pk)
@@ -2931,7 +2944,7 @@ def dispense_prescription(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def dispense_prescription(request, pk):
     """Dispense prescription, deduct stock, and add to billing."""
     prescription = get_object_or_404(Prescription, pk=pk)
@@ -2982,7 +2995,7 @@ def dispense_prescription(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST')
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def bulk_dispense(request):
     if request.method == 'POST':
         selected_ids = request.POST.getlist('selected_prescriptions')
@@ -3055,7 +3068,7 @@ def bulk_dispense(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def low_stock_report(request):
     """Report of medications with low or no stock"""
     clinic_id = request.session.get('clinic_id')
@@ -3101,7 +3114,7 @@ def low_stock_report(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required('ADMIN', 'RECEPTIONIST', 'PHARMACIST')
 def medication_detail(request, pk):
     """Detailed view of a medication with stock history"""
     clinic_id = request.session.get('clinic_id')
@@ -4145,14 +4158,15 @@ def lab_queue(request):
             models.F('patient__last_name'),
         )
     ).prefetch_related('ordered_tests').order_by(
-        # STAT first, then URGENT, then ROUTINE
+        # Newest orders first
+        '-ordered_at',
+        # If timestamps tie, show STAT first, then URGENT, then ROUTINE
         models.Case(
             models.When(priority='STAT', then=0),
             models.When(priority='URGENT', then=1),
             models.When(priority='ROUTINE', then=2),
             output_field=models.IntegerField()
         ),
-        '-ordered_at'
     )
 
     if status_filter:

@@ -5,7 +5,7 @@
     <h2 class="text-2xl font-semibold mb-6">Add Medical Record for {{ patient.full_name }}</h2>
 
     <div class="bg-white p-6 rounded shadow-md">
-        <form method="post">
+        <form method="post" data-sync-action="add_medical_record">
             {% csrf_token %}
 
             <div class="space-y-6">

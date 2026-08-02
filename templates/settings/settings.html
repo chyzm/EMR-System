@@ -44,13 +44,44 @@
     <div class="mt-6 bg-blue-50 border-l-4 border-blue-200 p-4 rounded">
       <h3 class="text-sm font-semibold text-blue-800 mb-2">Backups</h3>
       <p class="text-sm text-blue-700 mb-3">We recommend performing backups monthly. You can export the patient list or download all uploaded patient files.</p>
-      <div class="flex gap-3">
+      <div class="flex gap-3 flex-wrap">
         <a href="{% url 'core:export_patients_csv' %}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded text-sm text-gray-800 hover:bg-gray-50">
           <i class="fas fa-file-csv mr-2"></i> Backup Patient List (CSV)
         </a>
         <a href="{% url 'core:backup_patients_files' %}" class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded text-sm text-gray-800 hover:bg-gray-50">
           <i class="fas fa-download mr-2"></i> Back up Patient Folder (ZIP)
         </a>
+      </div>
+    </div>
+    <div class="mt-6 bg-white border border-gray-200 p-4 rounded">
+      <h3 class="text-sm font-semibold text-gray-900 mb-3">Offline queue controls</h3>
+      <p class="text-sm text-gray-600 mb-4">Manage queued actions without navigating to another page.</p>
+      <div class="flex flex-wrap gap-3">
+        <button id="retry-failed-queue" type="button" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">
+          <i class="fas fa-redo mr-2"></i> Retry Failed
+        </button>
+        <button id="clear-synced-queue" type="button" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition">
+          <i class="fas fa-check mr-2"></i> Clear Synced
+        </button>
+        <button id="clear-pending-queue" type="button" class="inline-flex items-center px-4 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 transition">
+          <i class="fas fa-trash-alt mr-2"></i> Clear Pending
+        </button>
+      </div>
+      <div class="mt-4 grid gap-4">
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-sm font-semibold text-gray-900">Queue overview</div>
+              <div class="text-xs text-gray-500">Pending, failed and synced actions from offline mode.</div>
+            </div>
+            <div id="offline-queue-badge" class="hidden items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
+              <span class="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+              <span id="offline-queue-label" class="ml-2">0 drafts</span>
+            </div>
+          </div>
+          <div id="offline-queue-panel" class="mt-4"></div>
+        </div>
+        <div id="queue-summary" class="text-sm text-gray-700">Queue summary unavailable until page load.</div>
       </div>
     </div>
   {% else %}
@@ -95,6 +126,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    function updateQueueSummary() {
+        if (!window.offlineQueue) return;
+
+        const summary = window.offlineQueue.getQueueSummary();
+        const summaryEl = document.getElementById('queue-summary');
+        if (!summaryEl) return;
+
+        summaryEl.textContent = `Total: ${summary.total} | Pending: ${summary.pending} | Failed: ${summary.failed} | Synced: ${summary.synced}`;
+    }
+
+    const retryFailedButton = document.getElementById('retry-failed-queue');
+    const clearSyncedButton = document.getElementById('clear-synced-queue');
+    const clearPendingButton = document.getElementById('clear-pending-queue');
+
+    if (retryFailedButton) {
+        retryFailedButton.addEventListener('click', function() {
+            if (window.offlineQueue) {
+                window.offlineQueue.retryFailedQueue();
+                updateQueueSummary();
+            }
+        });
+    }
+
+    if (clearSyncedButton) {
+        clearSyncedButton.addEventListener('click', function() {
+            if (window.offlineQueue) {
+                window.offlineQueue.clearCompletedQueue();
+                updateQueueSummary();
+            }
+        });
+    }
+
+    if (clearPendingButton) {
+        clearPendingButton.addEventListener('click', function() {
+            if (window.offlineQueue) {
+                window.offlineQueue.clearPendingQueue();
+                updateQueueSummary();
+            }
+        });
+    }
+
+    updateQueueSummary();
 });
 </script>
 {% endblock %}

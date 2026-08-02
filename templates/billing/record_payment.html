@@ -12,8 +12,9 @@
     <p><strong>Paid:</strong> ₦{{ bill.paid_amount|floatformat:2 }}</p>
     <p><strong>Balance:</strong> ₦{{ bill.get_balance|floatformat:2 }}</p>
 
-    <form method="post" class="mt-4">
+    <form method="post" class="mt-4" data-sync-action="record_payment">
         {% csrf_token %}
+        <input type="hidden" name="bill_id" value="{{ bill.pk }}">
       
         <!-- Payment Amount -->
         <div class="mb-4">

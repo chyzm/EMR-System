@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
 from .views import activity_log, clear_activity_log, bulk_delete_logs
 from .views import mark_notification_read, clear_notifications
+from .sync import sync_queue
 
 
 
@@ -44,6 +45,7 @@ urlpatterns = [
 
     # API endpoints
     path('api/patients/', views.patient_search_api, name='patient_search_api'),
+    path('api/sync/queue/', sync_queue, name='sync_queue'),
     
     
     # Password reset

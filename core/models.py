@@ -1,6 +1,7 @@
 # from time import timezone as tz
 from django.utils import timezone as tz
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinLengthValidator
@@ -309,8 +310,19 @@ class Billing(models.Model):
         self.save()
         return total
 
+    def _as_decimal(self, value, default=Decimal('0.00')):
+        try:
+            return Decimal(value)
+        except (InvalidOperation, TypeError, ValueError):
+            return default
+
     def save(self, *args, **kwargs):
-        # Calculate final amount before saving if amount is set
+        self.amount = self._as_decimal(self.amount)
+        self.discount_value = self._as_decimal(self.discount_value)
+        self.discount_amount = self._as_decimal(self.discount_amount)
+        self.final_amount = self._as_decimal(self.final_amount)
+        self.paid_amount = self._as_decimal(self.paid_amount)
+
         if self.amount > 0:
             self.calculate_final_amount()
         elif self.final_amount == 0:

@@ -6,6 +6,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <link rel="icon" href="{% static 'images/icon.svg' %}">
   <title>{% block title %}DurielMedic+ EMR System{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -166,6 +169,36 @@ li ul[id*="_error"] {
   {% block extra_css %}{% endblock %}
 </head>
 <body class="gradient-bg text-gray-800">
+  <script>
+    const updateConnectionStatus = () => {
+      const onlineIndicator = document.getElementById('connection-indicator');
+      const onlineLabel = document.getElementById('connection-label');
+      if (!onlineIndicator || !onlineLabel) return;
+
+      if (navigator.onLine) {
+        onlineIndicator.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-green-500';
+        onlineLabel.textContent = 'Online';
+        onlineLabel.className = 'text-xs font-medium text-green-700';
+      } else {
+        onlineIndicator.className = 'inline-flex h-2.5 w-2.5 rounded-full bg-red-500';
+        onlineLabel.textContent = 'Offline';
+        onlineLabel.className = 'text-xs font-medium text-red-700';
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('{% static "sw.js" %}')
+          .then(() => console.log('Service worker registered'))
+          .catch((error) => console.log('Service worker registration failed', error));
+      });
+    }
+
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+    document.addEventListener('DOMContentLoaded', updateConnectionStatus);
+  </script>
+  <script src="{% static 'offline-app.js' %}"></script>
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <div class="hidden md:flex md:flex-shrink-0">
@@ -378,89 +411,77 @@ li ul[id*="_error"] {
             </button>
           </div>
 
-          
-
-            <div class="flex-1 flex justify-between items-center">
-                <!-- Scrolling message container with fixed max-width -->
-            <div class="flex-1 max-w-3xl mx-4 overflow-hidden hidden md:flex">
-              <div class="relative h-10 flex items-center">
+          <div class="flex-1 flex items-center justify-between min-w-0">
+            <div class="hidden md:flex flex-1 max-w-3xl mx-4 overflow-hidden min-w-0">
+              <div class="relative h-10 flex items-center w-full">
                 <div class="whitespace-nowrap overflow-hidden w-full">
                   <div class="inline-block animate-scroll px-4 py-2 bg-gradient-to-r from-white to-white text-gray-900 rounded-full text-sm font-medium">
-                    <span class="mr-8">🚀 Duriel Tech Solutions: Revolutionizing Healthcare IT</span>
+                    <span class="mr-8">🚀 Duriel Tech Solutions: Revolutionizing HealthTech</span>
                     <span class="mr-8">💡 EMR Systems | Web App Solutions | Website Development</span>
-                    <span class="mr-8">🔐 HIPAA-Compliant | 24/7 Support</span>
                     <span>📞 Contact: info@durielmedic.com.ng | (+234) 703-1016-787</span>
                   </div>
                 </div>
               </div>
-            </div> 
+            </div>
 
-            <!-- Notification Dropdown -->
             {% if request.user.is_authenticated %}
-             <div class="flex items-center justify-end w-full md:w-auto md:ml-6 md:space-x-4 space-x-2">
-                <div class="relative">
-                  <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
-                    <i class="fas fa-bell text-lg"></i>
-                    {% get_unread_notifications request.user request.session.clinic_id as unread_notifs %}
-                       {% if unread_notifs.exists %}
-                        <span class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
-                      {% endif %}
-                    {% comment %} {% endwith %} {% endcomment %}
-                  </button>
+            <div class="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+              <div class="hidden md:flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1">
+                <span id="connection-indicator" class="inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                <span id="connection-label" class="ml-2 text-xs font-medium text-green-700">Online</span>
+              </div>
 
-                  <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
-                    <div class="max-h-96 overflow-y-auto">
-                      {% for notification in unread_notifs|slice:":5" %}
-                        <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
-                          <div class="flex justify-between items-center">
-                            <span>{{ notification.message }}</span>
-                            <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
-                          </div>
-                        </a>
-                      {% empty %}
-                        <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
-                      {% endfor %}
-                    </div>
-                    <div class="border-t border-gray-200">
-                      <a href="{% url 'core:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
-                        Clear All Notifications
-                      </a>
-                    </div>
-                  </div>
-                </div>
+              <div class="relative">
+                <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
+                  <i class="fas fa-bell text-lg"></i>
+                  {% get_unread_notifications request.user request.session.clinic_id as unread_notifs %}
+                    {% if unread_notifs.exists %}
+                      <span class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
+                    {% endif %}
+                  {% comment %} {% endwith %} {% endcomment %}
+                </button>
 
-                
-                
-                <!-- Profile dropdown -->
-                <div class="relative">
-                  <div>
-                   <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
-                      <span class="sr-only">Open user menu</span>
-                      <div class="flex items-center">
-                        <!-- Clinic name display -->
-                        <div class="hidden md:block text-sm font-medium text-gray-700 mr-1">
-                          {{ request.session.clinic_name }}
+                <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
+                  <div class="max-h-96 overflow-y-auto">
+                    {% for notification in unread_notifs|slice:":5" %}
+                      <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
+                        <div class="flex justify-between items-center">
+                          <span>{{ notification.message }}</span>
+                          <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
                         </div>
-                       {% if clinic_logo_url %}
-                          <img class="h-8 w-8 rounded-full object-cover" src="{{ clinic_logo_url }}" alt="Clinic Logo">
-                        {% else %}
-                          <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Default Logo">
-                        {% endif %}
-
-                      </div>
-                    </button>
+                      </a>
+                    {% empty %}
+                      <div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>
+                    {% endfor %}
                   </div>
-                  <!-- Dropdown menu -->
-                  <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-lg shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 hidden slide-in" role="menu" id="profile-menu">
-                    <a href="{% url 'password_reset' %}" 
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'password_reset' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
-                       role="menuitem">Reset Password</a>
-                    <a href="{% url 'core:logout' %}" 
-                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'logout' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
-                       role="menuitem">Sign out</a>
+                  <div class="border-t border-gray-200">
+                    <a href="{% url 'core:clear_notifications' %}" class="block px-4 py-2 text-sm text-center text-blue-600 hover:bg-gray-50 transition-colors">
+                      Clear All Notifications
+                    </a>
                   </div>
                 </div>
               </div>
+
+              <div class="relative">
+                <button class="max-w-xs flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all" id="user-menu">
+                  <span class="sr-only">Open user menu</span>
+                  <div class="flex items-center">
+                    <div class="hidden md:block text-sm font-medium text-gray-700 mr-1">
+                      {{ request.session.clinic_name }}
+                    </div>
+                    {% if clinic_logo_url %}
+                      <img class="h-8 w-8 rounded-full object-cover" src="{{ clinic_logo_url }}" alt="Clinic Logo">
+                    {% else %}
+                      <img class="h-8 w-8 rounded-full object-cover" src="{% static 'images/company-logo.png' %}" alt="Default Logo">
+                    {% endif %}
+                  </div>
+                </button>
+                <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-lg shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 hidden slide-in" role="menu" id="profile-menu">
+                  <a href="{% url 'password_reset' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'password_reset' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" role="menuitem">Reset Password</a>
+                  <a href="{% url 'core:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {% if 'logout' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" role="menuitem">Sign out</a>
+                </div>
+              </div>
+            </div>
             {% endif %}
           </div>
         </div>

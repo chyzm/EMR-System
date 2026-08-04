@@ -134,12 +134,12 @@ CHANNEL_LAYERS = {
 #     }
 # }
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": BASE_DIR / "db.sqlite3",
+#     }
+# }
 
 
 # Server-to-server clinic sync.
@@ -155,22 +155,22 @@ SYNC_REQUEST_TIMEOUT_SECONDS = int(os.getenv('SYNC_REQUEST_TIMEOUT_SECONDS', '20
 
 
 
-# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-#     DATABASES = {
-#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-#          "default": dj_database_url.config(conn_max_age=600)
-#     }
-# else:  # PythonAnywhere/MySQL
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': os.getenv('DB_ENGINE'),
-#             'NAME': os.getenv('DB_NAME'),
-#             'USER': os.getenv('DB_USER'),
-#             'PASSWORD': os.getenv('DB_PASSWORD'),
-#             'HOST': os.getenv('DB_HOST'),
-#             'PORT': os.getenv('DB_PORT'),
-#         }
-#     }
+if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+    DATABASES = {
+        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+         "default": dj_database_url.config(conn_max_age=600)
+    }
+else:  # PythonAnywhere/MySQL
+    DATABASES = {
+        'default': {
+            'ENGINE': os.getenv('DB_ENGINE'),
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
+        }
+    }
     
     
 

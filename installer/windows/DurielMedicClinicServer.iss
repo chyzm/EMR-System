@@ -1,14 +1,22 @@
+#ifndef MyAppName
 #define MyAppName "DurielMedic Clinic Server"
+#endif
+#ifndef MyAppVersion
 #define MyAppVersion "1.0.0"
+#endif
+#ifndef MyAppPublisher
 #define MyAppPublisher "DurielMedic"
+#endif
+#ifndef SourceRoot
 #define SourceRoot "..\..\dist\durielmedic-clinic-server"
+#endif
 
 [Setup]
 AppId={{A11C14B5-069A-4F76-8350-786EE9B39E55}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\DurielMedic Clinic Server
+DefaultDirName={commonappdata}\DurielMedic Clinic Server
 DefaultGroupName=DurielMedic
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
@@ -22,14 +30,16 @@ WizardStyle=modern
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\DurielMedic Clinic Server"; Filename: "http://localhost:8000"
-Name: "{commondesktop}\DurielMedic Clinic Server"; Filename: "http://localhost:8000"; Tasks: desktopicon
+Name: "{group}\DurielMedic Clinic Server"; Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Open-DurielMedicClinic.ps1"" -Port 9000"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14
+Name: "{group}\DurielMedic Local App"; Filename: "http://localhost:9000"
+Name: "{commondesktop}\DurielMedic Clinic Server"; Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Open-DurielMedicClinic.ps1"" -Port 9000"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 14; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: checkedonce
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\windows\Install-DurielMedicClinic.ps1"" -ActivationUrl ""{code:GetActivationUrl}"" -InstallDir ""{app}"""; StatusMsg: "Activating DurielMedic Clinic Server..."; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\windows\Install-DurielMedicClinic.ps1"" -ActivationUrl ""{code:GetActivationUrl}"" -InstallDir ""{app}"" -Port 9000"; StatusMsg: "Activating DurielMedic Clinic Server..."; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Open-DurielMedicClinic.ps1"" -Port 9000"; Description: "Open DurielMedic Clinic Server"; Flags: postinstall nowait skipifsilent
 
 [Code]
 var

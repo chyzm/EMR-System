@@ -2,13 +2,25 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ActivationUrl,
 
-    [string]$InstallDir = $PSScriptRoot,
-    [int]$Port = 8000
+    [string]$InstallDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).ProviderPath,
+    [int]$Port = 9000
 )
 
 $ErrorActionPreference = "Stop"
 
 Set-Location $InstallDir
+
+$logsDir = Join-Path $InstallDir "logs"
+if (-not (Test-Path $logsDir)) {
+    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+}
+$installLog = Join-Path $logsDir "install-local-server.log"
+Start-Transcript -Path $installLog -Append | Out-Null
+trap {
+    Write-Host "DurielMedic local server installation failed. See log: $installLog"
+    Stop-Transcript | Out-Null
+    throw
+}
 
 $python = Get-Command py -ErrorAction SilentlyContinue
 if ($python) {
@@ -24,11 +36,16 @@ if ($python) {
 }
 
 if (-not (Test-Path ".env")) {
-    $secret = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+    $secretBytes = New-Object byte[] 48
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($secretBytes)
+    $rng.Dispose()
+    $secret = [Convert]::ToBase64String($secretBytes)
     @"
 SECRET_KEY=$secret
 DEBUG=True
 ALLOWED_HOSTS=*
+LOCAL_SERVER_PORT=$Port
 "@ | Set-Content -Path ".env" -Encoding UTF8
 }
 
@@ -41,6 +58,18 @@ $venvPython = Join-Path $InstallDir ".venv\Scripts\python.exe"
 & $venvPython -m pip install -r requirements.txt
 & $venvPython manage.py migrate
 & $venvPython manage.py activate_local_clinic $ActivationUrl
+
+$launcherScript = Join-Path $InstallDir "Open-DurielMedicClinic.ps1"
+@"
+param(
+    [int]`$Port = $Port
+)
+
+`$ErrorActionPreference = "SilentlyContinue"
+Start-ScheduledTask -TaskName "DurielMedic Clinic Server"
+Start-Sleep -Seconds 2
+Start-Process "http://localhost:`$Port"
+"@ | Set-Content -Path $launcherScript -Encoding UTF8
 
 $webAction = New-ScheduledTaskAction `
     -Execute $venvPython `
@@ -63,8 +92,18 @@ Register-ScheduledTask -TaskName "DurielMedic Clinic Server" -Action $webAction 
 Register-ScheduledTask -TaskName "DurielMedic Sync Worker" -Action $syncAction -Trigger $trigger -Principal $principal -Force | Out-Null
 Register-ScheduledTask -TaskName "DurielMedic Clinic Updater" -Action $updateAction -Trigger $updateTrigger -Principal $principal -Force | Out-Null
 
+New-NetFirewallRule `
+    -DisplayName "DurielMedic Clinic Server $Port" `
+    -Direction Inbound `
+    -Protocol TCP `
+    -LocalPort $Port `
+    -Action Allow `
+    -Profile Private,Domain `
+    -ErrorAction SilentlyContinue | Out-Null
+
 Start-ScheduledTask -TaskName "DurielMedic Clinic Server"
 Start-ScheduledTask -TaskName "DurielMedic Sync Worker"
 
 Write-Host "DurielMedic Clinic Server installed."
 Write-Host "Open this on clinic devices: http://<clinic-server-ip>:$Port"
+Stop-Transcript | Out-Null

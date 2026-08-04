@@ -309,10 +309,24 @@ The installer creates startup tasks for:
 Clinic devices then open:
 
 ```text
-http://<local-server-ip>:8000
+http://<local-server-ip>:9000
 ```
 
 Do not install the repo on the clinic machine. The clinic only receives the `.exe` installer.
+
+The Windows installer installs the local app into:
+
+```text
+C:\ProgramData\DurielMedic Clinic Server
+```
+
+This avoids the write-permission problems that happen when the app database, `.env`, logs, and updater files are placed under `C:\Program Files`.
+
+The desktop shortcut opens:
+
+```text
+http://localhost:9000
+```
 
 ## Local Updates
 
@@ -428,7 +442,7 @@ On Windows, the Inno installer registers the web server, sync worker, and update
 For real clinic deployments, do not use Django `runserver` as the long-running local web server. `runserver` is acceptable for pilot/internal testing, but the clinic installer should run the app through a production WSGI runner such as Waitress:
 
 ```powershell
-waitress-serve --listen=0.0.0.0:8000 DurielMedic.wsgi:application
+waitress-serve --listen=0.0.0.0:9000 DurielMedic.wsgi:application
 ```
 
 The sync worker remains a separate background process:

@@ -76,4 +76,4 @@ if (-not (Test-Path $InnoCompiler)) {
     throw "Inno Setup compiler not found at $InnoCompiler"
 }
 
-& $InnoCompiler (Join-Path $PSScriptRoot "DurielMedicClinicServer.iss")
+& $InnoCompiler "/DMyAppVersion=$Version" (Join-Path $PSScriptRoot "DurielMedicClinicServer.iss")

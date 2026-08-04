@@ -14,6 +14,19 @@ __pycache__/
 db.sqlite3
 logs/
 *.log
+rollback/
+
+# Release/install artifacts
+dist/
+Output/
+*.exe
+*.msi
+*.zip
+update-manifest.json
+
+# Local/offline deployment notes
+OFFLINE*.md
+CLINIC_INSTALLATION.md
 
 # OS files
 .DS_Store

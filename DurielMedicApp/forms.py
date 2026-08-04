@@ -4,7 +4,7 @@ from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from core.models import Patient, Prescription
-from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord
+from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord, MedicationAdministration, AdmissionHandover
 
 class VitalsForm(forms.ModelForm):
     class Meta:
@@ -75,18 +75,146 @@ class FollowUpForm(forms.ModelForm):
 class AdmissionForm(forms.ModelForm):
     class Meta:
         model = Admission
-        fields = ['ward', 'reason']
+        fields = [
+            'ward',
+            'bed',
+            'admission_type',
+            'admission_source',
+            'attending_doctor',
+            'provisional_diagnosis',
+            'reason',
+            'expected_discharge_date',
+        ]
         widgets = {
             'ward': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
                 'placeholder': 'e.g., Ward A'
+            }),
+            'bed': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+                'placeholder': 'e.g., Bed 12'
+            }),
+            'admission_type': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+            }),
+            'admission_source': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+            }),
+            'attending_doctor': forms.Select(attrs={
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+            }),
+            'provisional_diagnosis': forms.Textarea(attrs={
+                'rows': 3,
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+                'placeholder': 'Provisional diagnosis...'
             }),
             'reason': forms.Textarea(attrs={
                 'rows': 3,
                 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 h-32',
                 'placeholder': 'Reason for admission...'
             }),
+            'expected_discharge_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200',
+            }),
         }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+        if clinic:
+            from django.contrib.auth import get_user_model
+            self.fields['attending_doctor'].queryset = get_user_model().objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role__in=['DOCTOR', 'OPTOMETRIST', 'PHYSIOTHERAPIST'],
+            ).distinct()
+
+
+class DischargeForm(forms.ModelForm):
+    class Meta:
+        model = Admission
+        fields = [
+            'discharge_diagnosis',
+            'discharge_condition',
+            'discharge_summary',
+            'discharge_instructions',
+            'follow_up_plan',
+        ]
+        widgets = {
+            'discharge_diagnosis': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Final diagnosis...'}),
+            'discharge_condition': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'discharge_summary': forms.Textarea(attrs={'rows': 4, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Clinical course and summary...'}),
+            'discharge_instructions': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Medication, wound care, warning signs...'}),
+            'follow_up_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Follow-up clinic/date plan...'}),
+        }
+
+
+class MedicationAdministrationForm(forms.ModelForm):
+    class Meta:
+        model = MedicationAdministration
+        fields = [
+            'prescription',
+            'medication_name',
+            'dose',
+            'route',
+            'scheduled_time',
+            'administered_at',
+            'status',
+            'notes',
+        ]
+        widgets = {
+            'prescription': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'medication_name': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Medication name'}),
+            'dose': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g., 500mg'}),
+            'route': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g., Oral, IV, IM'}),
+            'scheduled_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'administered_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'status': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Administration notes...'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        admission = kwargs.pop('admission', None)
+        super().__init__(*args, **kwargs)
+        if admission:
+            self.fields['prescription'].queryset = Prescription.objects.filter(
+                patient=admission.patient,
+                clinic=admission.clinic,
+                is_active=True,
+            ).order_by('-date_prescribed')
+
+
+class AdmissionHandoverForm(forms.ModelForm):
+    class Meta:
+        model = AdmissionHandover
+        fields = [
+            'handover_type',
+            'receiving_staff',
+            'summary',
+            'current_condition',
+            'pending_tasks',
+            'concerns',
+        ]
+        widgets = {
+            'handover_type': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'receiving_staff': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'summary': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'current_condition': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pending_tasks': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'concerns': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+        if clinic:
+            from django.contrib.auth import get_user_model
+            self.fields['receiving_staff'].queryset = get_user_model().objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role__in=['DOCTOR', 'NURSE'],
+            ).distinct()
 
 # class AppointmentForm(forms.ModelForm):
 #     class Meta:

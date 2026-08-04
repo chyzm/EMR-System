@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 
 from core.models import Patient, Clinic, Billing
 from .models import (
-    Appointment, Vitals, Admission, FollowUp,
+    Appointment, Vitals, Admission, AdmissionHandover, MedicationAdministration, FollowUp,
     Prescription, MedicalRecord, PhysiotherapyRecord
 )
 from core.views import PatientDetailView
@@ -19,13 +19,13 @@ from .forms import (
     MedicalRecordForm, PhysiotherapyRecordForm
 )
 from core.forms import PrescriptionForm
-from core.decorators import role_required
+from core.decorators import clinic_selected_required, role_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.contrib import messages
 from django.db.models import Q, Count
 from datetime import date, timedelta
-from .forms import VitalsForm, AdmissionForm, FollowUpForm
+from .forms import VitalsForm, AdmissionForm, AdmissionHandoverForm, DischargeForm, MedicationAdministrationForm, FollowUpForm
 from django.urls import reverse, reverse_lazy  
 from django.views.decorators.http import require_POST
 from django.db.models.functions import Coalesce
@@ -296,9 +296,10 @@ def appointment_detail(request, pk):
 # Vitals & Consultation
 # --------------------
 @login_required 
+@clinic_selected_required
 @role_required('NURSE', 'DOCTOR')
 def record_vitals(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     today = timezone.localdate()
     appointment = patient.appointments.filter(
         status__in=['SCHEDULED', 'COMPLETED'],
@@ -349,9 +350,10 @@ def record_vitals(request, patient_id):
 # Medical Records
 # --------------------
 @login_required
+@clinic_selected_required
 @role_required('ADMIN', 'DOCTOR', 'NURSE')
 def add_medical_record(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     if request.method == 'POST':
         form = MedicalRecordForm(request.POST)
         if form.is_valid():
@@ -777,9 +779,10 @@ class FollowUpUpdateView(LoginRequiredMixin, UpdateView):
     
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR', 'NURSE')
 def admit_patient(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     clinic_id = request.session.get('clinic_id')
     if clinic_id and str(patient.clinic_id) != str(clinic_id):
         messages.error(request, "Patient does not belong to the selected clinic.")
@@ -795,12 +798,14 @@ def admit_patient(request, patient_id):
             messages.warning(request, "This patient already has an active admission.")
             return redirect('core:patient_detail', pk=patient_id)
 
-        form = AdmissionForm(request.POST)
+        form = AdmissionForm(request.POST, clinic=request.clinic)
         if form.is_valid():
             admission = form.save(commit=False)
             admission.patient = patient
             admission.clinic = patient.clinic
             admission.admitted_by = request.user
+            if not admission.attending_doctor:
+                admission.attending_doctor = request.user
             admission.save()
             ward = getattr(admission, 'ward', None)
 
@@ -830,7 +835,7 @@ def admit_patient(request, patient_id):
             messages.success(request, "Patient admitted successfully!")
             return redirect('core:patient_detail', pk=patient_id)
     else:
-        form = AdmissionForm()
+        form = AdmissionForm(clinic=request.clinic, initial={'attending_doctor': request.user})
     
     return render(request, 'admission/admit_patient.html', {
         'form': form,
@@ -882,33 +887,41 @@ def mark_ready_for_doctor(request, patient_id):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR', 'NURSE')
 def discharge_patient(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
-    admission = Admission.objects.filter(patient=patient, discharged=False).first()
-    
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
+    admission = Admission.objects.filter(patient=patient, clinic=request.clinic, discharged=False).first()
+
     if not admission:
         messages.error(request, "No active admission found for this patient")
         return redirect('core:patient_detail', pk=patient_id)
-    
-    admission.discharged = True
-    admission.discharged_at = timezone.now()
-    admission.discharged_by = request.user
-    admission.save(update_fields=['discharged', 'discharged_at', 'discharged_by'])
-    
-    # ✅ Add manual logging
-    log_action(
-        request,
-        'UPDATE',
-        admission,
-        details=f"Discharged patient {admission.patient.full_name}"
-    )
-    
-    patient.status = 'DISCHARGED'
-    patient.save(update_fields=['status'])
-    
-    messages.success(request, "Patient discharged successfully")
-    return redirect('core:patient_detail', pk=patient_id)
+
+    if request.method == 'POST':
+        form = DischargeForm(request.POST, instance=admission)
+        if form.is_valid():
+            admission = form.save(commit=False)
+            admission.discharged = True
+            admission.status = 'DISCHARGED'
+            admission.discharged_at = timezone.now()
+            admission.discharged_by = request.user
+            admission.save()
+
+            log_action(request, 'UPDATE', admission, details=f"Discharged patient {admission.patient.full_name}")
+
+            patient.status = 'DISCHARGED'
+            patient.save(update_fields=['status'])
+
+            messages.success(request, "Patient discharged successfully")
+            return redirect('core:patient_detail', pk=patient_id)
+    else:
+        form = DischargeForm(instance=admission)
+
+    return render(request, 'admission/discharge_patient.html', {
+        'form': form,
+        'patient': patient,
+        'admission': admission,
+    })
 
 
 @login_required
@@ -967,6 +980,78 @@ def admission_list(request):
     })
 
 
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'NURSE')
+def admission_detail(request, admission_id):
+    admission = get_object_or_404(
+        Admission.objects.select_related('patient', 'clinic', 'admitted_by', 'discharged_by', 'attending_doctor'),
+        pk=admission_id,
+        clinic=request.clinic,
+    )
+    administrations = MedicationAdministration.objects.filter(admission=admission).select_related(
+        'prescription',
+        'administered_by',
+    )
+    handovers = AdmissionHandover.objects.filter(admission=admission).select_related(
+        'created_by',
+        'receiving_staff',
+    )
+    medication_form = MedicationAdministrationForm(admission=admission)
+    handover_form = AdmissionHandoverForm(clinic=request.clinic)
+    return render(request, 'admission/admission_detail.html', {
+        'admission': admission,
+        'patient': admission.patient,
+        'administrations': administrations,
+        'medication_form': medication_form,
+        'handovers': handovers,
+        'handover_form': handover_form,
+    })
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'NURSE')
+def record_medication_administration(request, admission_id):
+    admission = get_object_or_404(Admission, pk=admission_id, clinic=request.clinic, discharged=False)
+    form = MedicationAdministrationForm(request.POST, admission=admission)
+    if form.is_valid():
+        administration = form.save(commit=False)
+        administration.admission = admission
+        administration.patient = admission.patient
+        administration.administered_by = request.user
+        if administration.prescription:
+            administration.medication_name = administration.medication_name or administration.prescription.medication_name
+            administration.dose = administration.dose or administration.prescription.dosage
+        administration.save()
+        log_action(request, 'CREATE', administration, details=f"Administered {administration.medication_name} to {admission.patient.full_name}")
+        messages.success(request, "Medication administration recorded.")
+    else:
+        messages.error(request, "Medication administration could not be recorded. Check the form and try again.")
+    return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'NURSE')
+def record_admission_handover(request, admission_id):
+    admission = get_object_or_404(Admission, pk=admission_id, clinic=request.clinic, discharged=False)
+    form = AdmissionHandoverForm(request.POST, clinic=request.clinic)
+    if form.is_valid():
+        handover = form.save(commit=False)
+        handover.admission = admission
+        handover.patient = admission.patient
+        handover.created_by = request.user
+        handover.save()
+        log_action(request, 'CREATE', handover, details=f"Recorded {handover.get_handover_type_display()} for {admission.patient.full_name}")
+        messages.success(request, "Handover recorded.")
+    else:
+        messages.error(request, "Handover could not be recorded. Check the form and try again.")
+    return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
+
+
 @require_POST
 @login_required
 @role_required('ADMIN', 'DOCTOR', 'NURSE')
@@ -979,23 +1064,7 @@ def discharge_admission(request, admission_id):
         messages.warning(request, "Admission is already discharged.")
         return redirect('DurielMedicApp:admission_list')
 
-    admission.discharged = True
-    admission.discharged_at = timezone.now()
-    admission.discharged_by = request.user
-    admission.save(update_fields=['discharged', 'discharged_at', 'discharged_by'])
-
-    patient.status = 'DISCHARGED'
-    patient.save(update_fields=['status'])
-
-    log_action(
-        request,
-        'UPDATE',
-        admission,
-        details=f"Discharged patient {patient.full_name}"
-    )
-
-    messages.success(request, "Admission discharged.")
-    return redirect('DurielMedicApp:admission_list')
+    return redirect('DurielMedicApp:discharge_patient', patient_id=patient.patient_id)
 
 
 
@@ -1087,6 +1156,7 @@ def check_appointment_availability(request):
 
 
 @login_required
+@clinic_selected_required
 def add_appointment(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
@@ -1414,9 +1484,10 @@ def complete_consultation(request, patient_id):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def schedule_follow_up(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     
     if patient.status not in ['IN_CONSULTATION', 'CONSULTATION_COMPLETE']:
         messages.error(request, "Patient must complete consultation first")

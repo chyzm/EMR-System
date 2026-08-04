@@ -1051,6 +1051,28 @@ def create_bill(request, patient_id=None):
     if patient and not appointment:
         appointment = get_latest_patient_appointment(patient, clinic_id)
 
+    patient_billing_activity = {}
+    if patient:
+        dental_activity = {'appointments': [], 'exams': [], 'plans': [], 'procedures': []}
+        if request.session.get('clinic_type') == 'DENTAL':
+            try:
+                from DurielDentalApp.models import DentalAppointment, DentalExam, DentalProcedure, DentalTreatmentPlan
+                dental_activity = {
+                    'appointments': DentalAppointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time')[:5],
+                    'exams': DentalExam.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-created_at')[:5],
+                    'plans': DentalTreatmentPlan.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-created_at')[:5],
+                    'procedures': DentalProcedure.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-performed_at')[:8],
+                }
+            except Exception:
+                dental_activity = {'appointments': [], 'exams': [], 'plans': [], 'procedures': []}
+        patient_billing_activity = {
+            'appointments': Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time')[:5],
+            'admissions': Admission.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_admitted')[:5],
+            'prescriptions': Prescription.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_prescribed', '-id')[:8],
+            'medical_records': MedicalRecord.objects.filter(patient=patient).order_by('-created_at')[:5],
+            'dental': dental_activity,
+        }
+
     # --- Handle AJAX (used for patient selection updates) ---
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         context = {
@@ -1088,10 +1110,28 @@ def create_bill(request, patient_id=None):
 
             # --- Calculate billing amount ---
             selected_services = form.cleaned_data.get('services')
+            service_total = sum(service.price for service in selected_services) if selected_services else 0
+            manual_service_name = request.POST.get('manual_service_name', '').strip()
+            manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
+            if manual_service_cost < 0:
+                messages.error(request, "Manual service cost cannot be negative.")
+                return render(request, 'billing/billing_form.html', {
+                    'form': form,
+                    'patient': patient,
+                    'patients_with_appointments': patients_with_appointments,
+                    'appointment': appointment,
+                    'patient_billing_activity': patient_billing_activity,
+                    'selected_patient_id': selected_patient_id,
+                    'title': 'Create New Bill'
+                })
+            bill.amount = service_total + manual_service_cost
+            description_lines = []
             if selected_services:
-                bill.amount = sum(service.price for service in selected_services)
-            else:
-                bill.amount = form.cleaned_data.get('amount', 0)
+                description_lines.extend([f"{service.name} - ₦{service.price}" for service in selected_services])
+            if manual_service_name or manual_service_cost:
+                description_lines.append(f"{manual_service_name} - ₦{manual_service_cost}")
+            if description_lines:
+                bill.description = "\n".join(description_lines)
 
             if not bill.paid_amount:
                 bill.paid_amount = 0
@@ -1137,6 +1177,7 @@ def create_bill(request, patient_id=None):
         'patient': patient,
         'patients_with_appointments': patients_with_appointments,
         'appointment': appointment,
+        'patient_billing_activity': patient_billing_activity,
         'selected_patient_id': selected_patient_id,
         'title': 'Create New Bill'
     }
@@ -1309,13 +1350,23 @@ def edit_bill(request, pk):
         if form.is_valid():
             updated_bill = form.save(commit=False)
             
-            # Calculate total from selected services
             selected_services = form.cleaned_data.get('services', [])
             service_total = sum(service.price for service in selected_services)
-            
-            # If amount was manually entered, add to service total
-            manual_amount = form.cleaned_data.get('amount', 0)
-            updated_bill.amount = service_total + manual_amount
+            manual_service_name = request.POST.get('manual_service_name', '').strip()
+            manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
+            if manual_service_cost < 0:
+                messages.error(request, "Manual service cost cannot be negative.")
+                return render(request, 'billing/billing_form.html', {
+                    'form': form,
+                    'bill': bill,
+                    'patients_with_appointments': Patient.objects.filter(clinic_id=clinic_id)
+                })
+            updated_bill.amount = service_total + manual_service_cost
+            description_lines = [f"{service.name} - ₦{service.price}" for service in selected_services]
+            if manual_service_name or manual_service_cost:
+                description_lines.append(f"{manual_service_name} - ₦{manual_service_cost}")
+            if description_lines:
+                updated_bill.description = "\n".join(description_lines)
             
             # Recalculate discounts/final amount before validating
             updated_bill.calculate_final_amount()
@@ -1369,7 +1420,7 @@ def edit_bill(request, pk):
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def record_payment(request, pk):
-    bill = get_object_or_404(Billing, pk=pk)
+    bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     
     if request.method == 'POST':
         payment_amount = Decimal(request.POST.get('payment_amount', '0'))
@@ -1832,6 +1883,9 @@ from django.http import HttpResponse, StreamingHttpResponse
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from django.apps import apps
+from django.conf import settings
+from django.core import signing
+from django.urls import reverse
 
 @login_required
 def settings_view(request):
@@ -1853,10 +1907,21 @@ def settings_view(request):
             return redirect('core:settings')
     else:
         form = ClinicLogoForm(instance=clinic)
+
+    local_server_activation_url = ''
+    if clinic and (request.user.is_superuser or getattr(request.user, 'role', '') == 'ADMIN'):
+        activation_token = signing.dumps(
+            {'clinic_sync_id': str(clinic.sync_id)},
+            salt='clinic-local-server-activation',
+        )
+        local_server_activation_url = request.build_absolute_uri(
+            f"{reverse('core:server_sync_activate')}?clinic_sync_id={clinic.sync_id}&activation={activation_token}"
+        )
     
     return render(request, 'settings/settings.html', {
         'form': form,
         'clinic': clinic,
+        'local_server_activation_url': local_server_activation_url,
     })
 
 

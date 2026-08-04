@@ -2,15 +2,15 @@
 from django.utils import timezone as tz
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinLengthValidator
 from django.conf import settings
 from django.db.models import Sum
 from django.forms import ValidationError
-from django.db import models
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+import uuid
 
 
 
@@ -18,6 +18,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 
 
 class Clinic(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     CLINIC_TYPES = (
         ('GENERAL', 'General Clinic'),
         ('EYE', 'Eye Clinic'),
@@ -129,6 +130,7 @@ class Patient(models.Model):
         ('CONSULTATION_COMPLETE', 'Consultation Complete'),
     )
     
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='REGISTERED')
     patient_id = models.CharField(max_length=10, primary_key=True, unique=True, editable=False)
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
@@ -168,18 +170,22 @@ class Patient(models.Model):
         if not self.patient_id:
             if not self.clinic:
                 raise ValueError("Patient must be assigned to a clinic before saving")
-            # Get clinic code (first 3 letters of clinic name, uppercase, no spaces)
-            clinic_code = ''.join(self.clinic.name.upper().split())[:3]
-            # Find last patient for this clinic
-            last_patient = Patient.objects.filter(
-                clinic=self.clinic,
-                patient_id__startswith=clinic_code
-            ).order_by('-created_at').first()
-            if last_patient and last_patient.patient_id[3:].isdigit():
-                next_number = int(last_patient.patient_id[3:]) + 1
-            else:
-                next_number = 1
-            self.patient_id = f"{clinic_code}{next_number:06d}"
+            with transaction.atomic():
+                self.clinic = Clinic.objects.select_for_update().get(pk=self.clinic_id)
+                clinic_code = ''.join(self.clinic.name.upper().split())[:3]
+                last_patient = Patient.objects.filter(
+                    clinic=self.clinic,
+                    patient_id__startswith=clinic_code
+                ).order_by('-created_at').first()
+                if last_patient and last_patient.patient_id[3:].isdigit():
+                    next_number = int(last_patient.patient_id[3:]) + 1
+                else:
+                    next_number = 1
+                self.patient_id = f"{clinic_code}{next_number:06d}"
+                if not self.created_at:
+                    self.created_at = tz.now()
+                super().save(*args, **kwargs)
+            return
         if not self.created_at:
             self.created_at = tz.now()
         super().save(*args, **kwargs)
@@ -226,6 +232,7 @@ class Billing(models.Model):
         ('FIXED', 'Fixed Amount'),
     )
 
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='bills')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='bills')
     appointment_content_type = models.ForeignKey(
@@ -340,6 +347,7 @@ class Payment(models.Model):
         ('OTHER', 'Other'),
     )
     
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_date = models.DateTimeField(auto_now_add=True)
@@ -363,8 +371,90 @@ class ServicePriceList(models.Model):
 
     def __str__(self):
         return f"{self.name} - ₦{self.price}"
+
+
+class SyncOperation(models.Model):
+    STATUS_CHOICES = (
+        ('PROCESSING', 'Processing'),
+        ('SYNCED', 'Synced'),
+        ('FAILED', 'Failed'),
+    )
+
+    operation_id = models.UUIDField(unique=True, editable=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='sync_operations')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    device_id = models.CharField(max_length=64)
+    action = models.CharField(max_length=50)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PROCESSING')
+    result = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['clinic', 'status', 'created_at'], name='core_syncop_clinic_status_idx'),
+            models.Index(fields=['device_id', 'created_at'], name='core_syncop_device_created_idx'),
+        ]
         
         
+class ServerSyncOutbox(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('SYNCING', 'Syncing'),
+        ('SYNCED', 'Synced'),
+        ('FAILED', 'Failed'),
+    )
+
+    operation_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='server_sync_outbox')
+    model_label = models.CharField(max_length=120)
+    action = models.CharField(max_length=20)
+    record_sync_id = models.UUIDField(null=True, blank=True)
+    origin_node_id = models.CharField(max_length=100, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PENDING')
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    synced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['clinic', 'status', 'created_at'], name='core_srvout_clinic_status_idx'),
+            models.Index(fields=['model_label', 'record_sync_id'], name='core_srvout_model_record_idx'),
+        ]
+
+
+class ServerSyncChange(models.Model):
+    operation_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='server_sync_changes')
+    model_label = models.CharField(max_length=120)
+    action = models.CharField(max_length=20)
+    record_sync_id = models.UUIDField(null=True, blank=True)
+    origin_node_id = models.CharField(max_length=100, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['clinic', 'id'], name='core_srvchg_clinic_id_idx'),
+            models.Index(fields=['origin_node_id', 'id'], name='core_srvchg_origin_id_idx'),
+        ]
+
+
+class ServerSyncState(models.Model):
+    key = models.CharField(max_length=100, unique=True)
+    value = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['key']
+
         
 
 
@@ -503,6 +593,7 @@ class ClinicMedication(models.Model):
 
 
 class Prescription(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='prescriptions')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='prescriptions')
     prescribed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='prescriptions')

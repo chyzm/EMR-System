@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-5">
+  <h1 class="text-2xl font-bold">Dental Procedures</h1>
+  <form method="get" class="flex gap-2">
+    <input name="q" value="{{ request.GET.q }}" class="w-full rounded-lg border-2 border-gray-300 px-4 py-2" />
+    <button class="rounded-lg bg-blue-600 px-4 py-2 text-white">Search</button>
+  </form>
+  <div class="rounded-xl border bg-white shadow-sm">
+    {% for procedure in procedures %}
+      <div class="border-b p-4 last:border-b-0">
+        <div class="font-medium">{{ procedure.procedure_name }}{% if procedure.tooth_numbers %} — Tooth {{ procedure.tooth_numbers }}{% endif %}</div>
+        <div class="text-sm text-gray-600">{{ procedure.patient.full_name }} • {{ procedure.performed_at|date:"M j, Y H:i" }} • ₦{{ procedure.cost }}</div>
+      </div>
+    {% empty %}
+      <p class="p-6 text-sm text-gray-500">No procedures found.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

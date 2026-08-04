@@ -12,7 +12,7 @@
     <p><strong>Paid:</strong> ₦{{ bill.paid_amount|floatformat:2 }}</p>
     <p><strong>Balance:</strong> ₦{{ bill.get_balance|floatformat:2 }}</p>
 
-    <form method="post" class="mt-4" data-sync-action="record_payment">
+    <form method="post" class="mt-4" data-sync-action="record_payment" data-billing-sync-id="{{ bill.sync_id }}" data-patient-sync-id="{{ bill.patient.sync_id }}">
         {% csrf_token %}
         <input type="hidden" name="bill_id" value="{{ bill.pk }}">
       

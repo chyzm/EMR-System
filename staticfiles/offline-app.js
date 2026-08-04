@@ -1,365 +1,615 @@
 (function () {
-  const DRAFT_PREFIX = 'durielmedic_draft_';
-  const QUEUE_KEY = 'durielmedic_offline_queue';
-  const MAX_QUEUE_ENTRIES = 100;
+  const CONTEXT_KEY = 'durielmedic_offline_context';
+  const SUMMARY_KEY = 'durielmedic_offline_summary';
+  const DEVICE_KEY = 'durielmedic_device_id';
+  const LEGACY_QUEUE_KEY = 'durielmedic_offline_queue';
+  const DB_VERSION = 1;
+  const ACTION_ORDER = {
+    patient_create: 10,
+    appointment_create: 20,
+    record_vitals: 30,
+    add_medical_record: 40,
+    admit_patient: 50,
+    schedule_follow_up: 60,
+    create_bill: 70,
+    record_payment: 80,
+  };
 
-  function safeStorage() {
+  let databasePromise = null;
+  let csrfToken = '';
+
+  function uuid() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+      const random = Math.random() * 16 | 0;
+      const value = character === 'x' ? random : (random & 0x3 | 0x8);
+      return value.toString(16);
+    });
+  }
+
+  function getDeviceId() {
+    let deviceId = localStorage.getItem(DEVICE_KEY);
+    if (!deviceId) {
+      deviceId = uuid();
+      localStorage.setItem(DEVICE_KEY, deviceId);
+    }
+    return deviceId;
+  }
+
+  function getContext() {
     try {
-      return window.localStorage;
+      return JSON.parse(localStorage.getItem(CONTEXT_KEY) || 'null');
     } catch (error) {
       return null;
     }
   }
 
-  function getStorageKey(form) {
-    if (form.dataset.draftKey) {
-      return form.dataset.draftKey;
-    }
-
-    const action = form.getAttribute('action') || window.location.pathname;
-    const formId = form.id || 'default-form';
-    const path = window.location.pathname.replace(/[^a-zA-Z0-9]+/g, '_') || 'root';
-    return `${DRAFT_PREFIX}${path}_${formId}_${action}`;
+  function databaseName() {
+    const context = getContext();
+    if (!context) return 'durielmedic_offline_uninitialized';
+    const tenantKey = `${location.host}_${context.clinic.sync_id}_${context.user.id}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `durielmedic_${tenantKey}`;
   }
 
-  function isSensitiveForm(form) {
-    const action = (form.getAttribute('action') || '').toLowerCase();
-    return action.includes('login') || form.classList.contains('no-offline-draft');
+  function workerContextKey(context) {
+    return `${context.clinic.sync_id}-${context.user.id}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
-  function getQueue() {
-    const storage = safeStorage();
-    if (!storage) return [];
-
-    try {
-      return JSON.parse(storage.getItem(QUEUE_KEY) || '[]');
-    } catch (error) {
-      return [];
-    }
+  function postWorkerMessage(message) {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then((registration) => {
+      const worker = registration.active || registration.waiting || registration.installing;
+      if (worker) worker.postMessage(message);
+    }).catch(() => {});
   }
 
-  function saveQueue(queue) {
-    const storage = safeStorage();
-    if (!storage) return;
+  function openDatabase() {
+    if (databasePromise) return databasePromise;
+    databasePromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(databaseName(), DB_VERSION);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains('records')) {
+          const records = database.createObjectStore('records', { keyPath: 'key' });
+          records.createIndex('type', 'type', { unique: false });
+          records.createIndex('status', 'status', { unique: false });
+        }
+        if (!database.objectStoreNames.contains('operations')) {
+          const operations = database.createObjectStore('operations', { keyPath: 'operationId' });
+          operations.createIndex('status', 'status', { unique: false });
+          operations.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+        if (!database.objectStoreNames.contains('metadata')) {
+          database.createObjectStore('metadata', { keyPath: 'key' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return databasePromise;
+  }
 
-    storage.setItem(QUEUE_KEY, JSON.stringify(queue));
-    updateQueueBadge(queue.length);
-    renderQueueStatus(queue);
+  async function transaction(storeName, mode, callback) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const currentTransaction = database.transaction(storeName, mode);
+      const store = currentTransaction.objectStore(storeName);
+      let result;
+      try {
+        result = callback(store);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      currentTransaction.oncomplete = () => resolve(result);
+      currentTransaction.onerror = () => reject(currentTransaction.error);
+      currentTransaction.onabort = () => reject(currentTransaction.error);
+    });
+  }
+
+  async function getAll(storeName) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const request = database.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getRecord(key) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const request = database.transaction('records', 'readonly').objectStore('records').get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
   }
 
   function showToast(message, tone = 'amber') {
     const toast = document.createElement('div');
-    const toneClasses = {
+    const tones = {
       amber: 'border-amber-200 bg-amber-50 text-amber-800',
       blue: 'border-blue-200 bg-blue-50 text-blue-800',
-      green: 'border-green-200 bg-green-50 text-green-800'
+      green: 'border-green-200 bg-green-50 text-green-800',
+      red: 'border-red-200 bg-red-50 text-red-800',
     };
-
-    toast.className = `fixed bottom-4 right-4 z-[100] rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${toneClasses[tone] || toneClasses.amber}`;
+    toast.className = `fixed bottom-4 right-4 z-[100] rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${tones[tone] || tones.amber}`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), 4000);
   }
 
-  function getActionLabel(actionType) {
-    const labels = {
+  function getActionLabel(action) {
+    return ({
       patient_create: 'Patient registration',
+      appointment_create: 'Appointment',
       record_vitals: 'Vitals entry',
       add_medical_record: 'Medical record',
       admit_patient: 'Admission',
       schedule_follow_up: 'Follow-up',
-      create_bill: 'Billing',
-      record_payment: 'Payment'
+      create_bill: 'Bill',
+      record_payment: 'Payment',
+    })[action] || action.replace(/_/g, ' ');
+  }
+
+  function recordTypeForAction(action) {
+    return ({
+      patient_create: 'patient',
+      appointment_create: 'appointment',
+      record_vitals: 'vitals',
+      add_medical_record: 'medical_record',
+      admit_patient: 'admission',
+      schedule_follow_up: 'follow_up',
+      create_bill: 'billing',
+      record_payment: 'payment',
+    })[action] || action;
+  }
+
+  function escapeHtml(value) {
+    const element = document.createElement('div');
+    element.textContent = String(value == null ? '' : value);
+    return element.innerHTML;
+  }
+
+  async function updateSummary() {
+    const operations = await getAll('operations');
+    const summary = {
+      total: operations.length,
+      pending: operations.filter((item) => ['pending', 'syncing'].includes(item.status)).length,
+      failed: operations.filter((item) => item.status === 'failed').length,
+      synced: operations.filter((item) => item.status === 'synced').length,
     };
-    return labels[actionType] || actionType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    localStorage.setItem(SUMMARY_KEY, JSON.stringify(summary));
+    updateQueueBadge(summary.pending + summary.failed);
+    renderQueueStatus(operations);
+    window.dispatchEvent(new CustomEvent('offlinequeuechange', { detail: summary }));
+    return summary;
   }
 
-  function addQueueEntry(entry) {
-    const queue = getQueue();
-    queue.push({
-      ...entry,
-      status: 'queued',
-      attempts: 0,
-      lastError: ''
-    });
-
-    if (queue.length > MAX_QUEUE_ENTRIES) {
-      queue.splice(0, queue.length - MAX_QUEUE_ENTRIES);
+  function getQueueSummary() {
+    try {
+      return JSON.parse(localStorage.getItem(SUMMARY_KEY)) || { total: 0, pending: 0, failed: 0, synced: 0 };
+    } catch (error) {
+      return { total: 0, pending: 0, failed: 0, synced: 0 };
     }
-
-    saveQueue(queue);
-  }
-
-  function removeQueueEntry(formKey) {
-    const queue = getQueue().filter((entry) => entry.formKey !== formKey);
-    saveQueue(queue);
-  }
-
-  function retryQueueEntry(formKey) {
-    const queue = getQueue();
-    const updated = queue.map((entry) => (entry.formKey === formKey ? { ...entry, status: 'queued', lastError: '' } : entry));
-    saveQueue(updated);
-    showToast('Retrying queued action…', 'blue');
-    syncQueue(true);
-  }
-
-  function retryFailedQueue() {
-    const queue = getQueue();
-    const updated = queue.map((entry) => (entry.status === 'failed' ? { ...entry, status: 'queued', lastError: '' } : entry));
-    saveQueue(updated);
-    showToast('Retrying failed actions…', 'blue');
-    syncQueue(true);
-  }
-
-  function clearCompletedQueue() {
-    const queue = getQueue().filter((entry) => entry.status !== 'synced');
-    saveQueue(queue);
-    showToast('Cleared completed items.', 'green');
-  }
-
-  function renderQueueStatus(queue) {
-    const panel = document.getElementById('offline-queue-panel');
-    if (!panel) return;
-
-    if (!queue.length) {
-      panel.innerHTML = '<div class="text-sm text-gray-500">No queued actions.</div>';
-      return;
-    }
-
-    const failedCount = queue.filter((entry) => entry.status === 'failed').length;
-    const hasSyncedItems = queue.some((entry) => entry.status === 'synced');
-    const retryButton = failedCount
-      ? '<button type="button" data-retry-all="true" class="rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">Retry failed</button>'
-      : '';
-    const clearButton = hasSyncedItems
-      ? '<button type="button" data-clear-completed="true" class="rounded border border-green-200 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Clear synced</button>'
-      : '';
-
-    panel.innerHTML = `
-      <div class="mb-2 flex items-center justify-between gap-2">
-        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Queue</div>
-        <div class="flex gap-2">${retryButton}${clearButton}</div>
-      </div>
-      ${queue.map((entry) => {
-        const label = entry.action || 'unknown-action';
-        const statusClass = entry.status === 'synced' ? 'bg-green-100 text-green-700' : entry.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700';
-        const retryControl = entry.status === 'failed'
-          ? `<button type="button" data-retry-form-key="${entry.formKey}" class="text-xs font-medium text-blue-700 hover:text-blue-900">Retry</button>`
-          : '';
-        return `
-          <div class="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-            <div>
-              <div class="font-medium text-gray-800">${getActionLabel(entry.action)}</div>
-              <div class="text-xs text-gray-500">${entry.submittedAt || ''}</div>
-            </div>
-            <div class="flex items-center gap-2">
-              ${retryControl}
-              <span class="rounded-full px-2 py-1 text-xs font-medium ${statusClass}">${entry.status || 'queued'}</span>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    `;
-  }
-
-  function syncQueue(force = false) {
-    const queue = getQueue();
-    if ((!force && !navigator.onLine) || queue.length === 0) return;
-
-    const pendingQueue = queue.filter((entry) => entry.status !== 'synced');
-    if (!pendingQueue.length) return;
-
-    const updatedQueue = pendingQueue.map((entry) => ({ ...entry, status: 'syncing', attempts: (entry.attempts || 0) + 1 }));
-    saveQueue(queue.map((entry) => {
-      const match = updatedQueue.find((updated) => updated.formKey === entry.formKey);
-      return match || entry;
-    }));
-
-    fetch('/api/sync/queue/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: updatedQueue })
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (!data.success) {
-          const remaining = queue.map((entry) => {
-            const match = updatedQueue.find((updated) => updated.formKey === entry.formKey);
-            if (!match) return entry;
-            return { ...match, status: 'failed', lastError: 'Sync request failed' };
-          });
-          saveQueue(remaining);
-          return;
-        }
-
-        const successfulKeys = new Set((data.processed || []).map((item) => item.formKey));
-        const failedKeys = new Set((data.failed || []).map((item) => item.formKey));
-        const updated = queue.map((entry) => {
-          if (successfulKeys.has(entry.formKey)) {
-            return { ...entry, status: 'synced', lastError: '' };
-          }
-          if (failedKeys.has(entry.formKey)) {
-            const match = updatedQueue.find((updatedEntry) => updatedEntry.formKey === entry.formKey);
-            const attempts = (match?.attempts || 0) + 1;
-            return { ...entry, status: attempts > 3 ? 'failed' : 'queued', attempts, lastError: data.failed.find((item) => item.formKey === entry.formKey)?.error || 'Sync failed' };
-          }
-          return entry;
-        });
-        saveQueue(updated);
-      })
-      .catch(() => {
-        const updated = queue.map((entry) => {
-          const match = updatedQueue.find((updatedEntry) => updatedEntry.formKey === entry.formKey);
-          if (!match) return entry;
-          return { ...match, status: 'failed', lastError: 'Network error' };
-        });
-        saveQueue(updated);
-      });
   }
 
   function updateQueueBadge(count) {
     const badge = document.getElementById('offline-queue-badge');
     const label = document.getElementById('offline-queue-label');
     if (!badge || !label) return;
+    label.textContent = `${count} pending`;
+    badge.classList.toggle('hidden', count === 0);
+    badge.classList.toggle('inline-flex', count > 0);
+  }
 
-    if (count > 0) {
-      badge.classList.remove('hidden');
-      label.textContent = `${count} draft${count === 1 ? '' : 's'}`;
-    } else {
-      badge.classList.add('hidden');
-      label.textContent = '0 drafts';
+  function renderQueueStatus(operations) {
+    const panel = document.getElementById('offline-queue-panel');
+    if (!panel) return;
+    if (!operations.length) {
+      panel.innerHTML = '<div class="text-sm text-gray-500">No offline records.</div>';
+      return;
     }
+    const sorted = operations.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    panel.innerHTML = sorted.slice(0, 50).map((item) => `
+      <div class="flex items-start justify-between gap-3 border-b border-gray-100 py-3">
+        <div>
+          <div class="text-sm font-medium text-gray-800">${escapeHtml(getActionLabel(item.action))}</div>
+          <div class="text-xs text-gray-500">${escapeHtml(new Date(item.createdAt).toLocaleString())}</div>
+          ${item.lastError ? `<div class="mt-1 text-xs text-red-600">${escapeHtml(item.lastError)}</div>` : ''}
+        </div>
+        <span class="rounded-full px-2 py-1 text-xs ${item.status === 'synced' ? 'bg-green-50 text-green-700' : item.status === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}">${escapeHtml(item.status)}</span>
+      </div>
+    `).join('');
+  }
+
+  async function saveBootstrap(data) {
+    const previousContext = getContext();
+    const nextContext = {
+      clinic: data.clinic,
+      user: data.user,
+      generatedAt: data.generatedAt,
+      dataRefreshedAt: data.metadataOnly && previousContext ? previousContext.dataRefreshedAt : data.generatedAt,
+      offlineExpiresAt: data.offlineExpiresAt,
+    };
+    localStorage.setItem(CONTEXT_KEY, JSON.stringify(nextContext));
+    postWorkerMessage({ type: 'SET_CONTEXT', contextKey: workerContextKey(nextContext) });
+    csrfToken = data.csrfToken || csrfToken;
+    if (!previousContext || previousContext.clinic.sync_id !== data.clinic.sync_id || previousContext.user.id !== data.user.id) {
+      databasePromise = null;
+    }
+
+    const records = [];
+    data.patients.forEach((patient) => records.push({
+      key: `patient:${patient.sync_id}`,
+      type: 'patient',
+      syncId: patient.sync_id,
+      status: 'synced',
+      payload: patient,
+      updatedAt: patient.updated_at,
+    }));
+    data.appointments.forEach((appointment) => records.push({
+      key: `appointment:${appointment.sync_id}`,
+      type: 'appointment',
+      syncId: appointment.sync_id,
+      status: 'synced',
+      payload: appointment,
+      updatedAt: data.generatedAt,
+    }));
+    data.services.forEach((service) => records.push({
+      key: `service:${service.id}`,
+      type: 'service',
+      syncId: String(service.id),
+      status: 'synced',
+      payload: service,
+      updatedAt: data.generatedAt,
+    }));
+    data.bills.forEach((bill) => records.push({
+      key: `billing:${bill.sync_id}`,
+      type: 'billing',
+      syncId: bill.sync_id,
+      status: 'synced',
+      payload: bill,
+      updatedAt: bill.updated_at,
+    }));
+    data.providers.forEach((provider) => records.push({
+      key: `provider:${provider.id}`,
+      type: 'provider',
+      syncId: String(provider.id),
+      status: 'synced',
+      payload: provider,
+      updatedAt: data.generatedAt,
+    }));
+    await transaction('records', 'readwrite', (store) => records.forEach((record) => store.put(record)));
+    await transaction('metadata', 'readwrite', (store) => store.put({ key: 'bootstrap', value: nextContext }));
+    if (!data.metadataOnly && data.patientPage === 1) {
+      postWorkerMessage({
+        type: 'WARM_PAGES',
+        urls: ['/patients/', '/patients/add/', '/DurielMedicAppappointments/add/', '/billing/create/'],
+      });
+    }
+    return nextContext;
+  }
+
+  async function refreshBootstrap() {
+    let patientPage = 1;
+    let data = null;
+    do {
+      const response = await fetch(`/api/offline/bootstrap/?patient_page=${patientPage}`, { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) throw new Error(response.status === 403 ? 'Your session expired. Sign in before syncing.' : 'Unable to refresh clinic data.');
+      data = await response.json();
+      await saveBootstrap(data);
+      patientPage += 1;
+    } while (data.hasMorePatients);
+    return data;
+  }
+
+  async function refreshSession() {
+    const response = await fetch('/api/offline/bootstrap/?metadata_only=1', { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) throw new Error(response.status === 403 ? 'Your session expired. Sign in before syncing.' : 'Unable to reach the clinic server.');
+    const data = await response.json();
+    await saveBootstrap(data);
+    return data;
+  }
+
+  async function enqueue(action, payload, options = {}) {
+    const context = getContext();
+    if (!context) throw new Error('Open the application online once before using offline mode.');
+    if (!context.offlineExpiresAt || new Date(context.offlineExpiresAt) <= new Date()) {
+      throw new Error('Offline access expired. Connect to the internet and sign in again.');
+    }
+    const operationId = options.operationId || uuid();
+    const recordId = options.recordId || payload._sync_id || uuid();
+    const createdAt = new Date().toISOString();
+    const operation = {
+      operationId,
+      recordId,
+      action,
+      payload: { ...payload, _sync_id: recordId },
+      formKey: options.formKey || operationId,
+      clinicSyncId: context.clinic.sync_id,
+      status: 'pending',
+      attempts: 0,
+      lastError: '',
+      createdAt,
+    };
+    const record = {
+      key: `${recordTypeForAction(action)}:${recordId}`,
+      type: recordTypeForAction(action),
+      syncId: recordId,
+      status: 'pending',
+      payload: operation.payload,
+      createdAt,
+      updatedAt: createdAt,
+    };
+    await transaction('operations', 'readwrite', (store) => store.put(operation));
+    await transaction('records', 'readwrite', (store) => store.put(record));
+    await updateSummary();
+    if (navigator.onLine) syncQueue();
+    return operation;
+  }
+
+  async function setOperationStatus(operation, status, lastError = '') {
+    operation.status = status;
+    operation.lastError = lastError;
+    operation.attempts = (operation.attempts || 0) + (status === 'syncing' ? 1 : 0);
+    await transaction('operations', 'readwrite', (store) => store.put(operation));
+  }
+
+  async function markProcessed(item, result) {
+    item.status = 'synced';
+    item.lastError = '';
+    item.serverResult = result;
+    item.syncedAt = new Date().toISOString();
+    await transaction('operations', 'readwrite', (store) => store.put(item));
+    const key = `${recordTypeForAction(item.action)}:${item.recordId}`;
+    const record = await getRecord(key);
+    if (record) {
+      record.status = 'synced';
+      record.serverResult = result;
+      record.updatedAt = item.syncedAt;
+      if (item.action === 'patient_create' && result.patient_id) record.payload.patient_id = result.patient_id;
+      if (result.server_id) record.payload.server_id = result.server_id;
+      await transaction('records', 'readwrite', (store) => store.put(record));
+    }
+  }
+
+  async function syncQueue() {
+    if (!navigator.onLine || !getContext()) return;
+    let operations = (await getAll('operations'))
+      .filter((item) => ['pending', 'syncing'].includes(item.status))
+      .sort((left, right) => (ACTION_ORDER[left.action] || 999) - (ACTION_ORDER[right.action] || 999) || left.createdAt.localeCompare(right.createdAt));
+    if (!operations.length) return;
+
+    try {
+      await refreshSession();
+    } catch (error) {
+      operations.forEach((item) => { item.status = 'pending'; item.lastError = error.message; });
+      await transaction('operations', 'readwrite', (store) => operations.forEach((item) => store.put(item)));
+      await updateSummary();
+      return;
+    }
+
+    for (let offset = 0; offset < operations.length; offset += 25) {
+      const batch = operations.slice(offset, offset + 25);
+      await Promise.all(batch.map((item) => setOperationStatus(item, 'syncing')));
+      try {
+        const response = await fetch('/api/sync/queue/', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ deviceId: getDeviceId(), items: batch }),
+        });
+        if (!response.ok) throw new Error(response.status === 403 ? 'Your session expired. Sign in before syncing.' : `Sync failed (${response.status}).`);
+        const data = await response.json();
+        const processed = new Map(data.processed.map((item) => [item.operationId, item]));
+        const failed = new Map(data.failed.map((item) => [item.operationId, item]));
+        for (const item of batch) {
+          if (processed.has(item.operationId)) {
+            await markProcessed(item, processed.get(item.operationId));
+          } else {
+            const failure = failed.get(item.operationId);
+            item.status = 'failed';
+            item.lastError = failure ? failure.error : 'The server did not acknowledge this record.';
+            await transaction('operations', 'readwrite', (store) => store.put(item));
+          }
+        }
+      } catch (error) {
+        for (const item of batch) {
+          item.status = 'pending';
+          item.lastError = error.message;
+          await transaction('operations', 'readwrite', (store) => store.put(item));
+        }
+        break;
+      }
+    }
+    const summary = await updateSummary();
+    if (!summary.pending && !summary.failed) showToast('Offline records synchronized.', 'green');
+  }
+
+  async function retryFailedQueue() {
+    const operations = await getAll('operations');
+    const failed = operations.filter((item) => item.status === 'failed');
+    failed.forEach((item) => { item.status = 'pending'; item.lastError = ''; });
+    await transaction('operations', 'readwrite', (store) => failed.forEach((item) => store.put(item)));
+    await updateSummary();
+    await syncQueue();
+  }
+
+  async function clearCompletedQueue() {
+    const operations = await getAll('operations');
+    await transaction('operations', 'readwrite', (store) => operations.filter((item) => item.status === 'synced').forEach((item) => store.delete(item.operationId)));
+    await updateSummary();
+  }
+
+  async function clearPendingQueue() {
+    const operations = await getAll('operations');
+    await transaction('operations', 'readwrite', (store) => operations.filter((item) => item.status !== 'synced').forEach((item) => store.delete(item.operationId)));
+    await updateSummary();
+  }
+
+  async function listRecords(type) {
+    const records = await getAll('records');
+    return records.filter((record) => record.type === type);
+  }
+
+  async function patchRecord(type, syncId, changes) {
+    const record = await getRecord(`${type}:${syncId}`);
+    if (!record) throw new Error('Local record was not found.');
+    record.payload = { ...record.payload, ...changes };
+    record.updatedAt = new Date().toISOString();
+    await transaction('records', 'readwrite', (store) => store.put(record));
+    window.dispatchEvent(new CustomEvent('offlinerecordchange', { detail: record }));
+    return record;
+  }
+
+  async function migrateLegacyQueue() {
+    let legacyItems;
+    try {
+      legacyItems = JSON.parse(localStorage.getItem(LEGACY_QUEUE_KEY) || '[]');
+    } catch (error) {
+      legacyItems = [];
+    }
+    if (!Array.isArray(legacyItems) || !legacyItems.length) return;
+
+    for (const legacyItem of legacyItems.filter((item) => item.status !== 'synced')) {
+      const recordId = uuid();
+      const operationId = uuid();
+      const createdAt = legacyItem.submittedAt || new Date().toISOString();
+      const operation = {
+        operationId,
+        recordId,
+        action: legacyItem.action,
+        payload: { ...(legacyItem.payload || {}), _sync_id: recordId },
+        formKey: legacyItem.formKey || operationId,
+        clinicSyncId: getContext().clinic.sync_id,
+        status: legacyItem.status === 'failed' ? 'failed' : 'pending',
+        attempts: legacyItem.attempts || 0,
+        lastError: legacyItem.lastError || '',
+        createdAt,
+      };
+      const record = {
+        key: `${recordTypeForAction(operation.action)}:${recordId}`,
+        type: recordTypeForAction(operation.action),
+        syncId: recordId,
+        status: operation.status,
+        payload: operation.payload,
+        createdAt,
+        updatedAt: createdAt,
+      };
+      await transaction('operations', 'readwrite', (store) => store.put(operation));
+      await transaction('records', 'readwrite', (store) => store.put(record));
+    }
+    localStorage.removeItem(LEGACY_QUEUE_KEY);
   }
 
   function serializeForm(form) {
     const payload = {};
-    Array.from(form.elements).forEach((element) => {
-      if (!element.name || element.disabled) return;
-      if (['submit', 'button', 'reset', 'file'].includes(element.type)) return;
-      if (element.type === 'password') return;
-
-      if (element.type === 'checkbox' || element.type === 'radio') {
-        payload[element.name] = element.checked ? element.value : '';
-      } else if (element.type === 'select-multiple') {
-        payload[element.name] = Array.from(element.selectedOptions).map((option) => option.value);
-      } else {
-        payload[element.name] = element.value;
+    const formData = new FormData(form);
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        if (value.size) showToast('Attachments are not available offline and were not saved.', 'amber');
+        continue;
       }
-    });
-
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        payload[key] = Array.isArray(payload[key]) ? [...payload[key], value] : [payload[key], value];
+      } else {
+        payload[key] = value;
+      }
+    }
+    if (form.dataset.patientSyncId) payload._patient_sync_id = form.dataset.patientSyncId;
+    if (form.dataset.patientId && !payload.patient_id && !payload.patient) payload.patient_id = form.dataset.patientId;
+    if (form.dataset.appointmentSyncId) payload._appointment_sync_id = form.dataset.appointmentSyncId;
+    if (form.dataset.billingSyncId) payload._billing_sync_id = form.dataset.billingSyncId;
+    delete payload.csrfmiddlewaretoken;
     return payload;
   }
 
-  function restoreForm(form, draft) {
-    Object.entries(draft).forEach(([name, value]) => {
-      const matchingFields = Array.from(form.elements).filter((element) => element.name === name);
-      matchingFields.forEach((element) => {
-        if (element.type === 'checkbox' || element.type === 'radio') {
-          element.checked = String(value) === String(element.value);
-        } else if (element.type === 'select-multiple') {
-          Array.from(element.options).forEach((option) => {
-            option.selected = Array.isArray(value) && value.includes(option.value);
-          });
-        } else {
-          element.value = value || '';
-        }
-      });
-    });
-  }
-
-  function saveDraft(form) {
-    const storage = safeStorage();
-    if (!storage) return;
-
-    const key = getStorageKey(form);
-    const payload = serializeForm(form);
-    storage.setItem(key, JSON.stringify(payload));
-  }
-
-  function loadDraft(form) {
-    const storage = safeStorage();
-    if (!storage) return false;
-
-    const key = getStorageKey(form);
-    const rawDraft = storage.getItem(key);
-    if (!rawDraft) return false;
-
-    try {
-      const draft = JSON.parse(rawDraft);
-      restoreForm(form, draft);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  function clearDraft(form) {
-    const storage = safeStorage();
-    if (!storage) return;
-    storage.removeItem(getStorageKey(form));
-  }
-
   function setupForm(form) {
-    if (!form || form.method.toLowerCase() === 'get' || isSensitiveForm(form)) return;
-
-    const hasExistingDraft = loadDraft(form);
-    if (hasExistingDraft) {
-      form.dataset.offlineDraftRestored = 'true';
-    }
-
-    form.addEventListener('input', () => saveDraft(form));
-    form.addEventListener('change', () => saveDraft(form));
-    form.addEventListener('submit', (event) => {
-      if (navigator.onLine) {
-        clearDraft(form);
-        return;
-      }
-
+    const action = form.dataset.syncAction;
+    if (!action || form.dataset.offlineReady === 'true') return;
+    form.dataset.offlineReady = 'true';
+    form.addEventListener('submit', async (event) => {
+      const hasAttachment = Array.from(form.querySelectorAll('input[type="file"]')).some((input) => input.files && input.files.length);
+      if (navigator.onLine && hasAttachment) return;
       event.preventDefault();
-      const payload = serializeForm(form);
-      const actionType = form.dataset.syncAction || 'patient_create';
-      addQueueEntry({
-        formKey: getStorageKey(form),
-        action: actionType,
-        payload,
-        submittedAt: new Date().toISOString()
-      });
-      saveDraft(form);
-
-      const actionLabel = getActionLabel(actionType).toLowerCase();
-      showToast(`Queued ${actionLabel}. It will sync when the connection is restored.`, 'amber');
+      if (!form.reportValidity()) return;
+      try {
+        const operation = await enqueue(action, serializeForm(form), { formKey: `${location.pathname}:${uuid()}` });
+        showToast(`${getActionLabel(action)} saved on this device.`, navigator.onLine ? 'blue' : 'amber');
+        form.dispatchEvent(new CustomEvent('offlinesaved', { detail: operation }));
+        form.reset();
+        if (action === 'patient_create') {
+          window.location.assign(`/patients/#offline-patient=${operation.recordId}`);
+        }
+      } catch (error) {
+        showToast(error.message, 'red');
+      }
     });
   }
+
+  async function clearDeviceData() {
+    const name = databaseName();
+    if (databasePromise) {
+      const database = await databasePromise;
+      database.close();
+    }
+    databasePromise = null;
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+      request.onblocked = resolve;
+    });
+    localStorage.removeItem(CONTEXT_KEY);
+    localStorage.removeItem(SUMMARY_KEY);
+    postWorkerMessage({ type: 'CLEAR_CONTEXT' });
+  }
+
+  function lockDeviceData() {
+    databasePromise = null;
+    localStorage.removeItem(CONTEXT_KEY);
+    localStorage.removeItem(SUMMARY_KEY);
+    postWorkerMessage({ type: 'CLEAR_CONTEXT' });
+  }
+
+  const ready = (async () => {
+    if (navigator.onLine) {
+      try {
+        const context = getContext();
+        const stale = !context || !context.dataRefreshedAt || Date.now() - new Date(context.dataRefreshedAt).getTime() > 15 * 60 * 1000;
+        if (stale) await refreshBootstrap();
+        else await refreshSession();
+      } catch (error) { /* Existing local data remains available. */ }
+    }
+    if (getContext()) {
+      await openDatabase();
+      await migrateLegacyQueue();
+      await updateSummary();
+    }
+  })();
 
   document.addEventListener('DOMContentLoaded', () => {
-    updateQueueBadge(getQueue().length);
-    renderQueueStatus(getQueue());
-
-    const queuePanel = document.getElementById('offline-queue-panel');
-    if (queuePanel) {
-      queuePanel.addEventListener('click', (event) => {
-        const retryAllButton = event.target.closest('[data-retry-all="true"]');
-        if (retryAllButton) {
-          retryFailedQueue();
-          return;
-        }
-
-        const clearCompletedButton = event.target.closest('[data-clear-completed="true"]');
-        if (clearCompletedButton) {
-          clearCompletedQueue();
-          return;
-        }
-
-        const retryButton = event.target.closest('[data-retry-form-key]');
-        if (retryButton) {
-          retryQueueEntry(retryButton.getAttribute('data-retry-form-key'));
-        }
-      });
-    }
-
-    Array.from(document.querySelectorAll('form')).forEach((form) => setupForm(form));
-    saveQueue(getQueue());
-    window.addEventListener('online', () => syncQueue());
-    window.addEventListener('load', () => syncQueue());
+    document.querySelectorAll('form[data-sync-action]').forEach(setupForm);
+    document.querySelectorAll('a[href*="/logout/"]').forEach((link) => link.addEventListener('click', lockDeviceData));
+    window.addEventListener('online', syncQueue);
+    window.addEventListener('offlinequeuechange', () => updateQueueBadge(getQueueSummary().pending + getQueueSummary().failed));
+    ready.then(syncQueue);
   });
+
+  window.offlineQueue = {
+    ready,
+    enqueue,
+    syncQueue,
+    retryFailedQueue,
+    clearCompletedQueue,
+    clearPendingQueue,
+    clearDeviceData,
+    lockDeviceData,
+    getQueueSummary,
+    getContext,
+    listRecords,
+    patchRecord,
+    refreshBootstrap,
+  };
 })();

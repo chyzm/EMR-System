@@ -24,8 +24,8 @@
                                 {% if form.status.errors %}border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
                                 required>
                             <option value="">Select Status</option>
-                            <option value="REGISTERED" {% if form.status.value == 'REGISTERED' %}selected{% endif %}>Registered</option>
-                            <option value="INSURANCE" {% if form.status.value == 'INSURANCE' or not form.status.value %}selected{% endif %}>Insurance</option>
+                            <option value="REGISTERED" {% if form.status.value == 'REGISTERED' or not form.status.value %}selected{% endif %}>Registered</option>
+                            <option value="INSURANCE" {% if form.status.value == 'INSURANCE' %}selected{% endif %}>Insurance</option>
                         </select>
                         {% if form.status.errors %}
                             <p class="mt-1 text-sm text-red-600">{{ form.status.errors|join:", " }}</p>

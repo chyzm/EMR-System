@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mx-auto p-6">
+<div class="container mx-auto p-6" data-patient-sync-id="{{ patient.sync_id }}">
     <div class="flex justify-between items-start mb-6">
         <div>
             <h2 class="text-2xl font-semibold mb-2">Patient Details</h2>
@@ -44,10 +44,28 @@
                 <p><strong>Email:</strong> {{ patient.email|default:"Not provided" }}</p>
                 <p><strong>Address:</strong> {{ patient.address }}</p>
                 <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact }} ({{ patient.emergency_contact_name|default:"No name provided" }})</p>
-                {% if active_admission %}
-                <p><strong>Admission:</strong> {{ active_admission.ward }} ({{ active_admission.date_admitted|date:"M j, Y H:i" }})</p>
-                <p><strong>Admitted By:</strong> {{ active_admission.admitted_by.get_full_name|default:"-" }}</p>
                 {% endif %}
+                {% if active_admission %}
+                    <div class="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                        <p><strong>Admission:</strong> {{ active_admission.ward }}{% if active_admission.bed %}, {{ active_admission.bed }}{% endif %} ({{ active_admission.date_admitted|date:"M j, Y H:i" }})</p>
+                        <p><strong>Admitted By:</strong> {{ active_admission.admitted_by.get_full_name|default:"-" }}</p>
+                        <p class="mt-2">
+                            <a href="{% url 'DurielMedicApp:admission_detail' active_admission.id %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                                Open Admission Chart
+                            </a>
+                        </p>
+                    </div>
+                {% endif %}
+                {% if request.session.clinic_type == "DENTAL" %}
+                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p class="font-medium text-blue-900">Dental clinic workflow</p>
+                        <p class="text-sm text-blue-800">Open the patient’s odontogram, exams, treatment plans, procedures and follow-ups.</p>
+                        <p class="mt-2">
+                            <a href="{% url 'DurielDentalApp:patient_chart' patient.patient_id %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                                Open Dental Chart
+                            </a>
+                        </p>
+                    </div>
                 {% endif %}
             </div>
         </div>

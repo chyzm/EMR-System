@@ -34,14 +34,14 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Status</th>
                 </tr>
             </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
+            <tbody class="bg-white divide-y divide-gray-200" data-offline-patient-list>
                 {% for patient in patients %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50" data-patient-sync-id="{{ patient.sync_id }}">
                     <td class="px-6 py-4 whitespace-nowrap">{{ patient.full_name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ patient.patient_id }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">{{ patient.clinic.name }}</td>
                     <td class="px-6 py-4 whitespace-nowrap space-x-2">
-                        <a href="{% url 'core:patient_detail' patient.patient_id %}" 
+                        <a href="{% url 'core:patient_detail' patient.patient_id %}" data-offline-patient-view="{{ patient.sync_id }}"
                            class="text-blue-600 hover:text-blue-800 hover:underline">View</a>
 
                          {% if patient.pk and request.user.role == 'ADMIN' %}  

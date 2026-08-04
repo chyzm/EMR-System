@@ -1,5 +1,4 @@
-from core.models import Clinic
-from django.contrib.auth.models import AnonymousUser
+from core.decorators import get_active_clinic
 
 class ClinicMiddleware:
     def __init__(self, get_response):
@@ -7,19 +6,8 @@ class ClinicMiddleware:
 
     def __call__(self, request):
         if not hasattr(request, 'clinic'):
-            clinic_id = request.session.get('clinic_id')
-            if clinic_id:
-                try:
-                    request.clinic = Clinic.objects.get(id=clinic_id)
-                except Clinic.DoesNotExist:
-                    request.clinic = None
-            else:
-                request.clinic = None
+            request.clinic = get_active_clinic(request)
         
-        # Attach user to request for access in signals
-        if not hasattr(request, 'user') or not request.user.is_authenticated:
-            request.user = AnonymousUser()
-
         response = self.get_response(request)
         return response
 

@@ -21,6 +21,13 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -33,7 +40,7 @@ if not SECRET_KEY:
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
-DEBUG = os.getenv('DEBUG') 
+DEBUG = env_bool('DEBUG', False)
 
 
 
@@ -44,7 +51,9 @@ ALLOWED_HOSTS = [
     'www.durielmedic.com.ng',
     'durielmedic.com.ng',
     'localhost',
-    '127.0.0.1']
+    '127.0.0.1',
+    *[host.strip() for host in os.getenv('ALLOWED_HOSTS', '').split(',') if host.strip()],
+]
 
 
 # Application definition
@@ -70,11 +79,11 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crum.CurrentRequestUserMiddleware',
     'core.middleware.ClinicMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
   
 
 ]
@@ -125,39 +134,51 @@ CHANNEL_LAYERS = {
 #     }
 # }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+
+
+# Server-to-server clinic sync.
+# Central/cloud config stays in env. Local clinic servers are activated from a
+# cloud URL and store their sync config in SQLite ServerSyncState.
+SYNC_SERVER_ROLE = os.getenv('SYNC_SERVER_ROLE', 'standalone').strip().lower()
+SYNC_SHARED_SECRET = os.getenv('SYNC_SHARED_SECRET', '')
+SYNC_ACTIVATION_TOKEN = os.getenv('SYNC_ACTIVATION_TOKEN', '')
+SYNC_UPDATE_MANIFEST_URL = os.getenv('SYNC_UPDATE_MANIFEST_URL', '')
+SYNC_INTERVAL_SECONDS = int(os.getenv('SYNC_INTERVAL_SECONDS', '30'))
+SYNC_BATCH_SIZE = int(os.getenv('SYNC_BATCH_SIZE', '25'))
+SYNC_REQUEST_TIMEOUT_SECONDS = int(os.getenv('SYNC_REQUEST_TIMEOUT_SECONDS', '20'))
+
+
+
+# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+#     DATABASES = {
+#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+#          "default": dj_database_url.config(conn_max_age=600)
 #     }
-# }
-
-
-
-if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-    DATABASES = {
-        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-         "default": dj_database_url.config(conn_max_age=600)
-    }
-else:  # PythonAnywhere/MySQL
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
+# else:  # PythonAnywhere/MySQL
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DB_ENGINE'),
+#             'NAME': os.getenv('DB_NAME'),
+#             'USER': os.getenv('DB_USER'),
+#             'PASSWORD': os.getenv('DB_PASSWORD'),
+#             'HOST': os.getenv('DB_HOST'),
+#             'PORT': os.getenv('DB_PORT'),
+#         }
+#     }
     
     
 
 
-LOGIN_URL = '/accounts/login/'
+LOGIN_URL = '/login/'
 
 LOGIN_REDIRECT_URL = '/select-clinic/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 # AUTH_USER_MODEL = 'DurielMedicApp.CustomUser'
 AUTH_USER_MODEL = 'core.CustomUser'
@@ -219,8 +240,13 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 # AUTO_LOGOUT_DELAY = 900  # seconds = 15 mins
 
-CSRF_TRUSTED_ORIGINS = ['https://durielmedic.pythonanywhere.com', 
-                        'https://www.durielmedic.pythonanywhere.com']
+CSRF_TRUSTED_ORIGINS = [
+    'https://durielmedic.pythonanywhere.com',
+    'https://www.durielmedic.pythonanywhere.com',
+    'https://durielmedic.com.ng',
+    'https://www.durielmedic.com.ng',
+    *[origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()],
+]
 
 
 # Password validation

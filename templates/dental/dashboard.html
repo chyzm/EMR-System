@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Dental Dashboard</h1>
+      <p class="text-gray-600">Today: {{ today|date:"M j, Y" }}</p>
+    </div>
+    <a href="{% url 'DurielDentalApp:appointment_create' %}" class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">New Dental Appointment</a>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-4">
+    <div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-sm text-gray-500">Patients</div><div class="text-2xl font-bold">{{ stats.total_patients }}</div></div>
+    <div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-sm text-gray-500">Today Appointments</div><div class="text-2xl font-bold">{{ stats.today_appointments }}</div></div>
+    <div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-sm text-gray-500">Open Plans</div><div class="text-2xl font-bold">{{ stats.open_treatment_plans }}</div></div>
+    <div class="rounded-xl border bg-white p-4 shadow-sm"><div class="text-sm text-gray-500">Outstanding</div><div class="text-2xl font-bold">₦{{ stats.outstanding_balance }}</div></div>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <h2 class="mb-4 text-lg font-semibold">Today's Chair Queue</h2>
+      <div class="space-y-3">
+        {% for appointment in appointments %}
+          <a href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}" class="block rounded-lg border p-3 hover:bg-gray-50">
+            <div class="font-medium">{{ appointment.start_time|time:"H:i" }} • {{ appointment.patient.full_name }}</div>
+            <div class="text-sm text-gray-600">{{ appointment.get_visit_type_display }} with {{ appointment.provider.get_full_name|default:appointment.provider.username }} • {{ appointment.get_status_display }}</div>
+          </a>
+        {% empty %}
+          <p class="text-sm text-gray-500">No dental appointments today.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-white p-5 shadow-sm">
+      <h2 class="mb-4 text-lg font-semibold">Recent Procedures</h2>
+      <div class="space-y-3">
+        {% for procedure in recent_procedures %}
+          <div class="rounded-lg border p-3">
+            <div class="font-medium">{{ procedure.procedure_name }}{% if procedure.tooth_numbers %} — Tooth {{ procedure.tooth_numbers }}{% endif %}</div>
+            <div class="text-sm text-gray-600">{{ procedure.patient.full_name }} • {{ procedure.performed_at|date:"M j, Y H:i" }}</div>
+          </div>
+        {% empty %}
+          <p class="text-sm text-gray-500">No dental procedures recorded yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

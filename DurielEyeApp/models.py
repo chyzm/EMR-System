@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from core.models import Patient, Clinic
+import uuid
 
 class EyeMedicalRecord(models.Model):
     RECORD_TYPES = (
@@ -13,6 +14,7 @@ class EyeMedicalRecord(models.Model):
         ('OTHER', 'Other'),
     )
     
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(
         Patient,
         on_delete=models.CASCADE,
@@ -50,6 +52,7 @@ class EyeAppointment(models.Model):
     )
     
     
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(
         Patient,
         on_delete=models.CASCADE,
@@ -83,6 +86,7 @@ class EyeAppointment(models.Model):
 
 
 class EyeExam(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='eye_exams')
     appointment = models.ForeignKey(EyeAppointment, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -120,6 +124,7 @@ class EyeExam(models.Model):
 
 
 class EyeFollowUp(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(
         Patient,
         on_delete=models.CASCADE,

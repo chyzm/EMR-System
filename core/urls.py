@@ -8,13 +8,14 @@ from django.shortcuts import redirect
 from .views import admin_dashboard, activate_user, set_staff, set_superuser, verify_user, add_clinic, ClinicUpdateView
 from .views import activity_log, clear_activity_log, bulk_delete_logs
 from .views import mark_notification_read, clear_notifications
-from .sync import sync_queue
+from .sync import offline_bootstrap, server_sync_activate, server_sync_health, server_sync_pull, server_sync_push, service_worker, sync_queue
 
 
 
 app_name = 'core'
 
 urlpatterns = [
+    path('service-worker.js', service_worker, name='service_worker'),
     
     path('select-clinic/', select_clinic, name='select_clinic'),
     
@@ -46,6 +47,11 @@ urlpatterns = [
     # API endpoints
     path('api/patients/', views.patient_search_api, name='patient_search_api'),
     path('api/sync/queue/', sync_queue, name='sync_queue'),
+    path('api/offline/bootstrap/', offline_bootstrap, name='offline_bootstrap'),
+    path('api/server-sync/health/', server_sync_health, name='server_sync_health'),
+    path('api/server-sync/activate/', server_sync_activate, name='server_sync_activate'),
+    path('api/server-sync/push/', server_sync_push, name='server_sync_push'),
+    path('api/server-sync/pull/', server_sync_pull, name='server_sync_pull'),
     
     
     # Password reset

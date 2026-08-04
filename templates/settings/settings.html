@@ -53,6 +53,20 @@
         </a>
       </div>
     </div>
+    {% if local_server_activation_url %}
+      <div class="mt-6 bg-white border border-gray-200 p-4 rounded">
+        <h3 class="text-sm font-semibold text-gray-900 mb-2">Local Server Activation</h3>
+        <p class="text-sm text-gray-600 mb-3">Use this link when installing the DurielMedic Clinic Server on one computer inside the clinic. The link expires after 7 days.</p>
+        <label for="local-server-activation-url" class="block text-xs font-medium text-gray-600 mb-1">Activation URL</label>
+        <div class="flex flex-col gap-2 md:flex-row">
+          <input id="local-server-activation-url" type="text" readonly value="{{ local_server_activation_url }}" class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700">
+          <button id="copy-local-server-activation" type="button" class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">
+            <i class="fas fa-copy mr-2"></i> Copy Link
+          </button>
+        </div>
+        <p class="mt-3 text-xs text-gray-500">Install the clinic server on one always-on Windows PC, paste this link during setup, then use the local server IP address on other clinic devices.</p>
+      </div>
+    {% endif %}
     <div class="mt-6 bg-white border border-gray-200 p-4 rounded">
       <h3 class="text-sm font-semibold text-gray-900 mb-3">Offline queue controls</h3>
       <p class="text-sm text-gray-600 mb-4">Manage queued actions without navigating to another page.</p>
@@ -140,6 +154,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const retryFailedButton = document.getElementById('retry-failed-queue');
     const clearSyncedButton = document.getElementById('clear-synced-queue');
     const clearPendingButton = document.getElementById('clear-pending-queue');
+    const copyActivationButton = document.getElementById('copy-local-server-activation');
+
+    if (copyActivationButton) {
+        copyActivationButton.addEventListener('click', async function() {
+            const input = document.getElementById('local-server-activation-url');
+            if (!input) return;
+            try {
+                await navigator.clipboard.writeText(input.value);
+                copyActivationButton.textContent = 'Copied';
+                setTimeout(() => copyActivationButton.innerHTML = '<i class="fas fa-copy mr-2"></i> Copy Link', 1600);
+            } catch (error) {
+                input.select();
+                document.execCommand('copy');
+            }
+        });
+    }
 
     if (retryFailedButton) {
         retryFailedButton.addEventListener('click', function() {

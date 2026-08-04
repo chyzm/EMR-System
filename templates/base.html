@@ -93,6 +93,21 @@
         min-height: 100vh;
     }
 
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    select,
+    textarea {
+      border-color: #9ca3af !important;
+      border-width: 1px !important;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus,
+    select:focus,
+    textarea:focus {
+      border-color: #2563eb !important;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+      outline: none;
+    }
+
     #notification-dropdown {
       min-width: 20rem;
       max-height: 80vh;
@@ -188,7 +203,11 @@ li ul[id*="_error"] {
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('{% static "sw.js" %}')
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => Promise.all(registrations
+            .filter((registration) => new URL(registration.scope).pathname === '/static/')
+            .map((registration) => registration.unregister())))
+          .then(() => navigator.serviceWorker.register('/service-worker.js', { scope: '/' }))
           .then(() => console.log('Service worker registered'))
           .catch((error) => console.log('Service worker registration failed', error));
       });
@@ -198,7 +217,8 @@ li ul[id*="_error"] {
     window.addEventListener('offline', updateConnectionStatus);
     document.addEventListener('DOMContentLoaded', updateConnectionStatus);
   </script>
-  <script src="{% static 'offline-app.js' %}"></script>
+  <script src="{% static 'offline-app.js' %}?v=4"></script>
+  <script src="{% static 'offline-patient-workflow.js' %}?v=4" defer></script>
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <div class="hidden md:flex md:flex-shrink-0">
@@ -228,6 +248,12 @@ li ul[id*="_error"] {
                     <a href="{% url 'DurielMedicApp:dashboard' %}" 
                       class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                       <i class="fas fa-tachometer-alt mr-3"></i>
+                      Dashboard
+                    </a>
+                  {% elif request.session.clinic_type == "DENTAL" %}
+                    <a href="{% url 'DurielDentalApp:dental_dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dental_dashboard' %}active{% endif %}">
+                      <i class="fas fa-tooth mr-3"></i>
                       Dashboard
                     </a>
                   {% else %}
@@ -262,7 +288,7 @@ li ul[id*="_error"] {
               </a>
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
+              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST,PHYSIOTHERAPIST' %}
               <a href="{% url 'core:patient_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-users mr-3"></i>
@@ -301,6 +327,22 @@ li ul[id*="_error"] {
                       data-count-url="{{ appt_today_count_url }}"></span>
                 {% endif %}
               </a>
+              {% elif request.session.clinic_type == "DENTAL" %}
+              {% url 'DurielDentalApp:today_appointment_count' as appt_today_count_url %}
+              <a href="{% url 'DurielDentalApp:appointment_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-calendar-alt mr-3"></i>
+                <span class="flex-1">Appointments</span>
+                {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+                <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                      data-count-url="{{ appt_today_count_url }}"></span>
+                {% endif %}
+              </a>
+              <a href="{% url 'DurielDentalApp:procedure_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-tooth mr-3"></i>
+                Procedures
+              </a>
               {% endif %}
               {% endif %}
 
@@ -314,6 +356,12 @@ li ul[id*="_error"] {
 
               {% elif request.session.clinic_type == "EYE" %}
               <a href="{% url 'DurielEyeApp:followup_list' %}" 
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-clock-rotate-left mr-3"></i>
+                Follow Ups
+              </a>
+              {% elif request.session.clinic_type == "DENTAL" %}
+              <a href="{% url 'DurielDentalApp:followup_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-clock-rotate-left mr-3"></i>
                 Follow Ups
@@ -520,6 +568,12 @@ li ul[id*="_error"] {
               <i class="fas fa-tachometer-alt mr-3"></i>
               Dashboard
             </a>
+          {% elif request.session.clinic_type == "DENTAL" %}
+            <a href="{% url 'DurielDentalApp:dental_dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dental_dashboard' %}active{% endif %}">
+              <i class="fas fa-tooth mr-3"></i>
+              Dashboard
+            </a>
           {% else %}
             <div class="flex items-center px-2 py-2 text-sm font-medium rounded-md bg-gray-600/50 cursor-not-allowed opacity-60">
               <i class="fas fa-tachometer-alt mr-3"></i>
@@ -551,7 +605,7 @@ li ul[id*="_error"] {
           </a>
           {% endif %}
       
-          {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
+          {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST,PHYSIOTHERAPIST' %}
           <a href="{% url 'core:patient_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-users mr-3"></i>
@@ -590,6 +644,22 @@ li ul[id*="_error"] {
                   data-count-url="{{ appt_today_count_url }}"></span>
             {% endif %}
           </a>
+          {% elif request.session.clinic_type == "DENTAL" %}
+          {% url 'DurielDentalApp:today_appointment_count' as appt_today_count_url %}
+          <a href="{% url 'DurielDentalApp:appointment_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-calendar-alt mr-3"></i>
+            <span class="flex-1">Appointments</span>
+            {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+            <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
+                  data-count-url="{{ appt_today_count_url }}"></span>
+            {% endif %}
+          </a>
+          <a href="{% url 'DurielDentalApp:procedure_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-tooth mr-3"></i>
+            Procedures
+          </a>
           {% endif %}
           {% endif %}
 
@@ -603,6 +673,12 @@ li ul[id*="_error"] {
 
           {% elif request.session.clinic_type == "EYE" %}
           <a href="{% url 'DurielEyeApp:followup_list' %}" 
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-clock-rotate-left mr-3"></i>
+            Follow Ups
+          </a>
+          {% elif request.session.clinic_type == "DENTAL" %}
+          <a href="{% url 'DurielDentalApp:followup_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-clock-rotate-left mr-3"></i>
             Follow Ups

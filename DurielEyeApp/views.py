@@ -12,6 +12,7 @@ from django.urls import reverse, reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView
 from django.http import JsonResponse, HttpResponse
 from django.utils.timezone import make_aware
+from django.utils.dateparse import parse_date, parse_time
 from django.views.decorators.http import require_POST
 from django.conf import settings  # ADD THIS IMPORT
 
@@ -199,41 +200,18 @@ def eye_dashboard(request):
         ).aggregate(total=Sum('amount'))['total'] or 0,
     }
     
-    # Get recent patients with their last appointment
-    # This is the key fix - we're prefetching the appointments and ordering them
     recent_patients = Patient.objects.filter(
         clinic_id=clinic_id
     ).prefetch_related(
         Prefetch(
-            'appointments',  # regular appointments
-            queryset=EyeAppointment.objects.order_by('-date', '-start_time'),
-            to_attr='ordered_appointments'
-        ),
-        Prefetch(
-            'eye_appointments',  # eye appointments
+            'eye_appointments',
             queryset=EyeAppointment.objects.order_by('-date', '-start_time'),
             to_attr='ordered_eye_appointments'
         )
     ).order_by('-created_at')[:10]
     
-    # For each patient, find their most recent appointment (from either type)
     for patient in recent_patients:
-        # Get the most recent appointment from both regular and eye appointments
-        last_regular = patient.ordered_appointments[0] if patient.ordered_appointments else None
-        last_eye = patient.ordered_eye_appointments[0] if patient.ordered_eye_appointments else None
-        
-        # Determine which is more recent
-        if last_regular and last_eye:
-            if last_eye.date >= last_regular.date:
-                patient.last_appointment = last_eye
-            else:
-                patient.last_appointment = last_regular
-        elif last_eye:
-            patient.last_appointment = last_eye
-        elif last_regular:
-            patient.last_appointment = last_regular
-        else:
-            patient.last_appointment = None
+        patient.last_appointment = patient.ordered_eye_appointments[0] if patient.ordered_eye_appointments else None
     
     # Get patients for prescription dropdown (if needed)
     patients = Patient.objects.filter(clinic_id=clinic_id)
@@ -637,8 +615,8 @@ def mark_eye_appointment_completed(request, pk):
     return redirect('DurielEyeApp:appointment_list')
 
 
-def mark_eye_appointment_cancelled(request, appointment_id):
-    appointment = get_object_or_404(EyeAppointment, id=appointment_id)
+def mark_eye_appointment_cancelled(request, pk):
+    appointment = get_object_or_404(EyeAppointment, id=pk)
     appointment.status = 'CANCELLED'
     appointment.save()
     # ✅ Add logging
@@ -649,7 +627,7 @@ def mark_eye_appointment_cancelled(request, appointment_id):
         details=f"Cancelled eye appointment for {appointment.patient} scheduled for {appointment.date}"
     )
     messages.warning(request, f"Appointment for {appointment.patient} has been cancelled.")
-    return redirect('DurielEyeApp:eye_appointment_list')
+    return redirect('DurielEyeApp:appointment_list')
 
 
 

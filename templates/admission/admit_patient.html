@@ -28,7 +28,7 @@
             <h3 class="text-xl font-semibold">Admission Details</h3>
         </div>
         <div class="p-6 space-y-6">
-            <form method="post" data-sync-action="admit_patient">
+            <form method="post" data-sync-action="admit_patient" data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}">
                 {% csrf_token %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% for field in form %}

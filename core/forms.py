@@ -408,6 +408,8 @@ class BillingForm(forms.ModelForm):
         discount_type = cleaned_data.get('discount_type')
         discount_value = cleaned_data.get('discount_value', 0) or 0
         amount = cleaned_data.get('amount', 0) or 0
+        services = cleaned_data.get('services') or []
+        total_amount = amount + sum(service.price for service in services)
 
         if discount_type == 'PERCENTAGE':
             if discount_value < 0 or discount_value > 100:
@@ -415,7 +417,7 @@ class BillingForm(forms.ModelForm):
         elif discount_type == 'FIXED':
             if discount_value < 0:
                 raise forms.ValidationError("Fixed discount cannot be negative.")
-            if discount_value > amount:
+            if discount_value > total_amount:
                 raise forms.ValidationError("Fixed discount cannot exceed the total amount.")
 
         return cleaned_data

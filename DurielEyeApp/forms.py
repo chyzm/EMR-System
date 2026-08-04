@@ -125,31 +125,43 @@ class EyeExamForm(forms.ModelForm):
             'sphere_left', 'cylinder_left', 'axis_left', 'add_left', 'pupil_size_left',
         ]
         widgets = {
-            'slit_lamp_findings': forms.Textarea(attrs={'rows': 3}),
-            'fundus_exam_findings': forms.Textarea(attrs={'rows': 3}),
-            'refraction_right': forms.Textarea(attrs={'rows': 2}),
-            'refraction_left': forms.Textarea(attrs={'rows': 2}),
-            'notes': forms.Textarea(attrs={'rows': 2}),
+            'appointment': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'visual_acuity_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'visual_acuity_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'intraocular_pressure_right': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'intraocular_pressure_left': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'slit_lamp_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'fundus_exam_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'refraction_right': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'refraction_left': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'sphere_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'cylinder_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'axis_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'add_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pupil_size_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'sphere_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'cylinder_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'axis_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'add_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pupil_size_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
         }
-        
-        def clean(self):
-            cleaned_data = super().clean()
 
-            defaults = {
-                'sphere_right': 'Not recorded',
-                'cylinder_right': 'Not recorded',
-                'axis_right': 'Not recorded',
-                'add_right': 'Not recorded',
-                'pupil_size_right': 'Not recorded mm',
-                'sphere_left': 'Not recorded',
-                'cylinder_left': 'Not recorded',
-                'axis_left': 'Not recorded',
-                'add_left': 'Not recorded',
-                'pupil_size_left': 'Not recorded mm',
-            }
-
-            for field, default_value in defaults.items():
-                if not cleaned_data.get(field):  # Empty or None
-                    cleaned_data[field] = default_value
-
-            return cleaned_data
+    def clean(self):
+        cleaned_data = super().clean()
+        defaults = {
+            'sphere_right': 'Not recorded',
+            'cylinder_right': 'Not recorded',
+            'axis_right': 'Not recorded',
+            'add_right': 'Not recorded',
+            'pupil_size_right': 'Not recorded mm',
+            'sphere_left': 'Not recorded',
+            'cylinder_left': 'Not recorded',
+            'axis_left': 'Not recorded',
+            'add_left': 'Not recorded',
+            'pupil_size_left': 'Not recorded mm',
+        }
+        for field, default_value in defaults.items():
+            if not cleaned_data.get(field):
+                cleaned_data[field] = default_value
+        return cleaned_data

@@ -7,6 +7,7 @@ from django.conf import settings
 from email.utils import parseaddr
 from crum import get_current_request
 from .models import ActionLog, Patient
+from .server_sync import is_syncable_model, record_change, serialize_instance, should_capture_changes
 
 @receiver(post_save)
 def log_save_action(sender, instance, created, **kwargs):
@@ -190,3 +191,17 @@ def send_patient_id_email(sender, instance, created, **kwargs):
     except Exception:
         # Never block patient creation if email sending fails
         return
+
+
+@receiver(post_save)
+def capture_server_sync_save(sender, instance, created, **kwargs):
+    if not should_capture_changes() or not is_syncable_model(sender):
+        return
+    record_change(instance, 'create' if created else 'update')
+
+
+@receiver(post_delete)
+def capture_server_sync_delete(sender, instance, **kwargs):
+    if not should_capture_changes() or not is_syncable_model(sender):
+        return
+    record_change(instance, 'delete', payload=serialize_instance(instance, deleted=True))

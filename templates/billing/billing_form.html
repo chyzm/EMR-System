@@ -34,7 +34,7 @@
     <div class="bg-white rounded-lg shadow p-6">
         <h1 class="text-2xl font-bold text-blue-900 mb-6">{{ title|default:"Billing Form" }}</h1>
         
-        <form method="post" id="billingForm" data-sync-action="create_bill">
+        <form method="post" id="billingForm" data-sync-action="create_bill"{% if patient %} data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}"{% endif %}{% if appointment %} data-appointment-sync-id="{{ appointment.sync_id }}"{% endif %}>
             {% csrf_token %}
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -103,6 +103,60 @@
                     {% endif %}
                 </div>
             </div>
+
+            {% if patient_billing_activity %}
+            <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <h2 class="text-lg font-medium text-blue-900 mb-3">Recent Patient Activity for Billing</h2>
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Appointments</div>
+                        {% for item in patient_billing_activity.appointments %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.date }} {{ item.start_time }}<br><span class="text-blue-700">{{ item.reason|truncatechars:45 }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Admissions</div>
+                        {% for item in patient_billing_activity.admissions %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.ward }}{% if item.bed %}, {{ item.bed }}{% endif %}<br><span class="text-blue-700">{{ item.reason|truncatechars:45 }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Prescriptions</div>
+                        {% for item in patient_billing_activity.prescriptions %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.medication_name }}<br><span class="text-blue-700">{{ item.quantity_prescribed }} × {{ item.dosage }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Clinical Records</div>
+                        {% for item in patient_billing_activity.medical_records %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:45 }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                </div>
+                {% if request.session.clinic_type == "DENTAL" %}
+                <div class="mt-4 grid gap-4 md:grid-cols-3">
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Dental Procedures</div>
+                        {% for item in patient_billing_activity.dental.procedures %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.procedure_name }}{% if item.tooth_numbers %} — {{ item.tooth_numbers }}{% endif %}<br><span class="text-blue-700">₦{{ item.cost }} • {{ item.performed_at|date:"M j, Y" }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Treatment Plans</div>
+                        {% for item in patient_billing_activity.dental.plans %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.title }}<br><span class="text-blue-700">{{ item.get_status_display }} • ₦{{ item.estimated_cost }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-blue-800 mb-2">Dental Exams</div>
+                        {% for item in patient_billing_activity.dental.exams %}
+                            <div class="mb-2 text-sm text-blue-900">{{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:45 }}</span></div>
+                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
             
             <!-- Services Section -->
             <div class="mb-6">
@@ -120,6 +174,18 @@
                 
                 <div id="selectedServices" class="flex flex-wrap gap-2 mb-4">
                     <!-- Selected services will appear here -->
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Manual Service</label>
+                        <input type="text" name="manual_service_name" id="manual_service_name"
+                               class="w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Manual Cost (₦)</label>
+                        <input type="number" name="manual_service_cost" id="manual_service_cost" step="0.01" min="0"
+                               class="w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
                 </div>
             </div>
             
@@ -294,6 +360,10 @@ $(document).ready(function() {
     let selectedServices = {};
     let totalAmount = parseFloat($('#id_amount').val()) || 0;
 
+    function manualCost() {
+        return parseFloat($('#manual_service_cost').val()) || 0;
+    }
+
     // When services are selected
     $('#id_services').on('change', function() {
         const selectedOptions = $(this).find('option:selected');
@@ -364,16 +434,21 @@ $(document).ready(function() {
         $('#balanceDisplay').text(balance.toFixed(2));
     }
 
-    // Update amount and description when services change
+        // Update amount and description when services change
     function updateFormFields() {
         // Update amount
-        $('#id_amount').val(totalAmount.toFixed(2));
+        const nextAmount = totalAmount + manualCost();
+        $('#id_amount').val(nextAmount.toFixed(2));
 
         // Update description
-        const description = Object.values(selectedServices)
+        const lines = Object.values(selectedServices)
             .map(service => `${service.name} - ₦${service.price.toFixed(2)}`)
-            .join('\n');
-        $('#id_description').val(description);
+        const manualName = $('#manual_service_name').val();
+        const manualAmount = manualCost();
+        if (manualName || manualAmount) {
+            lines.push(`${manualName} - ₦${manualAmount.toFixed(2)}`);
+        }
+        $('#id_description').val(lines.join('\n'));
 
         // Update all displays including discount
         updateAllDisplays();
@@ -402,6 +477,10 @@ $(document).ready(function() {
     $('#id_amount').on('input', function() {
         totalAmount = parseFloat($(this).val()) || 0;
         updateAllDisplays();
+    });
+
+    $('#manual_service_name, #manual_service_cost').on('input', function() {
+        updateFormFields();
     });
 
     // Initialize displays on page load

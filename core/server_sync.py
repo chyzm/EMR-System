@@ -205,7 +205,20 @@ def _find_related(field, value):
         return model.objects.filter(sync_id=sync_value).first()
     username = value.get(f'{field.name}_username')
     if username and model is get_user_model():
-        return model.objects.filter(username=username).first()
+        user = model.objects.filter(username=username).first()
+        if user:
+            return user
+        return model.objects.create(
+            username=username,
+            email='',
+            first_name='Cloud',
+            last_name='User',
+            role='DOCTOR',
+            is_active=False,
+            is_staff=False,
+            is_superuser=False,
+            password=make_password(None),
+        )
     pk_value = value.get(f'{field.name}_id')
     if pk_value:
         return model.objects.filter(pk=pk_value).first()

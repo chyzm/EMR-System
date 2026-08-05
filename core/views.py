@@ -1007,6 +1007,12 @@ def get_latest_patient_appointment(patient, clinic_id):
     return appointments[0]
 
 
+def billing_appointment_type(appointment):
+    if appointment is None:
+        return ''
+    return 'eye' if appointment.__class__.__name__.lower() == 'eyeappointment' else 'general'
+
+
 
 
 
@@ -1052,6 +1058,7 @@ def create_bill(request, patient_id=None):
     # --- If no specific appointment but we have a patient, pick latest ---
     if patient and not appointment:
         appointment = get_latest_patient_appointment(patient, clinic_id)
+        appointment_type = billing_appointment_type(appointment)
 
     patient_billing_activity = {}
     if patient:
@@ -1079,6 +1086,7 @@ def create_bill(request, patient_id=None):
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         context = {
             'appointment': appointment,
+            'appointment_type': billing_appointment_type(appointment),
             'patient': patient
         }
         return render(request, 'billing/_appointment_info.html', context)
@@ -1122,6 +1130,7 @@ def create_bill(request, patient_id=None):
                     'patient': patient,
                     'patients_with_appointments': patients_with_appointments,
                     'appointment': appointment,
+                    'appointment_type': billing_appointment_type(appointment),
                     'patient_billing_activity': patient_billing_activity,
                     'selected_patient_id': selected_patient_id,
                     'title': 'Create New Bill'
@@ -1179,6 +1188,7 @@ def create_bill(request, patient_id=None):
         'patient': patient,
         'patients_with_appointments': patients_with_appointments,
         'appointment': appointment,
+        'appointment_type': billing_appointment_type(appointment),
         'patient_billing_activity': patient_billing_activity,
         'selected_patient_id': selected_patient_id,
         'title': 'Create New Bill'
@@ -1399,8 +1409,8 @@ def edit_bill(request, pk):
                 details=f"Updated bill #{updated_bill.id} for {updated_bill.patient.full_name}"
             )
             
-            messages.success(request, "Bill updated successfully!")
-            return redirect('core:view_bill', pk=bill.pk)
+            messages.success(request, f"Bill #{updated_bill.id} updated successfully.")
+            return redirect(f"{reverse('core:view_bill', args=[bill.pk])}?updated=1")
     else:
         form = BillingForm(instance=bill, clinic_id=clinic_id)
         if bill.services.exists():
@@ -1468,7 +1478,7 @@ def record_payment(request, pk):
             
             messages.success(request, f"Payment of ₦{payment_amount:,.2f} recorded successfully!")
         
-        return redirect('core:view_bill', pk=bill.pk)
+        return redirect(f"{reverse('core:view_bill', args=[bill.pk])}?paid=1")
     
     return render(request, 'billing/record_payment.html', {'bill': bill})
 

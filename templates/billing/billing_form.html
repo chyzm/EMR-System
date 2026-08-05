@@ -34,7 +34,7 @@
     <div class="bg-white rounded-lg shadow p-6">
         <h1 class="text-2xl font-bold text-blue-900 mb-6">{{ title|default:"Billing Form" }}</h1>
         
-        <form method="post" id="billingForm" data-sync-action="create_bill"{% if patient %} data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}"{% endif %}{% if appointment %} data-appointment-sync-id="{{ appointment.sync_id }}"{% endif %}>
+        <form method="post" id="billingForm"{% if patient %} data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}"{% endif %}{% if appointment %} data-appointment-sync-id="{{ appointment.sync_id }}"{% endif %}>
             {% csrf_token %}
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -86,7 +86,7 @@
                     <h2 class="text-lg font-medium text-gray-900 mb-4">Appointment Information</h2>
                     {% if appointment %}
                         <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
-                        <input type="hidden" name="appointment_type" value="{% if appointment._meta.model_name == 'eyeappointment' %}eye{% else %}general{% endif %}">
+                        <input type="hidden" name="appointment_type" value="{{ appointment_type|default:'general' }}">
                         <div class="text-sm text-gray-900">
                             {{ appointment.date }} at {{ appointment.start_time|time:"h:i A" }}
                         </div>

@@ -1,8 +1,10 @@
 from decimal import Decimal
 import uuid
+from datetime import timedelta
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from core.models import Clinic, Patient, Billing, Payment, ServicePriceList
 from DurielMedicApp.models import Admission, Appointment, FollowUp
 
@@ -22,6 +24,10 @@ class SyncQueueTests(TestCase):
             address='123 Main',
             phone='08000000000',
             email='clinic@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.now().date(),
+            subscription_end_date=timezone.now().date() + timedelta(days=30),
+            is_subscription_active=True,
         )
         self.user.clinic.add(self.clinic)
         self.client.force_login(self.user)
@@ -339,6 +345,27 @@ class SyncQueueTests(TestCase):
         self.assertEqual(response.json()['failed'], [])
         self.assertTrue(Patient.objects.filter(sync_id=patient_sync_id, clinic=self.clinic).exists())
         self.assertTrue(Appointment.objects.filter(sync_id=appointment_sync_id, clinic=self.clinic).exists())
+
+    def test_expired_selected_clinic_is_blocked_after_session_exists(self):
+        self.clinic.subscription_end_date = timezone.now().date() - timedelta(days=1)
+        self.clinic.is_subscription_active = False
+        self.clinic.save(update_fields=['subscription_end_date', 'is_subscription_active'])
+
+        response = self.client.get(reverse('core:patient_list'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('core:select_clinic'), response['Location'])
+        self.assertNotIn('clinic_id', self.client.session)
+
+    def test_expired_selected_clinic_cannot_use_offline_bootstrap(self):
+        self.clinic.subscription_end_date = timezone.now().date() - timedelta(days=1)
+        self.clinic.is_subscription_active = False
+        self.clinic.save(update_fields=['subscription_end_date', 'is_subscription_active'])
+
+        response = self.client.get(reverse('core:offline_bootstrap'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('core:select_clinic'), response['Location'])
 
     def test_service_worker_is_served_at_root_scope(self):
         response = self.client.get(reverse('core:service_worker'))

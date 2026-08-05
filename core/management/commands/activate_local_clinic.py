@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 import requests
 from django.contrib.auth import get_user_model
@@ -8,6 +9,17 @@ from django.db import transaction
 
 from core.models import Clinic, ServerSyncState
 from core.server_sync import sync_context
+
+
+def parse_date(value):
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 class Command(BaseCommand):
@@ -51,6 +63,11 @@ class Command(BaseCommand):
                     'phone': clinic_payload.get('phone') or '',
                     'email': clinic_payload.get('email') or '',
                     'website': clinic_payload.get('website') or '',
+                    'subscription_type': clinic_payload.get('subscription_type') or None,
+                    'subscription_start_date': parse_date(clinic_payload.get('subscription_start_date')),
+                    'subscription_end_date': parse_date(clinic_payload.get('subscription_end_date')),
+                    'is_subscription_active': bool(clinic_payload.get('is_subscription_active', False)),
+                    'last_reminder_sent': clinic_payload.get('last_reminder_sent') or 'NONE',
                 },
             )
             imported_users = self._import_users(clinic, payload.get('users') or [])

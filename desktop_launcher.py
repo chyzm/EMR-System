@@ -115,6 +115,9 @@ def runtime_env(project_root: Path) -> dict[str, str]:
     env["DURIELMEDIC_DESKTOP"] = "1"
     env["DURIELMEDIC_RUNTIME_DIR"] = str(project_root)
     env["DURIELMEDIC_PORT"] = str(bind_port())
+    env["DURIELMEDIC_SQLITE_PATH"] = str(project_root / "db.sqlite3")
+    env["DEBUG"] = "True"
+    env["DATABASE_URL"] = f"sqlite:///{project_root / 'db.sqlite3'}"
     env.setdefault("DJANGO_SETTINGS_MODULE", "DurielMedic.settings")
     if getattr(sys, "frozen", False):
         env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
@@ -201,7 +204,15 @@ def serve_mode() -> int:
     sys.path.insert(0, str(project_root))
     os.environ.update(runtime_env(project_root))
     from DurielMedic.wsgi import application
-    from waitress import serve
+
+    try:
+        from waitress import serve
+    except ModuleNotFoundError:
+        from wsgiref.simple_server import make_server
+
+        with make_server(bind_host(), bind_port(), application) as server:
+            server.serve_forever()
+        return 0
 
     serve(application, host=bind_host(), port=bind_port())
     return 0

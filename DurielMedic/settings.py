@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
 DEBUG = env_bool('DEBUG', False)
+RUNNING_DEV_SERVER = "runserver" in sys.argv
 
 
 
@@ -221,9 +223,9 @@ LOGGING = {
 
 
 # Security settings
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = not (DEBUG or RUNNING_DEV_SERVER)
+SESSION_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER)
+CSRF_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER)
 CSRF_COOKIE_HTTPONLY = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True

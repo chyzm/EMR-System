@@ -23,7 +23,7 @@ from django.db.models import Sum
 
 from django.contrib.auth.views import LoginView
 from .models import Clinic
-from core.decorators import clinic_selected_required
+from core.decorators import clinic_selected_required, clinic_subscription_is_expired
 from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord, Admission  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
@@ -101,6 +101,11 @@ class CustomLoginView(LoginView):
                     chosen_clinic = clinics[0]
 
             if chosen_clinic:
+                if clinic_subscription_is_expired(chosen_clinic):
+                    messages.warning(self.request, "This clinic subscription has expired. Please renew to continue.")
+                    from .utils import log_login
+                    log_login(self.request, user)
+                    return redirect('core:select_clinic')
                 self.request.session['clinic_id'] = chosen_clinic.id
                 self.request.session['clinic_type'] = chosen_clinic.clinic_type
                 self.request.session['clinic_name'] = chosen_clinic.name
@@ -188,7 +193,7 @@ def select_clinic(request):
     for c in user_clinics:
         end = getattr(c, 'subscription_end_date', None)
         days_left = (end - today).days if end else None
-        is_expired = (getattr(c, 'is_subscription_active', True) is False) or (days_left is not None and days_left < 0)
+        is_expired = clinic_subscription_is_expired(c)
         clinics_enriched.append({
             'clinic': c,
             'days_left': days_left,
@@ -205,10 +210,7 @@ def select_clinic(request):
             messages.error(request, "You do not have access to this clinic.")
             return redirect('core:select_clinic')
 
-        end = getattr(clinic, 'subscription_end_date', None)
-        days_left = (end - today).days if end else None
-        is_expired = (getattr(clinic, 'is_subscription_active', True) is False) or (days_left is not None and days_left < 0)
-        if is_expired:
+        if clinic_subscription_is_expired(clinic):
             messages.warning(request, "This clinic is expired. Please renew to continue.")
             return redirect('core:select_clinic')
 

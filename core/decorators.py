@@ -1,6 +1,18 @@
 from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import redirect
+from django.utils import timezone
 from functools import wraps
+
+
+def clinic_subscription_is_expired(clinic):
+    if clinic is None:
+        return False
+
+    end = getattr(clinic, 'subscription_end_date', None)
+    days_left = (end - timezone.now().date()).days if end else None
+    return (getattr(clinic, 'is_subscription_active', True) is False) or (
+        days_left is not None and days_left < 0
+    )
 
 
 def get_active_clinic(request):

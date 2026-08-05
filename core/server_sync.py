@@ -14,6 +14,7 @@ from core.models import Clinic, ServerSyncChange, ServerSyncOutbox, ServerSyncSt
 
 
 SYNCABLE_MODELS = {
+    'core.Clinic',
     'core.Patient',
     'DurielMedicApp.Appointment',
     'DurielMedicApp.Vitals',
@@ -95,6 +96,9 @@ def is_syncable_model(model):
 
 
 def clinic_for_instance(instance):
+    if isinstance(instance, Clinic):
+        return instance
+
     clinic = getattr(instance, 'clinic', None)
     if clinic:
         return clinic

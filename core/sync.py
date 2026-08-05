@@ -602,6 +602,11 @@ def server_sync_activate(request):
             'phone': clinic.phone,
             'email': clinic.email,
             'website': clinic.website,
+            'subscription_type': clinic.subscription_type,
+            'subscription_start_date': clinic.subscription_start_date.isoformat() if clinic.subscription_start_date else None,
+            'subscription_end_date': clinic.subscription_end_date.isoformat() if clinic.subscription_end_date else None,
+            'is_subscription_active': clinic.is_subscription_active,
+            'last_reminder_sent': clinic.last_reminder_sent,
         },
         'users': users,
     })

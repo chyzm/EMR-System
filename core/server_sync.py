@@ -415,9 +415,11 @@ def internet_available():
     sync_token = shared_secret()
     if not sync_central_url:
         return False
+    local_clinic_sync_id = clinic_sync_id()
     try:
         response = requests.get(
             f'{sync_central_url}/api/server-sync/health/',
+            params={'clinic_sync_id': local_clinic_sync_id} if local_clinic_sync_id else None,
             headers={'X-Sync-Token': sync_token},
             timeout=5,
         )

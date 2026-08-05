@@ -532,7 +532,27 @@ def sync_queue(request):
 
 def _server_sync_authorized(request):
     expected = getattr(settings, 'SYNC_SHARED_SECRET', '')
-    return bool(expected) and request.headers.get('X-Sync-Token') == expected
+    supplied = request.headers.get('X-Sync-Token')
+    if expected and supplied == expected:
+        return True
+
+    clinic_sync_id = request.GET.get('clinic_sync_id')
+    if request.method == 'POST' and not clinic_sync_id:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+            first_item = (payload.get('items') or [{}])[0]
+            clinic_sync_id = first_item.get('clinic_sync_id') or (first_item.get('payload') or {}).get('clinic_sync_id')
+        except Exception:
+            clinic_sync_id = None
+
+    if supplied and clinic_sync_id:
+        try:
+            value = signing.loads(supplied, salt='clinic-local-server-sync')
+        except signing.BadSignature:
+            return False
+        return value.get('clinic_sync_id') == str(clinic_sync_id)
+
+    return False
 
 
 def _activation_authorized(request):
@@ -555,6 +575,13 @@ def _activation_authorized(request):
 
 def _server_sync_endpoint_is_central():
     return role() != 'local'
+
+
+def _clinic_sync_token(clinic):
+    return getattr(settings, 'SYNC_SHARED_SECRET', '') or signing.dumps(
+        {'clinic_sync_id': str(clinic.sync_id)},
+        salt='clinic-local-server-sync',
+    )
 
 
 @require_GET
@@ -602,7 +629,7 @@ def server_sync_activate(request):
         'success': True,
         'central_url': central_url,
         'update_manifest_url': getattr(settings, 'SYNC_UPDATE_MANIFEST_URL', ''),
-        'sync_token': getattr(settings, 'SYNC_SHARED_SECRET', ''),
+        'sync_token': _clinic_sync_token(clinic),
         'clinic': {
             'sync_id': str(clinic.sync_id),
             'name': clinic.name,

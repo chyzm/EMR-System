@@ -4,3 +4,4 @@ from django.apps import AppConfig
 class DurielmedicappConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'DurielMedicApp'
+    verbose_name = 'General Clinic / Hospital'

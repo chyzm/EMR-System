@@ -1,11 +1,18 @@
 from decimal import Decimal
 import uuid
+import tempfile
 from datetime import timedelta
+from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from core.models import Clinic, Patient, Billing, Payment, ServicePriceList
+from core.models import (
+    Clinic, Patient, Billing, Payment, ServicePriceList, Notification,
+    ServerSyncOutbox, ServerSyncState,
+)
+from core.server_sync import apply_change, serialize_instance, push_pending_outbox
 from DurielMedicApp.models import Admission, Appointment, FollowUp
 
 
@@ -272,6 +279,62 @@ class SyncQueueTests(TestCase):
         self.assertEqual(len(response.json()['failed']), 1)
         self.assertEqual(other_patient.medical_records.count(), 0)
 
+    def activate_local_sync(self):
+        ServerSyncState.objects.update_or_create(
+            key='local_server',
+            defaults={'value': {
+                'activated': True,
+                'central_url': 'https://cloud.example',
+                'sync_token': 'test-token',
+                'clinic_sync_id': str(self.clinic.sync_id),
+                'node_id': 'test-local-node',
+            }},
+        )
+
+    def test_local_patient_edit_is_queued_and_pushed_to_cloud(self):
+        self.activate_local_sync()
+        self.patient.email = 'jd@duck.com.ng'
+        self.patient.save(update_fields=['email', 'updated_at'])
+
+        queued = ServerSyncOutbox.objects.get(record_sync_id=self.patient.sync_id)
+        self.assertEqual(queued.payload['email'], 'jd@duck.com.ng')
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {'processed': [str(queued.operation_id)], 'failed': []}
+        with patch('core.server_sync.requests.post', return_value=response) as request_post:
+            result = push_pending_outbox()
+
+        self.assertEqual(result, {'processed': 1, 'failed': 0})
+        sent_item = request_post.call_args.kwargs['json']['items'][0]
+        self.assertEqual(sent_item['payload']['email'], 'jd@duck.com.ng')
+
+    def test_notification_is_bidirectionally_syncable(self):
+        self.activate_local_sync()
+        notification = Notification.objects.create(clinic=self.clinic, message='New appointment')
+        self.assertTrue(ServerSyncOutbox.objects.filter(record_sync_id=notification.sync_id).exists())
+
+    def test_patient_profile_picture_payload_contains_and_restores_file(self):
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.patient.profile_picture = SimpleUploadedFile('avatar.png', b'fake-png-content', content_type='image/png')
+            self.patient.save()
+            payload = serialize_instance(self.patient)
+            self.assertEqual(payload['profile_picture']['name'], 'patient_profiles/avatar.png')
+            self.assertTrue(payload['profile_picture']['content_b64'])
+
+            self.patient.profile_picture.delete(save=False)
+            self.patient.profile_picture = ''
+            self.patient.save(update_fields=['profile_picture'])
+            apply_change({
+                'operation_id': str(uuid.uuid4()),
+                'model_label': 'core.Patient',
+                'action': 'update',
+                'record_sync_id': str(self.patient.sync_id),
+                'payload': payload,
+            }, origin_node_id='central')
+            self.patient.refresh_from_db()
+            self.assertTrue(self.patient.profile_picture.storage.exists(self.patient.profile_picture.name))
+
     def test_offline_bootstrap_is_scoped_to_active_clinic(self):
         other_clinic = Clinic.objects.create(
             name='Other Clinic',
@@ -366,6 +429,35 @@ class SyncQueueTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse('core:select_clinic'), response['Location'])
+
+    def test_select_clinic_shows_remaining_days_and_early_renewal(self):
+        response = self.client.get(reverse('core:select_clinic'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '30 days remaining')
+        self.assertContains(response, 'Renew early without losing remaining days')
+        self.assertContains(response, 'Add 30 days')
+
+    def test_renewal_extends_existing_admin_or_paystack_expiry(self):
+        original_end = timezone.now().date() + timedelta(days=12)
+        self.clinic.subscription_end_date = original_end
+        self.clinic.is_subscription_active = True
+        self.clinic.save(update_fields=['subscription_end_date', 'is_subscription_active'])
+
+        self.clinic.set_subscription('MONTHLY')
+
+        self.assertEqual(self.clinic.subscription_end_date, original_end + timedelta(days=30))
+        self.assertTrue(self.clinic.is_subscription_active)
+
+    def test_select_clinic_uses_expired_wording_after_expiry(self):
+        self.clinic.subscription_end_date = timezone.now().date() - timedelta(days=1)
+        self.clinic.is_subscription_active = False
+        self.clinic.save(update_fields=['subscription_end_date', 'is_subscription_active'])
+
+        response = self.client.get(reverse('core:select_clinic'))
+
+        self.assertContains(response, 'Expired:')
+        self.assertNotContains(response, 'days remaining')
 
     def test_service_worker_is_served_at_root_scope(self):
         response = self.client.get(reverse('core:service_worker'))

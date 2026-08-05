@@ -154,6 +154,11 @@ SYNC_UPDATE_MANIFEST_URL = os.getenv('SYNC_UPDATE_MANIFEST_URL', '')
 SYNC_INTERVAL_SECONDS = int(os.getenv('SYNC_INTERVAL_SECONDS', '30'))
 SYNC_BATCH_SIZE = int(os.getenv('SYNC_BATCH_SIZE', '25'))
 SYNC_REQUEST_TIMEOUT_SECONDS = int(os.getenv('SYNC_REQUEST_TIMEOUT_SECONDS', '20'))
+SYNC_MAX_RETRY_ATTEMPTS = int(os.getenv('SYNC_MAX_RETRY_ATTEMPTS', '10'))
+SYNC_MAX_PAYLOAD_BYTES = int(os.getenv('SYNC_MAX_PAYLOAD_BYTES', str(9 * 1024 * 1024)))
+SYNC_BOOTSTRAP_VERSION = int(os.getenv('SYNC_BOOTSTRAP_VERSION', '2'))
+# A 5 MB clinical document grows to about 6.7 MB when safely embedded in JSON.
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(12 * 1024 * 1024)))
 
 
 
@@ -286,7 +291,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 STATICFILES_DIRS = [

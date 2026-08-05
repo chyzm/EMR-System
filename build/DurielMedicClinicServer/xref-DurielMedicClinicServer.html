@@ -1375,6 +1375,7 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -1475,6 +1476,26 @@ imports:
  &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
  &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+ &#8226;   <a href="#uuid">uuid</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0006_physiotherapy_sync"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0006_physiotherapy_sync.py" type="text/plain"><tt>DurielMedicApp.migrations.0006_physiotherapy_sync</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
  &#8226;   <a href="#uuid">uuid</a>
 
   </div>
@@ -7063,6 +7084,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#OpenSSL.crypto">OpenSSL.crypto</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#cryptography.hazmat.primitives.serialization.ssh">cryptography.hazmat.primitives.serialization.ssh</a>
  &#8226;   <a href="#django.contrib.auth.hashers">django.contrib.auth.hashers</a>
  &#8226;   <a href="#django.core.cache.backends.db">django.core.cache.backends.db</a>
@@ -7132,6 +7154,7 @@ imported by:
   <tt>binascii</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
 imported by:
     <a href="#base64">base64</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#cryptography.hazmat.primitives.serialization.ssh">cryptography.hazmat.primitives.serialization.ssh</a>
  &#8226;   <a href="#cryptography.x509.name">cryptography.x509.name</a>
  &#8226;   <a href="#django.contrib.auth.hashers">django.contrib.auth.hashers</a>
@@ -9057,6 +9080,7 @@ imported by:
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -9153,6 +9177,26 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="core.migrations.0005_expand_server_sync"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0005_expand_server_sync.py" type="text/plain"><tt>core.migrations.0005_expand_server_sync</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#uuid">uuid</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="core.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/models.py" type="text/plain"><tt>core.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -9230,7 +9274,9 @@ imported by:
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/server_sync.py" type="text/plain"><tt>core.server_sync</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#contextlib">contextlib</a>
+    <a href="#base64">base64</a>
+ &#8226;   <a href="#binascii">binascii</a>
+ &#8226;   <a href="#contextlib">contextlib</a>
  &#8226;   <a href="#contextvars">contextvars</a>
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
@@ -9238,10 +9284,18 @@ imports:
  &#8226;   <a href="#django.conf">django.conf</a>
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.auth.hashers">django.contrib.auth.hashers</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
+ &#8226;   <a href="#django.core.files.base">django.core.files.base</a>
  &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.IntegerField">django.db.models.IntegerField</a>
+ &#8226;   <a href="#django.db.models.fields.files">django.db.models.fields.files</a>
  &#8226;   <a href="#django.db.transaction">django.db.transaction</a>
  &#8226;   <a href="#django.utils">django.utils</a>
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
+ &#8226;   <a href="#hashlib">hashlib</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#pathlib">pathlib</a>
  &#8226;   <a href="#requests">requests</a>
  &#8226;   <a href="#uuid">uuid</a>
 
@@ -9253,6 +9307,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.sync_worker">core.management.commands.sync_worker</a>
  &#8226;   <a href="#core.signals">core.signals</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -9419,13 +9474,17 @@ imports:
     <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#decimal">decimal</a>
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
+ &#8226;   <a href="#django.core.files.uploadedfile">django.core.files.uploadedfile</a>
  &#8226;   <a href="#django.test">django.test</a>
  &#8226;   <a href="#django.urls">django.urls</a>
  &#8226;   <a href="#django.utils">django.utils</a>
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
+ &#8226;   <a href="#tempfile">tempfile</a>
+ &#8226;   <a href="#unittest.mock">unittest.mock</a>
  &#8226;   <a href="#uuid">uuid</a>
 
   </div>
@@ -12028,6 +12087,7 @@ imports:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.templatetags">DurielMedicApp.templatetags</a>
  &#8226;   <a href="#DurielMedicApp.templatetags.financial_tags">DurielMedicApp.templatetags.financial_tags</a>
@@ -12058,6 +12118,7 @@ imports:
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.routing">core.routing</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
@@ -18681,6 +18742,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.utils">core.utils</a>
@@ -25279,6 +25341,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#core.management.commands.backup_patients">core.management.commands.backup_patients</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.staticfiles.storage">django.contrib.staticfiles.storage</a>
  &#8226;   <a href="#django.core.files">django.core.files</a>
@@ -25560,7 +25623,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#django">django</a>
+    <a href="#core.tests">core.tests</a>
+ &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.core.files.uploadhandler">django.core.files.uploadhandler</a>
 
   </div>
@@ -27390,6 +27454,7 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#channels.db">channels.db</a>
@@ -27399,6 +27464,7 @@ imported by:
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
@@ -29102,10 +29168,12 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0001_initial">django.contrib.admin.migrations.0001_initial</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0002_logentry_remove_auto_add">django.contrib.admin.migrations.0002_logentry_remove_auto_add</a>
@@ -29703,6 +29771,7 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.admin">core.admin</a>
@@ -29710,7 +29779,9 @@ imported by:
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.templatetags.notification_tags">core.templatetags.notification_tags</a>
  &#8226;   <a href="#core.views">core.views</a>
@@ -29953,7 +30024,8 @@ imported by:
   <a target="code" href="" type="text/plain"><tt>django.db.models.IntegerField</tt></a>
 <span class="moduletype">MissingModule</span>  <div class="import">
 imported by:
-    <a href="#django.contrib.gis.db.models.functions">django.contrib.gis.db.models.functions</a>
+    <a href="#core.server_sync">core.server_sync</a>
+ &#8226;   <a href="#django.contrib.gis.db.models.functions">django.contrib.gis.db.models.functions</a>
  &#8226;   <a href="#django.contrib.postgres.aggregates.statistics">django.contrib.postgres.aggregates.statistics</a>
  &#8226;   <a href="#django.contrib.postgres.fields.array">django.contrib.postgres.fields.array</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
@@ -30430,7 +30502,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#django">django</a>
+    <a href="#core.server_sync">core.server_sync</a>
+ &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
 
   </div>
@@ -40211,6 +40284,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#charset_normalizer.models">charset_normalizer.models</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#cryptography.x509.extensions">cryptography.x509.extensions</a>
  &#8226;   <a href="#django.contrib.auth.hashers">django.contrib.auth.hashers</a>
  &#8226;   <a href="#django.contrib.staticfiles.storage">django.contrib.staticfiles.storage</a>
@@ -42328,6 +42402,7 @@ imported by:
  &#8226;   <a href="#channels.generic.websocket">channels.generic.websocket</a>
  &#8226;   <a href="#charset_normalizer.models">charset_normalizer.models</a>
  &#8226;   <a href="#core.consumers">core.consumers</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django.contrib.admin.helpers">django.contrib.admin.helpers</a>
@@ -51283,6 +51358,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#DurielMedic.settings">DurielMedic.settings</a>
+ &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#desktop_launcher.py">desktop_launcher.py</a>
  &#8226;   <a href="#django.conf">django.conf</a>
  &#8226;   <a href="#django.contrib.admindocs.views">django.contrib.admindocs.views</a>
@@ -59307,6 +59383,7 @@ imported by:
  &#8226;   <a href="#PIL.JpegImagePlugin">PIL.JpegImagePlugin</a>
  &#8226;   <a href="#_pyrepl.pager">_pyrepl.pager</a>
  &#8226;   <a href="#asyncio.windows_utils">asyncio.windows_utils</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#ctypes.util">ctypes.util</a>
  &#8226;   <a href="#django.contrib.sessions.backends.file">django.contrib.sessions.backends.file</a>
  &#8226;   <a href="#django.core.cache.backends.filebased">django.core.cache.backends.filebased</a>
@@ -60820,7 +60897,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#django.test.testcases">django.test.testcases</a>
+    <a href="#core.tests">core.tests</a>
+ &#8226;   <a href="#django.test.testcases">django.test.testcases</a>
  &#8226;   <a href="#unittest">unittest</a>
 
   </div>
@@ -62249,11 +62327,13 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
+ &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>

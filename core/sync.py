@@ -588,7 +588,11 @@ def _clinic_sync_token(clinic):
 SERVER_SYNC_SNAPSHOT_MODELS = (
     'core.Clinic',
     'core.Patient',
+    'core.ServicePriceList',
+    'core.MedicationCategory',
+    'core.ClinicMedication',
     'core.Prescription',
+    'core.StockMovement',
     'DurielMedicApp.Appointment',
     'DurielEyeApp.EyeAppointment',
     'DurielDentalApp.DentalAppointment',
@@ -608,6 +612,13 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'DurielDentalApp.DentalMedicalRecord',
     'core.Billing',
     'core.Payment',
+    'core.Notification',
+    'core.NotificationRead',
+    'core.LabTestCategory',
+    'core.LabTest',
+    'core.LabTestOrder',
+    'core.LabTestResult',
+    'DurielMedicApp.PhysiotherapyRecord',
 )
 
 
@@ -619,6 +630,12 @@ def _snapshot_queryset_for_clinic(model, clinic):
         return model.objects.filter(appointment__clinic=clinic)
     if label == 'core.Payment':
         return model.objects.filter(billing__clinic=clinic)
+    if label == 'core.NotificationRead':
+        return model.objects.filter(notification__clinic=clinic)
+    if label == 'core.LabTestResult':
+        return model.objects.filter(lab_test_order__clinic=clinic)
+    if label == 'core.StockMovement':
+        return model.objects.filter(medication__clinic=clinic)
     if label in {'DurielMedicApp.AdmissionHandover', 'DurielMedicApp.MedicationAdministration'}:
         return model.objects.filter(patient__clinic=clinic)
     if hasattr(model, 'clinic'):
@@ -645,14 +662,27 @@ def _snapshot_change(instance, clinic):
     }
 
 
-def _clinic_snapshot_changes(clinic):
+def _clinic_snapshot_changes(clinic, offset=0, limit=25):
     changes = []
+    skipped = 0
+    payload_bytes = 0
+    max_payload_bytes = getattr(settings, 'SYNC_MAX_PAYLOAD_BYTES', 9 * 1024 * 1024)
     for label in SERVER_SYNC_SNAPSHOT_MODELS:
         app_label, model_name = label.split('.', 1)
         model = apps.get_model(app_label, model_name)
         for instance in _snapshot_queryset_for_clinic(model, clinic).iterator():
-            changes.append(_snapshot_change(instance, clinic))
-    return changes
+            if skipped < offset:
+                skipped += 1
+                continue
+            change = _snapshot_change(instance, clinic)
+            change_bytes = len(json.dumps(change, separators=(',', ':')).encode('utf-8'))
+            if changes and payload_bytes + change_bytes > max_payload_bytes:
+                return changes, True
+            changes.append(change)
+            payload_bytes += change_bytes
+            if len(changes) > limit:
+                return changes[:limit], True
+    return changes, False
 
 
 @require_GET
@@ -693,6 +723,7 @@ def server_sync_activate(request):
             'is_verified': getattr(user, 'is_verified', False),
             'is_staff': user.is_staff,
             'password': user.password,
+            'profile_picture': serialize_instance(user).get('profile_picture'),
         })
 
     central_url = request.build_absolute_uri('/').rstrip('/')
@@ -776,6 +807,10 @@ def server_sync_pull(request):
     requester_node_id = request.GET.get('node_id', '')
     clinic_sync_id = request.GET.get('clinic_sync_id')
     include_bootstrap = request.GET.get('bootstrap') in {'1', 'true', 'yes'}
+    try:
+        bootstrap_offset = max(0, int(request.GET.get('bootstrap_offset', 0)))
+    except (TypeError, ValueError):
+        bootstrap_offset = 0
     if not clinic_sync_id:
         return JsonResponse({'success': False, 'error': 'clinic_sync_id is required'}, status=400)
     try:
@@ -783,12 +818,19 @@ def server_sync_pull(request):
     except Clinic.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Unknown clinic'}, status=404)
 
-    queryset = ServerSyncChange.objects.filter(clinic=clinic, id__gt=since)
-    if requester_node_id:
-        queryset = queryset.exclude(origin_node_id=requester_node_id)
-    queryset = queryset.order_by('id')[:getattr(settings, 'SYNC_BATCH_SIZE', 25)]
+    batch_size = getattr(settings, 'SYNC_BATCH_SIZE', 25)
+    bootstrap_done = True
+    if include_bootstrap:
+        changes, has_more_bootstrap = _clinic_snapshot_changes(clinic, bootstrap_offset, batch_size)
+        bootstrap_done = not has_more_bootstrap
+        queryset = ServerSyncChange.objects.none()
+    else:
+        changes = []
+        queryset = ServerSyncChange.objects.filter(clinic=clinic, id__gt=since)
+        if requester_node_id:
+            queryset = queryset.exclude(origin_node_id=requester_node_id)
+        queryset = queryset.order_by('id')[:batch_size]
 
-    changes = _clinic_snapshot_changes(clinic) if include_bootstrap else []
     changes.extend([
         {
             'id': item.id,
@@ -819,8 +861,16 @@ def server_sync_pull(request):
             'is_verified': getattr(user, 'is_verified', False),
             'is_staff': user.is_staff,
             'password': user.password,
+            'profile_picture': serialize_instance(user).get('profile_picture'),
         })
 
     real_change_ids = [item['id'] for item in changes if item.get('id', 0) > 0]
     next_cursor = real_change_ids[-1] if real_change_ids else since
-    return JsonResponse({'success': True, 'changes': changes, 'users': users, 'nextCursor': next_cursor})
+    return JsonResponse({
+        'success': True,
+        'changes': changes,
+        'users': users,
+        'nextCursor': next_cursor,
+        'bootstrapDone': bootstrap_done,
+        'nextBootstrapOffset': bootstrap_offset + len(changes) if include_bootstrap else 0,
+    })

@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
 from django.template.loader import render_to_string
@@ -205,3 +205,12 @@ def capture_server_sync_delete(sender, instance, **kwargs):
     if not should_capture_changes() or not is_syncable_model(sender):
         return
     record_change(instance, 'delete', payload=serialize_instance(instance, deleted=True))
+
+
+@receiver(m2m_changed)
+def capture_server_sync_many_to_many(sender, instance, action, **kwargs):
+    if action not in {'post_add', 'post_remove', 'post_clear'}:
+        return
+    if not should_capture_changes() or not is_syncable_model(instance.__class__):
+        return
+    record_change(instance, 'update')

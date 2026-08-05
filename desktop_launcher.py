@@ -31,6 +31,7 @@ RUNTIME_PRESERVE_NAMES = {
     "db.sqlite3",
     "logs",
     "media",
+    ".migrated-version",
 }
 
 
@@ -119,7 +120,7 @@ def copy_tree_safely(source: Path, target: Path) -> None:
 
 def read_text_safely(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8").strip()
+        return path.read_text(encoding="utf-8-sig").strip()
     except OSError:
         return ""
 
@@ -145,38 +146,61 @@ def remove_path_safely(path: Path) -> None:
         log_launcher(f"remove skipped path={path} error={exc}")
 
 
-def refresh_runtime_for_new_version(source_root: Path, runtime_root: Path) -> None:
+def refresh_runtime_for_new_version(source_root: Path, runtime_root: Path) -> bool:
     next_version = bundle_version(source_root)
     if not next_version or runtime_version(runtime_root) == next_version:
-        return
+        return False
 
     log_launcher(f"runtime refresh start version={next_version}")
     for item_name in PROJECT_ITEMS:
         if item_name in RUNTIME_PRESERVE_NAMES:
             continue
         remove_path_safely(runtime_root / item_name)
+    return True
 
 
 def sync_project_files() -> Path:
     source_root = bundle_dir()
     runtime_root = runtime_dir()
     runtime_root.mkdir(parents=True, exist_ok=True)
-    refresh_runtime_for_new_version(source_root, runtime_root)
+    version_changed = refresh_runtime_for_new_version(source_root, runtime_root)
 
-    for item_name in PROJECT_ITEMS:
-        source = source_root / item_name
-        target = runtime_root / item_name
-        if not source.exists():
-            continue
-        if source.is_dir():
-            copy_tree_safely(source, target)
-        else:
-            copy_file_safely(source, target)
+    # A frozen release is immutable. Copying thousands of unchanged files on
+    # every launch delayed the browser and increased the chance of file locks.
+    runtime_missing = not (runtime_root / "manage.py").exists()
+    if version_changed or runtime_missing or not getattr(sys, "frozen", False):
+        for item_name in PROJECT_ITEMS:
+            source = source_root / item_name
+            target = runtime_root / item_name
+            if not source.exists():
+                continue
+            if source.is_dir():
+                copy_tree_safely(source, target)
+            else:
+                copy_file_safely(source, target)
 
     ensure_env(runtime_root)
     (runtime_root / "logs").mkdir(exist_ok=True)
     (runtime_root / "media").mkdir(exist_ok=True)
     return runtime_root
+
+
+def migrations_are_current(project_root: Path) -> bool:
+    version = runtime_version(project_root)
+    if not version:
+        return False
+    return read_text_safely(project_root / ".migrated-version") == version
+
+
+def migrate_if_needed(project_root: Path) -> bool:
+    if migrations_are_current(project_root):
+        return True
+    if run_management_command(project_root, ["migrate", "--noinput"]) != 0:
+        return False
+    version = runtime_version(project_root)
+    if version:
+        (project_root / ".migrated-version").write_text(version, encoding="utf-8")
+    return True
 
 
 def ensure_env(project_root: Path) -> None:
@@ -227,7 +251,7 @@ def wait_for_server(timeout_seconds: int = 30) -> bool:
     while time.time() < deadline:
         if is_server_running():
             return True
-        time.sleep(1)
+        time.sleep(0.25)
     return False
 
 
@@ -315,7 +339,7 @@ def manage_mode(arguments: list[str]) -> int:
 
 def activate_mode(activation_url: str) -> int:
     project_root = sync_project_files()
-    if run_management_command(project_root, ["migrate", "--noinput"]) != 0:
+    if not migrate_if_needed(project_root):
         return 1
     return run_management_command(project_root, ["activate_local_clinic", activation_url])
 
@@ -338,7 +362,7 @@ def main() -> int:
         return activate_mode(sys.argv[activate_index + 1])
 
     project_root = sync_project_files()
-    if run_management_command(project_root, ["migrate", "--noinput"]) != 0:
+    if not migrate_if_needed(project_root):
         return 1
 
     if is_server_running():

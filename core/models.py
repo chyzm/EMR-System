@@ -57,17 +57,26 @@ class Clinic(models.Model):
             return None
         return (self.subscription_end_date - tz.now().date()).days
 
-    def set_subscription(self, plan_type: str):
+    def subscription_end_for(self, plan_type: str, preserve_remaining=True):
+        """Calculate an expiry date without discarding already-paid days."""
         TRIAL_DAYS = 14  # set to 7 if you want a 7-day trial
+        today = tz.now().date()
+        if plan_type == 'TRIAL':
+            return today + timedelta(days=TRIAL_DAYS)
+        base_date = today
+        if preserve_remaining and self.subscription_end_date and self.subscription_end_date > today:
+            base_date = self.subscription_end_date
+        if plan_type == 'MONTHLY':
+            return base_date + timedelta(days=30)
+        if plan_type == 'YEARLY':
+            return base_date + timedelta(days=365)
+        raise ValueError(f'Unsupported subscription plan: {plan_type}')
+
+    def set_subscription(self, plan_type: str, preserve_remaining=True):
         today = tz.now().date()
         self.subscription_type = plan_type
         self.subscription_start_date = today
-        if plan_type == 'TRIAL':
-            self.subscription_end_date = today + timedelta(days=TRIAL_DAYS)
-        elif plan_type == 'MONTHLY':
-            self.subscription_end_date = today + timedelta(days=30)
-        else:  # YEARLY
-            self.subscription_end_date = today + timedelta(days=365)
+        self.subscription_end_date = self.subscription_end_for(plan_type, preserve_remaining=preserve_remaining)
         self.is_subscription_active = True
         self.last_reminder_sent = 'NONE'
         self.save(update_fields=[
@@ -361,6 +370,7 @@ class Payment(models.Model):
         
         
 class ServicePriceList(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='services')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
@@ -493,6 +503,7 @@ class ActionLog(models.Model):
 
 class MedicationCategory(models.Model):
     """Categories for organizing medications"""
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     clinic = models.ForeignKey('Clinic', on_delete=models.CASCADE, related_name='medication_categories', null=True, blank=True)
@@ -511,6 +522,7 @@ class MedicationCategory(models.Model):
     
 class ClinicMedication(models.Model):
     """Clinic-specific medication inventory"""
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     MEDICATION_TYPES = (
         ('TABLET', 'Tablet'),
         ('CAPSULE', 'Capsule'),
@@ -694,6 +706,7 @@ class Prescription(models.Model):
 
 class StockMovement(models.Model):
     """Track stock movements for audit trail"""
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     MOVEMENT_TYPES = (
         ('IN', 'Stock In'),
         ('OUT', 'Stock Out'),
@@ -724,6 +737,7 @@ class StockMovement(models.Model):
 
 
 class Notification(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -752,6 +766,7 @@ class Notification(models.Model):
         return f"Notification for {self.user.username if self.user else 'All'} - {self.message[:50]}"
 
 class NotificationRead(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     notification = models.ForeignKey('Notification', on_delete=models.CASCADE)
     read_at = models.DateTimeField(auto_now_add=True)
@@ -789,6 +804,7 @@ class LabTestCategory(models.Model):
         ('OTHER', 'Other'),
     )
 
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_categories')
     name = models.CharField(max_length=100)
     category_type = models.CharField(max_length=20, choices=CATEGORY_TYPES, default='OTHER')
@@ -819,6 +835,7 @@ class LabTest(models.Model):
         ('OTHER', 'Other'),
     )
 
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_tests')
     category = models.ForeignKey(LabTestCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='tests')
     name = models.CharField(max_length=200)
@@ -861,6 +878,7 @@ class LabTestOrder(models.Model):
         ('STAT', 'STAT (Immediate)'),
     )
 
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey('Patient', on_delete=models.CASCADE, related_name='lab_orders')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='lab_orders')
 
@@ -972,6 +990,7 @@ class LabTestResult(models.Model):
     """Individual test results within a lab order"""
     from django.core.validators import FileExtensionValidator
 
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lab_test_order = models.ForeignKey(LabTestOrder, on_delete=models.CASCADE, related_name='results')
     test = models.ForeignKey(LabTest, on_delete=models.CASCADE, related_name='results')
 

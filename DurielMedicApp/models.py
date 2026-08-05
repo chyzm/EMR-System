@@ -261,6 +261,7 @@ class FollowUp(models.Model):
 
 
 class PhysiotherapyRecord(models.Model):
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='physiotherapy_records')
 
     # Physiotherapy-specific fields

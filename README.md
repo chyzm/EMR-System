@@ -43,8 +43,25 @@ The current implementation supports these syncable records:
 - `core.Billing`
 - `core.Payment`
 - `core.Prescription`
+- `core.ServicePriceList`
+- `core.MedicationCategory`
+- `core.ClinicMedication`
+- `core.StockMovement`
+- `core.Notification`
+- `core.NotificationRead`
+- `core.LabTestCategory`
+- `core.LabTest`
+- `core.LabTestOrder`
+- `core.LabTestResult`
+- `DurielMedicApp.PhysiotherapyRecord`
 
 Each synced record uses its `sync_id` as the stable identity across servers. Sync operations are idempotent through `operation_id`, so retrying the same event should not create duplicate central changes.
+
+Image and document fields are transferred with their content and SHA-256 checksum over the authenticated sync API. This includes clinic logos, patient/staff profile pictures, and uploaded lab-result documents. The 5 MB lab upload limit is preserved. Billing services and lab ordered-tests are synchronized using stable many-to-many references.
+
+Initial cloud bootstrap is paginated, while routine changes use a durable cursor. A failed incoming item is retained for retry without blocking later changes. Pending local edits are prioritized ahead of older failed outbox entries, preventing one bad historical record from starving new work.
+
+Bootstrap data is versioned. When a release adds a newly synchronized record or file type, installed clinics automatically perform one new paginated bootstrap after upgrading; operators do not need to clear the SQLite cursor manually.
 
 ## Clinic Modules
 
@@ -209,6 +226,8 @@ For clinics that want a local server, the preferred setup is:
 3. The installer asks for the activation URL.
 4. The local server activates itself, imports clinic metadata and non-superuser clinic users, runs migrations, and starts the local web service plus background sync worker on boot.
 5. Future code/template updates are delivered through the updater manifest, so the clinic does not need a new installer for every release.
+
+On normal desktop launches, unchanged application files are no longer recopied and migrations are skipped when the installed version has already migrated successfully. A new version still refreshes code and runs all migrations before the server starts, so the faster startup does not bypass schema safety.
 
 The clinic no longer needs to manually enter:
 
@@ -430,6 +449,15 @@ Then run:
 python3 manage.py migrate
 python3 manage.py collectstatic --noinput
 ```
+
+On PythonAnywhere, also configure the Web app's **Static files** mapping:
+
+```text
+URL:       /static/
+Directory: /home/<pythonanywhere-username>/EMR-System/staticfiles
+```
+
+Use the actual project path if it differs, then reload the PythonAnywhere web app. Django admin CSS is collected under `staticfiles/admin/`; a relative `STATIC_URL` will make admin pages request CSS from the wrong URL, so the application uses `/static/` explicitly.
 
 The central server exposes:
 

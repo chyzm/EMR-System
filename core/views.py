@@ -201,6 +201,8 @@ def select_clinic(request):
             'can_renew': can_renew,
             'renew_monthly_url': reverse('core:start_renewal', args=[c.id, 'MONTHLY']),
             'renew_yearly_url': reverse('core:start_renewal', args=[c.id, 'YEARLY']),
+            'monthly_renewal_end': c.subscription_end_for('MONTHLY'),
+            'yearly_renewal_end': c.subscription_end_for('YEARLY'),
         })
 
     if request.method == 'POST':
@@ -3954,7 +3956,12 @@ def start_renewal(request, clinic_id, plan_type):
         messages.error(request, "You do not have permission to renew this clinic.")
         return redirect('core:select_clinic')
 
-    request.session['renewal'] = {'clinic_id': clinic.id, 'plan_type': plan_type}
+    projected_end = clinic.subscription_end_for(plan_type)
+    request.session['renewal'] = {
+        'clinic_id': clinic.id,
+        'plan_type': plan_type,
+        'projected_end': projected_end.isoformat(),
+    }
     request.session['plan_type'] = plan_type
     return redirect('core:paystack_payment')
 

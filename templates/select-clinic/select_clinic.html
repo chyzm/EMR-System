@@ -54,9 +54,14 @@
               <div class="mb-4 p-3 bg-gray-50 rounded border border-gray-100">
                 {% if clinic.subscription_end_date %}
                   <p class="text-sm text-gray-700">
-                    Expires: <span class="font-medium">{{ clinic.subscription_end_date }}</span>
-                    {% if item.days_left is not None and item.days_left >= 0 %}
-                      • <span class="text-blue-600 font-semibold">{{ item.days_left }} day{{ item.days_left|pluralize }} left</span>
+                    {% if item.is_expired %}Expired:{% else %}Expires:{% endif %}
+                    <span class="font-medium">{{ clinic.subscription_end_date }}</span>
+                    {% if not item.is_expired and item.days_left is not None %}
+                      {% if item.days_left == 0 %}
+                        • <span class="text-amber-600 font-semibold">Expires today</span>
+                      {% else %}
+                        • <span class="text-blue-600 font-semibold">{{ item.days_left }} day{{ item.days_left|pluralize }} remaining</span>
+                      {% endif %}
                     {% endif %}
                   </p>
                 {% else %}
@@ -69,11 +74,11 @@
                   <div class="space-y-2">
                     <a href="{{ item.renew_monthly_url }}"
                        class="block w-full text-center py-2 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800 transition">
-                      Renew Monthly (₦15,000)
+                      Renew Monthly (₦15,000) — until {{ item.monthly_renewal_end }}
                     </a>
                     <a href="{{ item.renew_yearly_url }}"
                        class="block w-full text-center py-2 rounded-lg font-semibold bg-white text-blue-900 border border-blue-900 hover:bg-blue-50 transition">
-                      Renew Yearly (₦150,000)
+                      Renew Yearly (₦150,000) — until {{ item.yearly_renewal_end }}
                     </a>
                   </div>
                 {% else %}
@@ -88,6 +93,13 @@
                     Use this clinic
                   </button>
                 </form>
+                {% if item.can_renew %}
+                  <div class="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                    <p class="text-xs text-center text-gray-600">Renew early without losing remaining days</p>
+                    <a href="{{ item.renew_monthly_url }}" class="block w-full text-center py-2 rounded-lg text-sm font-semibold bg-blue-900 text-white hover:bg-blue-800">Add 30 days — until {{ item.monthly_renewal_end }}</a>
+                    <a href="{{ item.renew_yearly_url }}" class="block w-full text-center py-2 rounded-lg text-sm font-semibold bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">Add 365 days — until {{ item.yearly_renewal_end }}</a>
+                  </div>
+                {% endif %}
               {% endif %}
             </div>
             {% endwith %}
@@ -106,9 +118,14 @@
             <div class="mt-4 p-3 bg-gray-50 rounded border border-gray-100 text-center">
               {% if clinic.subscription_end_date %}
                 <p class="text-sm text-gray-700">
-                  Expires: <span class="font-medium">{{ clinic.subscription_end_date }}</span>
-                  {% if item.days_left is not None and item.days_left >= 0 %}
-                    • <span class="text-blue-600 font-semibold">{{ item.days_left }} day{{ item.days_left|pluralize }} left</span>
+                  {% if item.is_expired %}Expired:{% else %}Expires:{% endif %}
+                  <span class="font-medium">{{ clinic.subscription_end_date }}</span>
+                  {% if not item.is_expired and item.days_left is not None %}
+                    {% if item.days_left == 0 %}
+                      • <span class="text-amber-600 font-semibold">Expires today</span>
+                    {% else %}
+                      • <span class="text-blue-600 font-semibold">{{ item.days_left }} day{{ item.days_left|pluralize }} remaining</span>
+                    {% endif %}
                   {% endif %}
                 </p>
               {% else %}
@@ -119,8 +136,8 @@
             {% if item.is_expired %}
               {% if item.can_renew %}
                 <div class="mt-5 space-y-2">
-                  <a href="{{ item.renew_monthly_url }}" class="block w-full text-center py-2 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800">Renew Monthly (₦15,000)</a>
-                  <a href="{{ item.renew_yearly_url }}" class="block w-full text-center py-2 rounded-lg font-semibold bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">Renew Yearly (₦150,000)</a>
+                  <a href="{{ item.renew_monthly_url }}" class="block w-full text-center py-2 rounded-lg font-semibold bg-blue-900 text-white hover:bg-blue-800">Renew Monthly (₦15,000) — until {{ item.monthly_renewal_end }}</a>
+                  <a href="{{ item.renew_yearly_url }}" class="block w-full text-center py-2 rounded-lg font-semibold bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">Renew Yearly (₦150,000) — until {{ item.yearly_renewal_end }}</a>
                 </div>
               {% else %}
                 <p class="mt-4 text-sm text-gray-600 text-center">Contact your clinic admin to renew.</p>
@@ -131,6 +148,13 @@
                 <input type="hidden" name="clinic_id" value="{{ clinic.id }}">
                 <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg">Use this clinic</button>
               </form>
+              {% if item.can_renew %}
+                <div class="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                  <p class="text-xs text-center text-gray-600">Renew early without losing remaining days</p>
+                  <a href="{{ item.renew_monthly_url }}" class="block w-full text-center py-2 rounded-lg text-sm font-semibold bg-blue-900 text-white hover:bg-blue-800">Add 30 days — until {{ item.monthly_renewal_end }}</a>
+                  <a href="{{ item.renew_yearly_url }}" class="block w-full text-center py-2 rounded-lg text-sm font-semibold bg-white text-blue-900 border border-blue-900 hover:bg-blue-50">Add 365 days — until {{ item.yearly_renewal_end }}</a>
+                </div>
+              {% endif %}
             {% endif %}
           </div>
         </div>

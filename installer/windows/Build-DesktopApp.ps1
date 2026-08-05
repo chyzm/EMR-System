@@ -1,11 +1,15 @@
 param(
-    [string]$ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").ProviderPath
+    [string]$ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").ProviderPath,
+    [string]$Version = "0.0.0"
 )
 
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = (Resolve-Path $ProjectRoot).ProviderPath
 Set-Location $ProjectRoot
+
+$desktopVersionPath = Join-Path $ProjectRoot "DESKTOP_VERSION"
+$Version | Set-Content -Path $desktopVersionPath -Encoding UTF8
 
 $commonArgs = @(
     "--noconfirm",
@@ -22,6 +26,7 @@ $commonArgs = @(
     "--add-data", "staticfiles;staticfiles",
     "--add-data", "manage.py;.",
     "--add-data", "requirements.txt;.",
+    "--add-data", "DESKTOP_VERSION;.",
     "--collect-data", "tzdata",
     "--collect-data", "crispy_forms",
     "--collect-data", "crispy_tailwind",

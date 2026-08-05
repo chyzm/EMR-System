@@ -42,6 +42,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
 
+[Dirs]
+Name: "{commonappdata}\DurielMedicClinicServer"; Permissions: users-modify
+Name: "{commonappdata}\DurielMedicClinicServer\runtime"; Permissions: users-modify
+Name: "{commonappdata}\DurielMedicClinicServer\runtime\logs"; Permissions: users-modify
+Name: "{commonappdata}\DurielMedicClinicServer\runtime\media"; Permissions: users-modify
+
 [Files]
 Source: "..\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -50,12 +56,10 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\DurielMedicClinicServer"" /grant Users:(OI)(CI)M /T"; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""DurielMedic Clinic Server 9000"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,domain"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--activate ""{code:GetActivationUrl}"""; StatusMsg: "Activating DurielMedic Clinic Server..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\DurielMedicClinicServer"
 
 [Code]
 var

@@ -24,7 +24,14 @@ PROJECT_ITEMS = [
     "staticfiles",
     "manage.py",
     "requirements.txt",
+    "DESKTOP_VERSION",
 ]
+RUNTIME_PRESERVE_NAMES = {
+    ".env",
+    "db.sqlite3",
+    "logs",
+    "media",
+}
 
 
 def bind_host() -> str:
@@ -62,10 +69,99 @@ def runtime_dir() -> Path:
     return shared_app_data_dir() / "runtime"
 
 
+def launcher_log_path() -> Path:
+    root = runtime_dir()
+    try:
+        (root / "logs").mkdir(parents=True, exist_ok=True)
+        return root / "logs" / "launcher.log"
+    except OSError:
+        return Path(os.getenv("TEMP") or os.getcwd()) / "durielmedic-launcher.log"
+
+
+def log_launcher(message: str) -> None:
+    try:
+        with launcher_log_path().open("a", encoding="utf-8") as log_file:
+            log_file.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
+    except OSError:
+        pass
+
+
+def make_writable(path: Path) -> None:
+    try:
+        path.chmod(0o666)
+    except OSError:
+        pass
+
+
+def copy_file_safely(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        make_writable(target)
+    try:
+        shutil.copy2(source, target)
+    except PermissionError as exc:
+        log_launcher(f"copy skipped permission-denied source={source} target={target} error={exc}")
+
+
+def copy_tree_safely(source: Path, target: Path) -> None:
+    for root, dir_names, file_names in os.walk(source):
+        root_path = Path(root)
+        ignored = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")(str(root_path), dir_names + file_names)
+        relative_root = root_path.relative_to(source)
+        target_root = target / relative_root
+        target_root.mkdir(parents=True, exist_ok=True)
+
+        for file_name in file_names:
+            if file_name in ignored:
+                continue
+            copy_file_safely(root_path / file_name, target_root / file_name)
+
+
+def read_text_safely(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def bundle_version(source_root: Path) -> str:
+    return read_text_safely(source_root / "DESKTOP_VERSION")
+
+
+def runtime_version(runtime_root: Path) -> str:
+    return read_text_safely(runtime_root / "DESKTOP_VERSION")
+
+
+def remove_path_safely(path: Path) -> None:
+    if not path.exists():
+        return
+    try:
+        if path.is_dir():
+            shutil.rmtree(path, onerror=lambda func, item, exc_info: (make_writable(Path(item)), func(item)))
+        else:
+            make_writable(path)
+            path.unlink()
+    except OSError as exc:
+        log_launcher(f"remove skipped path={path} error={exc}")
+
+
+def refresh_runtime_for_new_version(source_root: Path, runtime_root: Path) -> None:
+    next_version = bundle_version(source_root)
+    if not next_version or runtime_version(runtime_root) == next_version:
+        return
+
+    log_launcher(f"runtime refresh start version={next_version}")
+    for item_name in PROJECT_ITEMS:
+        if item_name in RUNTIME_PRESERVE_NAMES:
+            continue
+        remove_path_safely(runtime_root / item_name)
+
+
 def sync_project_files() -> Path:
     source_root = bundle_dir()
     runtime_root = runtime_dir()
     runtime_root.mkdir(parents=True, exist_ok=True)
+    refresh_runtime_for_new_version(source_root, runtime_root)
 
     for item_name in PROJECT_ITEMS:
         source = source_root / item_name
@@ -73,15 +169,9 @@ def sync_project_files() -> Path:
         if not source.exists():
             continue
         if source.is_dir():
-            shutil.copytree(
-                source,
-                target,
-                dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
-            )
+            copy_tree_safely(source, target)
         else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            copy_file_safely(source, target)
 
     ensure_env(runtime_root)
     (runtime_root / "logs").mkdir(exist_ok=True)

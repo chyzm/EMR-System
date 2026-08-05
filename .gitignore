@@ -24,6 +24,7 @@ Output/
 *.zip
 *.pkg
 update-manifest.json
+DESKTOP_VERSION
 
 # Local/offline deployment notes
 OFFLINE*.md

@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [('DurielMedic', 'DurielMedic'), ('DurielMedicApp', 'DurielMedicApp'), ('DurielEyeApp', 'DurielEyeApp'), ('DurielDentalApp', 'DurielDentalApp'), ('core', 'core'), ('templates', 'templates'), ('static', 'static'), ('staticfiles', 'staticfiles'), ('manage.py', '.'), ('requirements.txt', '.')]
+datas = [('DurielMedic', 'DurielMedic'), ('DurielMedicApp', 'DurielMedicApp'), ('DurielEyeApp', 'DurielEyeApp'), ('DurielDentalApp', 'DurielDentalApp'), ('core', 'core'), ('templates', 'templates'), ('static', 'static'), ('staticfiles', 'staticfiles'), ('manage.py', '.'), ('requirements.txt', '.'), ('DESKTOP_VERSION', '.')]
 datas += collect_data_files('tzdata')
 datas += collect_data_files('crispy_forms')
 datas += collect_data_files('crispy_tailwind')

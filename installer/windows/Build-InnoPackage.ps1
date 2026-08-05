@@ -10,6 +10,8 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path $ProjectRoot).ProviderPath
 $distRoot = Join-Path $ProjectRoot "dist"
 $stageDir = Join-Path $distRoot "durielmedic-clinic-server"
+$desktopVersionPath = Join-Path $ProjectRoot "DESKTOP_VERSION"
+$Version | Set-Content -Path $desktopVersionPath -Encoding UTF8
 
 if (-not (Test-Path $distRoot)) {
     New-Item -ItemType Directory -Path $distRoot | Out-Null
@@ -73,7 +75,7 @@ $manifest = [ordered]@{
 $manifest | ConvertTo-Json | Set-Content -Path (Join-Path $distRoot "update-manifest.json") -Encoding UTF8
 
 $desktopBuildScript = Join-Path $PSScriptRoot "Build-DesktopApp.ps1"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $desktopBuildScript -ProjectRoot $ProjectRoot
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $desktopBuildScript -ProjectRoot $ProjectRoot -Version $Version
 
 $desktopExe = Join-Path $distRoot "DurielMedicClinicServer.exe"
 if (-not (Test-Path $desktopExe)) {

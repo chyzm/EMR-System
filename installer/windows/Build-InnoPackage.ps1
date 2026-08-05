@@ -72,6 +72,14 @@ $manifest = [ordered]@{
 }
 $manifest | ConvertTo-Json | Set-Content -Path (Join-Path $distRoot "update-manifest.json") -Encoding UTF8
 
+$desktopBuildScript = Join-Path $PSScriptRoot "Build-DesktopApp.ps1"
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $desktopBuildScript -ProjectRoot $ProjectRoot
+
+$desktopExe = Join-Path $distRoot "DurielMedicClinicServer.exe"
+if (-not (Test-Path $desktopExe)) {
+    throw "Desktop executable not found at $desktopExe. Build failed."
+}
+
 if (-not (Test-Path $InnoCompiler)) {
     throw "Inno Setup compiler not found at $InnoCompiler"
 }

@@ -252,7 +252,7 @@ The activation command fills the local sync settings in SQLite.
 
 ## Windows Clinic Server Installer
 
-Use Inno Setup to build a Windows `.exe` installer. The client should receive only the generated setup file, not the Git repository.
+Use Inno Setup plus PyInstaller to build a Windows desktop-style `.exe` installer. The client should receive only the generated setup file, not the Git repository.
 
 Build the installer on your own/release machine:
 
@@ -268,7 +268,13 @@ This stages a clean package in:
 dist\durielmedic-clinic-server
 ```
 
-Then Inno Setup creates:
+The build also creates the desktop launcher:
+
+```text
+dist\DurielMedicClinicServer.exe
+```
+
+Then Inno Setup creates the client installer:
 
 ```text
 dist\DurielMedic-Clinic-Server-Setup.exe
@@ -300,11 +306,19 @@ On the clinic server PC:
 2. Paste the activation URL when prompted.
 3. Finish setup.
 
-The installer creates startup tasks for:
+The installer creates a desktop/start-menu app shortcut:
 
-- `DurielMedic Clinic Server`
-- `DurielMedic Sync Worker`
-- `DurielMedic Clinic Updater`
+```text
+DurielMedic Clinic Server
+```
+
+When opened, the desktop app:
+
+- prepares the local runtime in ProgramData
+- runs migrations
+- starts the local web server on port `9000`
+- starts the background sync worker
+- opens the browser to the local app
 
 Clinic devices then open:
 
@@ -314,10 +328,10 @@ http://<local-server-ip>:9000
 
 Do not install the repo on the clinic machine. The clinic only receives the `.exe` installer.
 
-The Windows installer installs the local app into:
+The Windows desktop app keeps runtime data in:
 
 ```text
-C:\ProgramData\DurielMedic Clinic Server
+C:\ProgramData\DurielMedicClinicServer\runtime
 ```
 
 This avoids the write-permission problems that happen when the app database, `.env`, logs, and updater files are placed under `C:\Program Files`.
@@ -437,7 +451,7 @@ X-Sync-Activation-Token: <SYNC_ACTIVATION_TOKEN>
 
 ## Running the Worker in Production
 
-On Windows, the Inno installer registers the web server, sync worker, and updater as Scheduled Tasks. They restart automatically on machine boot.
+On Windows, the Inno installer installs `DurielMedicClinicServer.exe` as the desktop launcher. Opening the app starts the local web server and sync worker, then opens the browser.
 
 For real clinic deployments, do not use Django `runserver` as the long-running local web server. `runserver` is acceptable for pilot/internal testing, but the clinic installer should run the app through a production WSGI runner such as Waitress:
 
@@ -451,7 +465,7 @@ The sync worker remains a separate background process:
 python3 manage.py sync_worker
 ```
 
-The installer should register both the WSGI web process and the sync worker to start automatically on boot.
+The desktop app starts both the WSGI web process and the sync worker when launched.
 
 ## Onboarding Checklist
 
@@ -525,9 +539,11 @@ For Dental clinic:
 - `core/server_sync.py`: serialization, capture helpers, push/pull logic, and remote apply logic.
 - `core/management/commands/sync_worker.py`: background worker.
 - `core/management/commands/activate_local_clinic.py`: local activation from cloud URL.
+- `desktop_launcher.py`: PyInstaller desktop launcher that starts the local server and sync worker.
 - `installer/windows/DurielMedicClinicServer.iss`: Inno Setup installer definition.
 - `installer/windows/Build-InnoPackage.ps1`: Windows release-package builder.
-- `installer/windows/Install-DurielMedicClinic.ps1`: installed-machine activation and startup task setup.
+- `installer/windows/Build-DesktopApp.ps1`: builds `DurielMedicClinicServer.exe`.
+- `installer/windows/Install-DurielMedicClinic.ps1`: legacy script-based local activation helper.
 - `installer/windows/Update-DurielMedicClinic.ps1`: installed-machine code/template updater.
 - `core/migrations/0003_server_sync.py`: durable sync tables.
 - `CLINIC_INSTALLATION.md`: clinic-facing installation instructions.

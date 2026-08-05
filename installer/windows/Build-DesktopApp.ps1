@@ -29,6 +29,7 @@ $commonArgs = @(
     "--hidden-import", "django.core.management.commands.collectstatic",
     "--hidden-import", "core.management.commands.activate_local_clinic",
     "--hidden-import", "core.management.commands.sync_worker",
+    "--hidden-import", "core.management.commands.sync_once",
     "--hidden-import", "waitress",
     "desktop_launcher.py"
 )

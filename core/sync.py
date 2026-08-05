@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core import signing
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.middleware.csrf import get_token
 from django.urls import reverse
@@ -575,7 +576,11 @@ def server_sync_activate(request):
         return JsonResponse({'success': False, 'error': 'Unknown clinic'}, status=404)
 
     users = []
-    for user in get_user_model().objects.filter(clinic=clinic, is_active=True, is_superuser=False).distinct():
+    for user in get_user_model().objects.filter(
+        Q(clinic=clinic) | Q(primary_clinic=clinic),
+        is_active=True,
+        is_superuser=False,
+    ).distinct():
         users.append({
             'username': user.get_username(),
             'email': user.email,
@@ -695,7 +700,11 @@ def server_sync_pull(request):
         for item in queryset
     ]
     users = []
-    for user in get_user_model().objects.filter(clinic=clinic, is_active=True, is_superuser=False).distinct():
+    for user in get_user_model().objects.filter(
+        Q(clinic=clinic) | Q(primary_clinic=clinic),
+        is_active=True,
+        is_superuser=False,
+    ).distinct():
         users.append({
             'username': user.get_username(),
             'email': user.email,

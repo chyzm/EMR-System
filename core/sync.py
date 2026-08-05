@@ -694,5 +694,19 @@ def server_sync_pull(request):
         }
         for item in queryset
     ]
+    users = []
+    for user in get_user_model().objects.filter(clinic=clinic, is_active=True, is_superuser=False).distinct():
+        users.append({
+            'username': user.get_username(),
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role': getattr(user, 'role', 'DOCTOR'),
+            'verified': getattr(user, 'verified', False),
+            'is_verified': getattr(user, 'is_verified', False),
+            'is_staff': user.is_staff,
+            'password': user.password,
+        })
+
     next_cursor = changes[-1]['id'] if changes else since
-    return JsonResponse({'success': True, 'changes': changes, 'nextCursor': next_cursor})
+    return JsonResponse({'success': True, 'changes': changes, 'users': users, 'nextCursor': next_cursor})

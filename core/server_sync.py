@@ -6,6 +6,7 @@ import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
 from django.db import OperationalError, ProgrammingError
 from django.db import transaction
 from django.utils import timezone
@@ -267,6 +268,38 @@ def apply_change(item, origin_node_id=''):
         )
 
 
+def import_remote_users(users, clinic):
+    User = get_user_model()
+    imported = 0
+    for user_payload in users or []:
+        if user_payload.get('is_superuser'):
+            continue
+        username = user_payload.get('username')
+        if not username:
+            continue
+        user, _ = User.objects.update_or_create(
+            username=username,
+            defaults={
+                'email': user_payload.get('email') or '',
+                'first_name': user_payload.get('first_name') or '',
+                'last_name': user_payload.get('last_name') or '',
+                'role': user_payload.get('role') or 'DOCTOR',
+                'verified': user_payload.get('verified', False),
+                'is_verified': user_payload.get('is_verified', False),
+                'is_staff': user_payload.get('is_staff', False),
+                'is_superuser': False,
+                'is_active': True,
+                'password': user_payload.get('password') or make_password(None),
+            },
+        )
+        user.clinic.add(clinic)
+        if not user.primary_clinic_id:
+            user.primary_clinic = clinic
+            user.save(update_fields=['primary_clinic'])
+        imported += 1
+    return imported
+
+
 def pending_outbox_queryset():
     return ServerSyncOutbox.objects.filter(status__in=['PENDING', 'FAILED']).order_by('created_at')
 
@@ -367,12 +400,14 @@ def pull_remote_changes():
     response.raise_for_status()
     data = response.json()
     applied = 0
+    clinic = Clinic.objects.filter(sync_id=local_clinic_sync_id).first()
     for item in data.get('changes', []):
         apply_change(item, origin_node_id=item.get('origin_node_id', 'central'))
         applied += 1
+    imported_users = import_remote_users(data.get('users') or [], clinic) if clinic else 0
     state.value = {'cursor': data.get('nextCursor', cursor)}
     state.save(update_fields=['value', 'updated_at'])
-    return {'applied': applied, 'cursor': state.value['cursor']}
+    return {'applied': applied, 'users': imported_users, 'cursor': state.value['cursor']}
 
 
 def internet_available():

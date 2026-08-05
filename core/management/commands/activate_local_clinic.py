@@ -2,13 +2,11 @@ import uuid
 from datetime import date
 
 import requests
-from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from core.models import Clinic, ServerSyncState
-from core.server_sync import sync_context
+from core.server_sync import import_remote_users, sync_context
 
 
 def parse_date(value):
@@ -70,7 +68,7 @@ class Command(BaseCommand):
                     'last_reminder_sent': clinic_payload.get('last_reminder_sent') or 'NONE',
                 },
             )
-            imported_users = self._import_users(clinic, payload.get('users') or [])
+            imported_users = import_remote_users(payload.get('users') or [], clinic)
             ServerSyncState.objects.update_or_create(
                 key='local_server',
                 defaults={
@@ -89,34 +87,3 @@ class Command(BaseCommand):
         self.stdout.write(f'Clinic: {clinic.name} ({clinic.sync_id})')
         self.stdout.write(f'Node ID: {node_id}')
         self.stdout.write(f'Users imported/updated: {imported_users}')
-
-    def _import_users(self, clinic, users):
-        User = get_user_model()
-        count = 0
-        for user_payload in users:
-            if user_payload.get('is_superuser'):
-                continue
-            username = user_payload.get('username')
-            if not username:
-                continue
-            user, _ = User.objects.update_or_create(
-                username=username,
-                defaults={
-                    'email': user_payload.get('email') or '',
-                    'first_name': user_payload.get('first_name') or '',
-                    'last_name': user_payload.get('last_name') or '',
-                    'role': user_payload.get('role') or 'DOCTOR',
-                    'verified': user_payload.get('verified', False),
-                    'is_verified': user_payload.get('is_verified', False),
-                    'is_staff': user_payload.get('is_staff', False),
-                    'is_superuser': False,
-                    'is_active': True,
-                    'password': user_payload.get('password') or make_password(None),
-                },
-            )
-            user.clinic.add(clinic)
-            if not user.primary_clinic_id:
-                user.primary_clinic = clinic
-                user.save(update_fields=['primary_clinic'])
-            count += 1
-        return count

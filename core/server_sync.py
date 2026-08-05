@@ -390,10 +390,15 @@ def pull_remote_changes():
     local_clinic_sync_id = clinic_sync_id()
     if not local_clinic_sync_id:
         return {'applied': 0, 'skipped': 'missing-clinic-sync-id'}
-    cursor = int(state.value.get('cursor') or 0)
+    state_value = dict(state.value or {})
+    cursor = int(state_value.get('cursor') or 0)
+    bootstrap_done = bool(state_value.get('bootstrap_done'))
+    params = {'since': cursor, 'node_id': node_id(), 'clinic_sync_id': local_clinic_sync_id}
+    if not bootstrap_done:
+        params['bootstrap'] = '1'
     response = requests.get(
         f'{sync_central_url}/api/server-sync/pull/',
-        params={'since': cursor, 'node_id': node_id(), 'clinic_sync_id': local_clinic_sync_id},
+        params=params,
         headers={'X-Sync-Token': sync_token},
         timeout=getattr(settings, 'SYNC_REQUEST_TIMEOUT_SECONDS', 20),
     )
@@ -401,13 +406,18 @@ def pull_remote_changes():
     data = response.json()
     applied = 0
     clinic = Clinic.objects.filter(sync_id=local_clinic_sync_id).first()
+    imported_users = import_remote_users(data.get('users') or [], clinic) if clinic else 0
     for item in data.get('changes', []):
         apply_change(item, origin_node_id=item.get('origin_node_id', 'central'))
         applied += 1
-    imported_users = import_remote_users(data.get('users') or [], clinic) if clinic else 0
-    state.value = {'cursor': data.get('nextCursor', cursor)}
+    state.value = {'cursor': data.get('nextCursor', cursor), 'bootstrap_done': True}
     state.save(update_fields=['value', 'updated_at'])
-    return {'applied': applied, 'users': imported_users, 'cursor': state.value['cursor']}
+    return {
+        'applied': applied,
+        'users': imported_users,
+        'bootstrap': not bootstrap_done,
+        'cursor': state.value['cursor'],
+    }
 
 
 def internet_available():

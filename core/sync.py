@@ -3,6 +3,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -20,7 +21,7 @@ from django.views.decorators.http import require_GET, require_POST
 from core.decorators import clinic_selected_required
 from core.forms import BillingForm, PatientForm
 from core.models import Billing, Clinic, Notification, Patient, Payment, ServerSyncChange, ServicePriceList, SyncOperation
-from core.server_sync import apply_change, role
+from core.server_sync import apply_change, model_label, role, serialize_instance
 from core.utils import log_action
 from DurielEyeApp.models import EyeAppointment
 from DurielMedicApp.forms import (
@@ -584,6 +585,76 @@ def _clinic_sync_token(clinic):
     )
 
 
+SERVER_SYNC_SNAPSHOT_MODELS = (
+    'core.Clinic',
+    'core.Patient',
+    'core.Prescription',
+    'DurielMedicApp.Appointment',
+    'DurielEyeApp.EyeAppointment',
+    'DurielDentalApp.DentalAppointment',
+    'DurielMedicApp.Vitals',
+    'DurielMedicApp.MedicalRecord',
+    'DurielEyeApp.EyeMedicalRecord',
+    'DurielEyeApp.EyeExam',
+    'DurielDentalApp.DentalExam',
+    'DurielMedicApp.Admission',
+    'DurielMedicApp.MedicationAdministration',
+    'DurielMedicApp.AdmissionHandover',
+    'DurielMedicApp.FollowUp',
+    'DurielEyeApp.EyeFollowUp',
+    'DurielDentalApp.DentalTreatmentPlan',
+    'DurielDentalApp.DentalProcedure',
+    'DurielDentalApp.DentalFollowUp',
+    'DurielDentalApp.DentalMedicalRecord',
+    'core.Billing',
+    'core.Payment',
+)
+
+
+def _snapshot_queryset_for_clinic(model, clinic):
+    label = model_label(model)
+    if label == 'core.Clinic':
+        return model.objects.filter(pk=clinic.pk)
+    if label == 'DurielMedicApp.Vitals':
+        return model.objects.filter(appointment__clinic=clinic)
+    if label == 'core.Payment':
+        return model.objects.filter(billing__clinic=clinic)
+    if label in {'DurielMedicApp.AdmissionHandover', 'DurielMedicApp.MedicationAdministration'}:
+        return model.objects.filter(patient__clinic=clinic)
+    if hasattr(model, 'clinic'):
+        return model.objects.filter(clinic=clinic)
+    if hasattr(model, 'patient'):
+        return model.objects.filter(patient__clinic=clinic)
+    return model.objects.none()
+
+
+def _snapshot_change(instance, clinic):
+    label = model_label(instance.__class__)
+    record_sync_id = getattr(instance, 'sync_id', None)
+    operation_id = uuid.uuid5(uuid.NAMESPACE_URL, f'durielmedic-bootstrap:{clinic.sync_id}:{label}:{record_sync_id or instance.pk}')
+    return {
+        'id': 0,
+        'operation_id': str(operation_id),
+        'clinic_sync_id': str(clinic.sync_id),
+        'model_label': label,
+        'action': 'update',
+        'record_sync_id': str(record_sync_id) if record_sync_id else None,
+        'origin_node_id': 'central-bootstrap',
+        'payload': serialize_instance(instance),
+        'created_at': timezone.now().isoformat(),
+    }
+
+
+def _clinic_snapshot_changes(clinic):
+    changes = []
+    for label in SERVER_SYNC_SNAPSHOT_MODELS:
+        app_label, model_name = label.split('.', 1)
+        model = apps.get_model(app_label, model_name)
+        for instance in _snapshot_queryset_for_clinic(model, clinic).iterator():
+            changes.append(_snapshot_change(instance, clinic))
+    return changes
+
+
 @require_GET
 def server_sync_health(request):
     if not _server_sync_authorized(request):
@@ -704,6 +775,7 @@ def server_sync_pull(request):
         since = 0
     requester_node_id = request.GET.get('node_id', '')
     clinic_sync_id = request.GET.get('clinic_sync_id')
+    include_bootstrap = request.GET.get('bootstrap') in {'1', 'true', 'yes'}
     if not clinic_sync_id:
         return JsonResponse({'success': False, 'error': 'clinic_sync_id is required'}, status=400)
     try:
@@ -716,7 +788,8 @@ def server_sync_pull(request):
         queryset = queryset.exclude(origin_node_id=requester_node_id)
     queryset = queryset.order_by('id')[:getattr(settings, 'SYNC_BATCH_SIZE', 25)]
 
-    changes = [
+    changes = _clinic_snapshot_changes(clinic) if include_bootstrap else []
+    changes.extend([
         {
             'id': item.id,
             'operation_id': str(item.operation_id),
@@ -729,7 +802,7 @@ def server_sync_pull(request):
             'created_at': item.created_at.isoformat(),
         }
         for item in queryset
-    ]
+    ])
     users = []
     for user in get_user_model().objects.filter(
         Q(clinic=clinic) | Q(primary_clinic=clinic),
@@ -748,5 +821,6 @@ def server_sync_pull(request):
             'password': user.password,
         })
 
-    next_cursor = changes[-1]['id'] if changes else since
+    real_change_ids = [item['id'] for item in changes if item.get('id', 0) > 0]
+    next_cursor = real_change_ids[-1] if real_change_ids else since
     return JsonResponse({'success': True, 'changes': changes, 'users': users, 'nextCursor': next_cursor})

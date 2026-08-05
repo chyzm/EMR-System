@@ -31,8 +31,13 @@ class Command(BaseCommand):
         activation_url = options['activation_url']
         try:
             response = requests.get(activation_url, timeout=options['timeout'])
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise CommandError(
+                    f'Activation request failed with HTTP {response.status_code}: {response.text[:1000]}'
+                )
             payload = response.json()
+        except CommandError:
+            raise
         except Exception as exc:
             raise CommandError(f'Unable to activate local clinic server: {exc}') from exc
 

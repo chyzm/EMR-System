@@ -20,7 +20,7 @@ from django.views.decorators.http import require_GET, require_POST
 from core.decorators import clinic_selected_required
 from core.forms import BillingForm, PatientForm
 from core.models import Billing, Clinic, Notification, Patient, Payment, ServerSyncChange, ServicePriceList, SyncOperation
-from core.server_sync import apply_change
+from core.server_sync import apply_change, role
 from core.utils import log_action
 from DurielEyeApp.models import EyeAppointment
 from DurielMedicApp.forms import (
@@ -553,6 +553,10 @@ def _activation_authorized(request):
     return False
 
 
+def _server_sync_endpoint_is_central():
+    return role() != 'local'
+
+
 @require_GET
 def server_sync_health(request):
     if not _server_sync_authorized(request):
@@ -564,7 +568,7 @@ def server_sync_health(request):
 def server_sync_activate(request):
     if not _activation_authorized(request):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
-    if getattr(settings, 'SYNC_SERVER_ROLE', 'standalone') != 'central':
+    if not _server_sync_endpoint_is_central():
         return JsonResponse({'success': False, 'error': 'Activation is only available on the central server'}, status=400)
 
     clinic_sync_id = request.GET.get('clinic_sync_id')
@@ -622,7 +626,7 @@ def server_sync_activate(request):
 def server_sync_push(request):
     if not _server_sync_authorized(request):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
-    if getattr(settings, 'SYNC_SERVER_ROLE', 'standalone') != 'central':
+    if not _server_sync_endpoint_is_central():
         return JsonResponse({'success': False, 'error': 'This endpoint is only enabled on the central server'}, status=400)
 
     try:
@@ -664,7 +668,7 @@ def server_sync_push(request):
 def server_sync_pull(request):
     if not _server_sync_authorized(request):
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=403)
-    if getattr(settings, 'SYNC_SERVER_ROLE', 'standalone') != 'central':
+    if not _server_sync_endpoint_is_central():
         return JsonResponse({'success': False, 'error': 'This endpoint is only enabled on the central server'}, status=400)
 
     try:

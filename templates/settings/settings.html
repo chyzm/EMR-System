@@ -60,6 +60,9 @@
         <label for="local-server-activation-url" class="block text-xs font-medium text-gray-600 mb-1">Activation URL</label>
         <div class="flex flex-col gap-2 md:flex-row">
           <input id="local-server-activation-url" type="text" readonly value="{{ local_server_activation_url }}" class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700">
+          <button id="refresh-local-server-activation" type="button" class="inline-flex items-center justify-center px-4 py-2 bg-gray-100 text-gray-800 border border-gray-300 rounded text-sm hover:bg-gray-200 transition">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Link
+          </button>
           <button id="copy-local-server-activation" type="button" class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition">
             <i class="fas fa-copy mr-2"></i> Copy Link
           </button>
@@ -155,6 +158,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearSyncedButton = document.getElementById('clear-synced-queue');
     const clearPendingButton = document.getElementById('clear-pending-queue');
     const copyActivationButton = document.getElementById('copy-local-server-activation');
+    const refreshActivationButton = document.getElementById('refresh-local-server-activation');
+
+    if (refreshActivationButton) {
+        refreshActivationButton.addEventListener('click', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('activation_refresh', Date.now().toString());
+            window.location.assign(url.toString());
+        });
+    }
 
     if (copyActivationButton) {
         copyActivationButton.addEventListener('click', async function() {

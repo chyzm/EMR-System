@@ -556,9 +556,12 @@ def eye_appointment_detail(request, pk):
 
 
 
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE')
 def eye_appointment_update(request, appointment_id):
-    appointment = get_object_or_404(EyeAppointment, id=appointment_id)
     clinic_id = request.session.get('clinic_id')
+    appointment = get_object_or_404(EyeAppointment, id=appointment_id, clinic_id=clinic_id)
 
     if request.method == "POST":
         form = EyeAppointmentForm(request.POST, instance=appointment, clinic_id=clinic_id)
@@ -575,6 +578,7 @@ def eye_appointment_update(request, appointment_id):
             )
             messages.success(request, "Eye appointment updated successfully.")
             return redirect('DurielEyeApp:appointment_detail', pk=appointment.id)
+        messages.error(request, 'The appointment was not updated. Please correct the highlighted fields.')
     else:
         form = EyeAppointmentForm(instance=appointment, clinic_id=clinic_id)
 

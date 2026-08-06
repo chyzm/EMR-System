@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
-from core.models import Patient, Prescription
+from core.models import CustomUser, Patient, Prescription
 from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord, MedicationAdministration, AdmissionHandover
 
 class VitalsForm(forms.ModelForm):
@@ -267,7 +267,18 @@ class AppointmentForm(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
+        clinic_id = kwargs.pop('clinic_id', None)
+        instance = kwargs.get('instance')
+        self._original_date = instance.date if instance and instance.pk else None
         super().__init__(*args, **kwargs)
+
+        if clinic_id:
+            self.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id).order_by('first_name', 'last_name')
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic__id=clinic_id,
+                is_active=True,
+                role__in=['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
         
         # Format patient names as "Name (Patient ID) + DOB"
         self.fields['patient'].label_from_instance = lambda obj: format_html(
@@ -287,8 +298,8 @@ class AppointmentForm(forms.ModelForm):
         
         # Add empty label to force blank initial option
         self.fields['provider'].empty_label = "--------"
-        # Remove any initial value so dropdown starts blank
-        self.initial['provider'] = None
+        # Never clear the existing provider while editing. Doing so made a
+        # normal edit silently fail validation unless staff reselected it.
 
 
     def clean(self):
@@ -298,7 +309,7 @@ class AppointmentForm(forms.ModelForm):
         end_time = cleaned_data.get('end_time')
         provider = cleaned_data.get('provider')
         
-        if date and date < timezone.now().date():
+        if date and date < timezone.localdate() and date != self._original_date:
             raise ValidationError("Appointment date cannot be in the past.")
         
         if start_time and end_time and start_time >= end_time:
@@ -314,6 +325,8 @@ class AppointmentForm(forms.ModelForm):
             
             if overlapping.exists():
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
+
+        return cleaned_data
 
 
 

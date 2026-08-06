@@ -218,7 +218,7 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
     model = Appointment
     form_class = AppointmentForm
     template_name = 'appointments/appointment_form.html'
-    success_url = reverse_lazy('appointment_list')
+    success_url = reverse_lazy('DurielMedicApp:appointment_list')
     
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
@@ -226,10 +226,12 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['initial'] = {'provider': self.request.user}
+        kwargs['clinic_id'] = self.request.session.get('clinic_id')
         return kwargs
     
     def form_valid(self, form):
         form.instance.provider = self.request.user
+        form.instance.clinic_id = self.request.session.get('clinic_id')
         form.instance.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
         
         appointment = form.save(commit=False)
@@ -677,7 +679,7 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
     model = Appointment
     form_class = AppointmentForm
     template_name = 'appointments/appointment_form.html'
-    success_url = reverse_lazy('appointment_list')
+    success_url = reverse_lazy('DurielMedicApp:appointment_list')
     
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST']
@@ -685,12 +687,12 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['initial'] = {'provider': self.request.user}
+        kwargs['clinic_id'] = self.request.session.get('clinic_id')
         return kwargs
     
     def form_valid(self, form):
-        
         form.instance.provider = self.request.user  # 👈 THIS is crucial
-        print("Saving appointment for:", form.cleaned_data.get('patient'))
+        form.instance.clinic_id = self.request.session.get('clinic_id')
 
         appointment = form.save(commit=False)
         appointment.save()
@@ -1103,16 +1105,25 @@ def delete_medical_record(request, record_id):
 
 # 3. Update appointment
 @login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE')
 def appointment_update(request, pk):
-    appointment = get_object_or_404(Appointment, pk=pk)
-    
-    form = AppointmentForm(request.POST or None, instance=appointment)
-    if form.is_valid():
+    appointment = get_object_or_404(Appointment, pk=pk, clinic=request.clinic)
+
+    form = AppointmentForm(
+        request.POST if request.method == 'POST' else None,
+        instance=appointment,
+        clinic_id=request.clinic.id,
+    )
+    if request.method == 'POST' and form.is_valid():
         appointment = form.save(commit=False)
         appointment.payment_type = form.cleaned_data.get('payment_type', appointment.payment_type)  # Add this line
         appointment.save()
+        log_action(request, 'UPDATE', appointment, details=f"Updated appointment for {appointment.patient.full_name}")
         messages.success(request, 'Appointment updated successfully.')
         return redirect('DurielMedicApp:appointment_list')
+    if request.method == 'POST':
+        messages.error(request, 'The appointment was not updated. Please correct the highlighted fields.')
     
     return render(request, 'appointments/appointment_form.html', {'form': form})
 

@@ -117,6 +117,67 @@ class SyncQueueTests(TestCase):
         follow_up = FollowUp.objects.get(patient=self.patient)
         self.assertEqual(follow_up.reason, 'Routine review')
 
+    def test_cloud_appointment_edit_preserves_provider_and_saves(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            provider=self.user,
+            clinic=self.clinic,
+            payment_type='SELF',
+            date=timezone.localdate() + timedelta(days=2),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Initial reason',
+            status='SCHEDULED',
+        )
+
+        edit_url = reverse('DurielMedicApp:appointment_update', args=[appointment.pk])
+        get_response = self.client.get(edit_url)
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(str(get_response.context['form']['provider'].value()), str(self.user.pk))
+
+        response = self.client.post(edit_url, {
+            'patient': self.patient.pk,
+            'provider': self.user.pk,
+            'date': appointment.date.isoformat(),
+            'start_time': '09:00',
+            'end_time': '09:30',
+            'reason': 'Updated in cloud',
+            'notes': 'Saved normally',
+            'payment_type': 'SELF',
+        })
+
+        self.assertRedirects(response, reverse('DurielMedicApp:appointment_list'), fetch_redirect_response=False)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.reason, 'Updated in cloud')
+
+    def test_existing_past_appointment_can_be_edited_without_changing_date(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            provider=self.user,
+            clinic=self.clinic,
+            payment_type='SELF',
+            date=timezone.localdate() - timedelta(days=2),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Historical appointment',
+            status='COMPLETED',
+        )
+
+        response = self.client.post(reverse('DurielMedicApp:appointment_update', args=[appointment.pk]), {
+            'patient': self.patient.pk,
+            'provider': self.user.pk,
+            'date': appointment.date.isoformat(),
+            'start_time': '09:00',
+            'end_time': '09:30',
+            'reason': 'Corrected historical note',
+            'notes': '',
+            'payment_type': 'SELF',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.reason, 'Corrected historical note')
+
     def test_sync_queue_creates_bill(self):
         self.client.force_login(self.user)
         session = self.client.session

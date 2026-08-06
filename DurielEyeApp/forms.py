@@ -30,12 +30,20 @@ class EyeAppointmentForm(forms.ModelForm):
         
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
+        instance = kwargs.get('instance')
+        self._original_date = instance.date if instance and instance.pk else None
         super().__init__(*args, **kwargs)
 
         # Filter providers by clinic (ManyToMany)
         if clinic_id:
-            self.fields['provider'].queryset = CustomUser.objects.filter(clinic__id=clinic_id)
+            self.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id).order_by('first_name', 'last_name')
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic__id=clinic_id,
+                is_active=True,
+                role__in=['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
         else:
+            self.fields['patient'].queryset = Patient.objects.none()
             self.fields['provider'].queryset = CustomUser.objects.none()
 
         # Format patient names as "Name (Patient ID) + DOB"
@@ -54,7 +62,6 @@ class EyeAppointmentForm(forms.ModelForm):
             'class': 'mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md'
         })
         self.fields['provider'].empty_label = "--------"
-        self.initial['provider'] = None
     
     def clean(self):
         cleaned_data = super().clean()
@@ -63,7 +70,7 @@ class EyeAppointmentForm(forms.ModelForm):
         end_time = cleaned_data.get('end_time')
         provider = cleaned_data.get('provider')
         
-        if date and date < timezone.now().date():
+        if date and date < timezone.localdate() and date != self._original_date:
             raise ValidationError("Appointment date cannot be in the past.")
         
         if start_time and end_time and start_time >= end_time:
@@ -79,7 +86,8 @@ class EyeAppointmentForm(forms.ModelForm):
             
             if overlapping.exists():
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
-            
+
+        return cleaned_data
        
 
 

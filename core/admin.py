@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.db import models
+from django.utils import timezone
 # from .models import CustomUser, Clinic
 from .models import CustomUser, Clinic
 from .models import (
@@ -109,6 +110,21 @@ class PrescriptionAdmin(admin.ModelAdmin):
     list_display = ('id', 'patient', 'prescribed_by', 'date_prescribed', 'is_active')
     list_filter = ('is_active', 'prescribed_by', 'patient__clinic')
     search_fields = ('patient__first_name', 'patient__last_name')
+    actions = ('deactivate_selected',)
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description='Deactivate selected prescriptions')
+    def deactivate_selected(self, request, queryset):
+        updated = queryset.filter(is_active=True).update(is_active=False, deactivated_at=timezone.now())
+        self.message_user(request, f'Deactivated {updated} prescription(s).')
 
 
 @admin.register(MedicationCategory)

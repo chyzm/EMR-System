@@ -608,7 +608,19 @@ class Prescription(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='prescriptions')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='prescriptions')
-    prescribed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='prescriptions')
+    prescribed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='prescriptions',
+    )
+    admission = models.ForeignKey(
+        'DurielMedicApp.Admission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prescriptions',
+    )
     
     # Choice between clinic medication or custom entry
     clinic_medication = models.ForeignKey(ClinicMedication, on_delete=models.SET_NULL, null=True, blank=True, related_name='prescriptions')

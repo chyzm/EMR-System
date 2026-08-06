@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
 
-from core.models import Patient, Clinic, Billing
+from core.models import Patient, Clinic, Billing, ClinicMedication, StockMovement
 from .models import (
     Appointment, Vitals, Admission, AdmissionHandover, MedicationAdministration, FollowUp,
     Prescription, MedicalRecord, PhysiotherapyRecord
@@ -115,7 +115,7 @@ def dashboard(request):
     )
     
     # For non-admin/receptionist users, filter by provider
-    if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+    if request.user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR']:
         user_appointments = user_appointments.filter(provider=request.user)
         
     user_appointments = user_appointments.order_by('-start_time')
@@ -187,7 +187,7 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             queryset = queryset.filter(date=date_filter)
 
         user = self.request.user
-        if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+        if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR']:
             queryset = queryset.filter(Q(provider=user) | Q(patient__created_by=user))
 
         return queryset.order_by('-date', '-start_time')
@@ -203,7 +203,6 @@ def today_appointment_count(request):
     today = timezone.localdate()
     count = Appointment.objects.filter(
         clinic_id=clinic_id,
-        provider=request.user,
         date=today,
         status='SCHEDULED',
     ).exclude(
@@ -353,7 +352,7 @@ def record_vitals(request, patient_id):
 # --------------------
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE')
+@role_required('DOCTOR')
 def add_medical_record(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     if request.method == 'POST':
@@ -385,9 +384,10 @@ def add_medical_record(request, patient_id):
     
     
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE')
+@clinic_selected_required
+@role_required('DOCTOR')
 def edit_medical_record(request, record_id):
-    record = get_object_or_404(MedicalRecord, pk=record_id)
+    record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     if request.method == 'POST':
         form = MedicalRecordForm(request.POST, instance=record)
         if form.is_valid():
@@ -413,9 +413,10 @@ def edit_medical_record(request, record_id):
     })
 
 @login_required
-@role_required('ADMIN', 'DOCTOR')
+@clinic_selected_required
+@role_required('DOCTOR')
 def delete_medical_record(request, record_id):
-    record = get_object_or_404(MedicalRecord, pk=record_id)
+    record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     patient_id = record.patient.pk
 
     # ✅ Manual logging
@@ -432,7 +433,8 @@ def delete_medical_record(request, record_id):
 
 
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE')
+@clinic_selected_required
+@role_required('DOCTOR')
 def export_medical_record_pdf(request, record_id):
     """Export a medical record as PDF"""
     from io import BytesIO
@@ -443,7 +445,7 @@ def export_medical_record_pdf(request, record_id):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
 
-    record = get_object_or_404(MedicalRecord, pk=record_id)
+    record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     patient = record.patient
 
     buffer = BytesIO()
@@ -999,6 +1001,10 @@ def admission_detail(request, admission_id):
         'created_by',
         'receiving_staff',
     )
+    prescriptions = Prescription.objects.filter(
+        patient=admission.patient,
+        clinic=admission.clinic,
+    ).select_related('clinic_medication', 'prescribed_by').order_by('-date_prescribed', '-id')
     medication_form = MedicationAdministrationForm(admission=admission)
     handover_form = AdmissionHandoverForm(clinic=request.clinic)
     return render(request, 'admission/admission_detail.html', {
@@ -1006,31 +1012,143 @@ def admission_detail(request, admission_id):
         'patient': admission.patient,
         'administrations': administrations,
         'medication_form': medication_form,
+        'prescriptions': prescriptions,
         'handovers': handovers,
         'handover_form': handover_form,
+    })
+
+
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR')
+def add_admission_prescription(request, admission_id):
+    admission = get_object_or_404(
+        Admission.objects.select_related('patient', 'clinic'),
+        pk=admission_id,
+        clinic=request.clinic,
+        discharged=False,
+    )
+    form = PrescriptionForm(
+        request.POST if request.method == 'POST' else None,
+        clinic=request.clinic,
+        patient=admission.patient,
+    )
+    if request.method == 'POST' and form.is_valid():
+        prescription = form.save(commit=False)
+        prescription.patient = admission.patient
+        prescription.clinic = request.clinic
+        prescription.admission = admission
+        prescription.prescribed_by = request.user
+        prescription.custom_medication = None
+        prescription.save()
+        log_action(
+            request,
+            'CREATE',
+            prescription,
+            details=f'Prescribed {prescription.medication_name} for admission #{admission.id}',
+        )
+        messages.success(request, 'Medication prescribed. It is now available on the nurses’ administration chart.')
+        return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
+    if request.method == 'POST':
+        messages.error(request, 'Prescription was not saved. Check the highlighted fields.')
+    return render(request, 'prescription/add_prescription.html', {
+        'form': form,
+        'patient': admission.patient,
+        'clinic': request.clinic,
+        'admission': admission,
+        'cancel_url': reverse('DurielMedicApp:admission_detail', args=[admission.id]),
     })
 
 
 @require_POST
 @login_required
 @clinic_selected_required
-@role_required('DOCTOR', 'NURSE')
+@role_required('NURSE')
 def record_medication_administration(request, admission_id):
     admission = get_object_or_404(Admission, pk=admission_id, clinic=request.clinic, discharged=False)
     form = MedicationAdministrationForm(request.POST, admission=admission)
-    if form.is_valid():
-        administration = form.save(commit=False)
-        administration.admission = admission
-        administration.patient = admission.patient
-        administration.administered_by = request.user
-        if administration.prescription:
-            administration.medication_name = administration.medication_name or administration.prescription.medication_name
-            administration.dose = administration.dose or administration.prescription.dosage
-        administration.save()
-        log_action(request, 'CREATE', administration, details=f"Administered {administration.medication_name} to {admission.patient.full_name}")
-        messages.success(request, "Medication administration recorded.")
+    if not form.is_valid():
+        error_text = '; '.join(
+            str(error)
+            for errors in form.errors.values()
+            for error in errors
+        )
+        messages.error(request, f'Medication was not recorded. {error_text}')
+        return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
+
+    try:
+        with transaction.atomic():
+            prescription = Prescription.objects.select_for_update().select_related('clinic_medication').get(
+                pk=form.cleaned_data['prescription'].pk,
+                patient=admission.patient,
+                clinic=request.clinic,
+                is_active=True,
+            )
+            medication = ClinicMedication.objects.select_for_update().get(
+                pk=prescription.clinic_medication_id,
+                clinic=request.clinic,
+                status='ACTIVE',
+            )
+            administration = form.save(commit=False)
+            administration.admission = admission
+            administration.patient = admission.patient
+            administration.prescription = prescription
+            administration.medication_name = prescription.medication_name
+            administration.dose = prescription.dosage
+            administration.administered_by = request.user
+
+            if administration.status == 'GIVEN':
+                quantity = administration.quantity_administered
+                already_given = prescription.administrations.filter(status='GIVEN').aggregate(
+                    total=Sum('quantity_administered'),
+                )['total'] or 0
+                if already_given + quantity > prescription.quantity_prescribed:
+                    raise ValueError('The prescribed quantity has already been fully administered.')
+                if medication.quantity_in_stock < quantity:
+                    raise ValueError(
+                        f'Insufficient pharmacy stock. Available: {medication.quantity_in_stock}; required: {quantity}.'
+                    )
+                if medication.selling_price is None:
+                    raise ValueError('Set a selling price for this pharmacy medication before administration.')
+
+                old_stock = medication.quantity_in_stock
+                medication.quantity_in_stock -= quantity
+                medication.save(update_fields=['quantity_in_stock', 'updated_at'])
+                StockMovement.objects.create(
+                    medication=medication,
+                    movement_type='OUT',
+                    quantity=-quantity,
+                    previous_stock=old_stock,
+                    new_stock=medication.quantity_in_stock,
+                    reference=f'Admission prescription {prescription.sync_id}',
+                    created_by=request.user,
+                    notes=f'Administered to {admission.patient.full_name}',
+                )
+                administration.billing = Billing.objects.create(
+                    patient=admission.patient,
+                    clinic=request.clinic,
+                    amount=medication.selling_price * quantity,
+                    service_date=timezone.localdate(),
+                    due_date=timezone.localdate(),
+                    description=f'Administered {quantity} × {prescription.medication_name}',
+                    created_by=request.user,
+                )
+
+            administration.save()
+            log_action(
+                request,
+                'CREATE',
+                administration,
+                details=f'Recorded {administration.get_status_display().lower()} for {administration.medication_name}',
+            )
+    except (Prescription.DoesNotExist, ClinicMedication.DoesNotExist, ValueError) as exc:
+        messages.error(request, f'Medication was not recorded. {exc}')
+        return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
+
+    if administration.status == 'GIVEN':
+        messages.success(request, 'Medication administered. Pharmacy stock and the patient bill were updated.')
     else:
-        messages.error(request, "Medication administration could not be recorded. Check the form and try again.")
+        messages.success(request, f'Medication administration marked {administration.get_status_display().lower()}. No charge was added.')
     return redirect('DurielMedicApp:admission_detail', admission_id=admission.id)
 
 
@@ -1073,9 +1191,10 @@ def discharge_admission(request, admission_id):
 
     
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE')
+@clinic_selected_required
+@role_required('DOCTOR')
 def edit_medical_record(request, record_id):
-    record = get_object_or_404(MedicalRecord, pk=record_id)
+    record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     if request.method == 'POST':
         form = MedicalRecordForm(request.POST, instance=record)
         if form.is_valid():
@@ -1091,9 +1210,10 @@ def edit_medical_record(request, record_id):
     })
 
 @login_required
-@role_required('ADMIN', 'DOCTOR')
+@clinic_selected_required
+@role_required('DOCTOR')
 def delete_medical_record(request, record_id):
-    record = get_object_or_404(MedicalRecord, pk=record_id)
+    record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     patient_id = record.patient.pk
     record.delete()
     messages.success(request, 'Medical record deleted successfully!')

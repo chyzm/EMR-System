@@ -6,6 +6,10 @@ param(
     [int]$Port = 9000
 )
 
+# Legacy source-mode helper retained for developer/pilot installs only.
+# Client deployments use DurielMedic-Clinic-Server-Setup.exe, which installs
+# the frozen desktop app and Configure-DurielMedicTasks.ps1 automation.
+
 $ErrorActionPreference = "Stop"
 
 Set-Location $InstallDir

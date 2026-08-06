@@ -46,6 +46,7 @@ urlpatterns = [
     path('patients/<str:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),
     path('admissions/', views.admission_list, name='admission_list'),
     path('admissions/<int:admission_id>/', views.admission_detail, name='admission_detail'),
+    path('admissions/<int:admission_id>/prescriptions/add/', views.add_admission_prescription, name='add_admission_prescription'),
     path('admissions/<int:admission_id>/medications/administer/', views.record_medication_administration, name='record_medication_administration'),
     path('admissions/<int:admission_id>/handovers/', views.record_admission_handover, name='record_admission_handover'),
     path('admissions/<int:admission_id>/discharge/', views.discharge_admission, name='discharge_admission'),

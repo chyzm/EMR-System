@@ -351,6 +351,11 @@ def open_browser_once() -> None:
 def main() -> int:
     if "--serve" in sys.argv:
         return serve_mode()
+    if "--background-server" in sys.argv:
+        project_root = sync_project_files()
+        if not migrate_if_needed(project_root):
+            return 1
+        return serve_mode()
     if "--manage" in sys.argv:
         manage_index = sys.argv.index("--manage")
         return manage_mode(sys.argv[manage_index + 1 :])

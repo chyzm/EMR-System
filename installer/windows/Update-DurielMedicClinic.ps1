@@ -1,111 +1,247 @@
 param(
-    [string]$InstallDir = $PSScriptRoot
+    [string]$InstallDir = (Split-Path $PSScriptRoot -Parent),
+    [int]$Port = 9000,
+    [string]$ManifestUrl = "",
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version 2.0
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-Set-Location $InstallDir
-$venvPython = Join-Path $InstallDir ".venv\Scripts\python.exe"
-$stateJson = & $venvPython manage.py shell -c "from core.models import ServerSyncState; import json; s=ServerSyncState.objects.filter(key='local_server').first(); print(json.dumps((s.value or {}) if s else {}))"
-$state = $stateJson | ConvertFrom-Json
+$InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
+$appExe = Join-Path $InstallDir "DurielMedicClinicServer.exe"
+$configureScript = Join-Path $InstallDir "updater\Configure-DurielMedicTasks.ps1"
+$versionPath = Join-Path $InstallDir "VERSION"
+$runtimeRoot = Join-Path $env:ProgramData "DurielMedicClinicServer\runtime"
+$dataRoot = Split-Path $runtimeRoot -Parent
+$logsRoot = Join-Path $runtimeRoot "logs"
+$rollbackRoot = Join-Path $dataRoot "rollback"
+$serverTaskName = "DurielMedic Clinic Server"
+$syncTaskName = "DurielMedic Sync Worker"
 
-if (-not $state.update_manifest_url) {
-    Write-Host "No update_manifest_url configured."
-    exit 0
-}
+New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
+$logPath = Join-Path $logsRoot "updater.log"
+Start-Transcript -Path $logPath -Append | Out-Null
 
-$currentVersionPath = Join-Path $InstallDir "VERSION"
-$currentVersion = ""
-if (Test-Path $currentVersionPath) {
-    $currentVersion = (Get-Content $currentVersionPath -Raw).Trim()
-}
+$mutex = New-Object System.Threading.Mutex($false, "Global\DurielMedicClinicUpdater")
+$hasMutex = $false
+$tempRoot = $null
 
-$manifest = Invoke-RestMethod -Uri $state.update_manifest_url -UseBasicParsing
-if ($manifest.version -eq $currentVersion) {
-    Write-Host "DurielMedic Clinic Server is already up to date: $currentVersion"
-    exit 0
-}
-
-$tempRoot = Join-Path $env:TEMP ("durielmedic-update-" + [guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Path $tempRoot | Out-Null
-$zipPath = Join-Path $tempRoot "update.zip"
-$extractPath = Join-Path $tempRoot "package"
-$rollbackRoot = Join-Path $InstallDir "rollback"
-$rollbackDir = Join-Path $rollbackRoot ("before-" + ($manifest.version -replace '[^a-zA-Z0-9_.-]', '-') + "-" + (Get-Date -Format "yyyyMMddHHmmss"))
-
-Invoke-WebRequest -Uri $manifest.package_url -OutFile $zipPath -UseBasicParsing
-
-if ($manifest.sha256) {
-    $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($hash -ne $manifest.sha256.ToLowerInvariant()) {
-        throw "Update package hash mismatch."
+function Invoke-CheckedExecutable([string]$Executable, [string[]]$Arguments) {
+    # The launcher is a Windows GUI-subsystem executable. PowerShell's call
+    # operator may return before a GUI process exits, leaving LASTEXITCODE
+    # unset. Start-Process gives migrations/checks a real completion status.
+    $process = Start-Process `
+        -FilePath $Executable `
+        -ArgumentList $Arguments `
+        -WorkingDirectory $InstallDir `
+        -Wait `
+        -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "$Executable failed with exit code $($process.ExitCode)."
     }
 }
 
-Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-$packageRoot = Join-Path $extractPath "durielmedic-clinic-server"
-if (-not (Test-Path $packageRoot)) {
-    $packageRoot = $extractPath
+function Stop-DurielMedicProcesses {
+    Stop-ScheduledTask -TaskName $serverTaskName -ErrorAction SilentlyContinue
+    Stop-ScheduledTask -TaskName $syncTaskName -ErrorAction SilentlyContinue
+    try {
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ExecutablePath -and ([System.IO.Path]::GetFullPath($_.ExecutablePath) -eq $appExe)
+        } | ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        Write-Warning "Unable to enumerate one or more DurielMedic processes: $_"
+    }
+    Start-Sleep -Seconds 2
 }
 
-$preserve = @(".env", ".venv", "db.sqlite3", "media", "logs")
+function Test-IsNewerVersion([string]$Candidate, [string]$Current) {
+    if (-not $Current) { return $true }
+    try {
+        return ([version]$Candidate -gt [version]$Current)
+    } catch {
+        return ([string]::Compare($Candidate, $Current, [StringComparison]::OrdinalIgnoreCase) -gt 0)
+    }
+}
 
-Stop-ScheduledTask -TaskName "DurielMedic Clinic Server" -ErrorAction SilentlyContinue
-Stop-ScheduledTask -TaskName "DurielMedic Sync Worker" -ErrorAction SilentlyContinue
+function Wait-ForClinicServer([int]$TimeoutSeconds = 45) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $client = New-Object System.Net.Sockets.TcpClient
+        try {
+            $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+            if ($async.AsyncWaitHandle.WaitOne(1000) -and $client.Connected) {
+                $client.EndConnect($async)
+                return $true
+            }
+        } catch {
+        } finally {
+            $client.Close()
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+function Start-DurielMedicTasks {
+    Start-ScheduledTask -TaskName $serverTaskName -ErrorAction Stop
+    if (-not (Wait-ForClinicServer)) {
+        throw "Clinic server did not become ready on port $Port."
+    }
+    Start-ScheduledTask -TaskName $syncTaskName -ErrorAction Stop
+}
+
+function Get-ConfiguredManifestUrl([string]$ConfigOutputPath) {
+    if ($ManifestUrl) { return $ManifestUrl }
+    Invoke-CheckedExecutable $appExe @("--manage", "local_update_config", "--output", $ConfigOutputPath)
+    if (-not (Test-Path $ConfigOutputPath -PathType Leaf)) {
+        throw "Clinic server did not produce updater configuration."
+    }
+    $config = Get-Content $ConfigOutputPath -Raw | ConvertFrom-Json
+    if (-not $config.activated -or $config.role -ne "local") {
+        throw "Clinic server is not activated for local sync."
+    }
+    return [string]$config.update_manifest_url
+}
 
 try {
-    if (-not (Test-Path $rollbackRoot)) {
-        New-Item -ItemType Directory -Path $rollbackRoot | Out-Null
+    $hasMutex = $mutex.WaitOne(0)
+    if (-not $hasMutex) {
+        Write-Host "Another DurielMedic updater is already running."
+        exit 0
     }
-    New-Item -ItemType Directory -Path $rollbackDir | Out-Null
+    if (-not (Test-Path $appExe -PathType Leaf)) {
+        throw "Desktop executable not found at $appExe"
+    }
 
+    $tempRoot = Join-Path $env:TEMP ("durielmedic-update-" + [guid]::NewGuid().ToString("N"))
+    $extractPath = Join-Path $tempRoot "package"
+    $zipPath = Join-Path $tempRoot "update.zip"
+    $configPath = Join-Path $tempRoot "update-config.json"
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+
+    $resolvedManifestUrl = Get-ConfiguredManifestUrl $configPath
+    if (-not $resolvedManifestUrl) {
+        Write-Host "No update manifest URL is configured for this clinic."
+        exit 0
+    }
+    $manifestUri = [uri]$resolvedManifestUrl
+    if ($manifestUri.Scheme -ne "https") {
+        throw "The update manifest must use HTTPS."
+    }
+
+    $manifest = Invoke-RestMethod -Uri $manifestUri.AbsoluteUri -UseBasicParsing
+    if (-not $manifest.version -or -not $manifest.package_url -or -not $manifest.sha256) {
+        throw "Update manifest must contain version, package_url, and sha256."
+    }
+    $packageUri = [uri]$manifest.package_url
+    if ($packageUri.Scheme -ne "https") {
+        throw "The update package must use HTTPS."
+    }
+    if ([string]$manifest.sha256 -notmatch '^[a-fA-F0-9]{64}$') {
+        throw "Update manifest contains an invalid SHA-256 value."
+    }
+
+    $currentVersion = ""
+    if (Test-Path $versionPath -PathType Leaf) {
+        $currentVersion = (Get-Content $versionPath -Raw).Trim()
+    }
+    if (-not $Force -and -not (Test-IsNewerVersion ([string]$manifest.version) $currentVersion)) {
+        Write-Host "DurielMedic Clinic Server is up to date. Installed=$currentVersion Available=$($manifest.version)"
+        exit 0
+    }
+
+    Write-Host "Downloading DurielMedic Clinic Server $($manifest.version)..."
+    Invoke-WebRequest -Uri $packageUri.AbsoluteUri -OutFile $zipPath -UseBasicParsing
+    $actualHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne ([string]$manifest.sha256).ToLowerInvariant()) {
+        throw "Update package hash mismatch."
+    }
+
+    Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+    $packageRoot = Join-Path $extractPath "durielmedic-clinic-server"
+    if (-not (Test-Path $packageRoot -PathType Container)) {
+        $packageRoot = $extractPath
+    }
+    $packageExe = Join-Path $packageRoot "DurielMedicClinicServer.exe"
+    $packageVersionPath = Join-Path $packageRoot "VERSION"
+    $packageConfigure = Join-Path $packageRoot "updater\Configure-DurielMedicTasks.ps1"
+    $packageUpdater = Join-Path $packageRoot "updater\Update-DurielMedicClinic.ps1"
+    foreach ($requiredPath in @($packageExe, $packageVersionPath, $packageConfigure, $packageUpdater)) {
+        if (-not (Test-Path $requiredPath -PathType Leaf)) {
+            throw "Update package is incomplete: $requiredPath is missing."
+        }
+    }
+    $packageVersion = (Get-Content $packageVersionPath -Raw).Trim()
+    if ($packageVersion -ne ([string]$manifest.version).Trim()) {
+        throw "Package version $packageVersion does not match manifest version $($manifest.version)."
+    }
+
+    $rollbackDir = Join-Path $rollbackRoot ("before-" + ($currentVersion -replace '[^a-zA-Z0-9_.-]', '-') + "-" + (Get-Date -Format "yyyyMMddHHmmss"))
+    $rollbackAppDir = Join-Path $rollbackDir "app"
+    $rollbackDataDir = Join-Path $rollbackDir "data"
+    New-Item -ItemType Directory -Path $rollbackAppDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $rollbackDataDir -Force | Out-Null
+
+    Stop-DurielMedicProcesses
     Get-ChildItem $InstallDir -Force | ForEach-Object {
-        if (($preserve + @("rollback")) -contains $_.Name) {
-            return
+        Copy-Item $_.FullName -Destination $rollbackAppDir -Recurse -Force
+    }
+    $databasePath = Join-Path $runtimeRoot "db.sqlite3"
+    if (Test-Path $databasePath -PathType Leaf) {
+        Copy-Item $databasePath (Join-Path $rollbackDataDir "db.sqlite3") -Force
+    }
+
+    try {
+        Get-ChildItem $packageRoot -Force | ForEach-Object {
+            $target = Join-Path $InstallDir $_.Name
+            if (Test-Path $target) {
+                Remove-Item $target -Recurse -Force
+            }
+            Copy-Item $_.FullName -Destination $target -Recurse -Force
         }
-        Copy-Item $_.FullName -Destination $rollbackDir -Recurse -Force
-    }
 
-    Get-ChildItem $packageRoot -Force | ForEach-Object {
-        if ($preserve -contains $_.Name) {
-            return
+        Invoke-CheckedExecutable $appExe @("--manage", "migrate", "--noinput")
+        Invoke-CheckedExecutable $appExe @("--manage", "check")
+        & $configureScript -InstallDir $InstallDir -Port $Port
+        Start-DurielMedicTasks
+    } catch {
+        $updateError = $_
+        Write-Warning "Update failed. Restoring application and clinic database."
+        Stop-DurielMedicProcesses
+
+        Get-ChildItem $InstallDir -Force | Remove-Item -Recurse -Force
+        Get-ChildItem $rollbackAppDir -Force | ForEach-Object {
+            Copy-Item $_.FullName -Destination $InstallDir -Recurse -Force
         }
-        $target = Join-Path $InstallDir $_.Name
-        if (Test-Path $target) {
-            Remove-Item $target -Recurse -Force
+        $databaseBackup = Join-Path $rollbackDataDir "db.sqlite3"
+        if (Test-Path $databaseBackup -PathType Leaf) {
+            Remove-Item "$databasePath-wal", "$databasePath-shm" -Force -ErrorAction SilentlyContinue
+            Copy-Item $databaseBackup $databasePath -Force
         }
-        Copy-Item $_.FullName -Destination $target -Recurse -Force
-    }
-
-    & $venvPython -m pip install -r requirements.txt
-    & $venvPython manage.py migrate
-
-    if ($manifest.version) {
-        $manifest.version | Set-Content -Path $currentVersionPath -Encoding UTF8
-    }
-} catch {
-    Write-Host "Update failed. Rolling back to previous version."
-
-    Get-ChildItem $InstallDir -Force | ForEach-Object {
-        if (($preserve + @("rollback")) -contains $_.Name) {
-            return
+        $restoredConfigure = Join-Path $InstallDir "updater\Configure-DurielMedicTasks.ps1"
+        if (Test-Path $restoredConfigure -PathType Leaf) {
+            & $restoredConfigure -InstallDir $InstallDir -Port $Port
+            Start-DurielMedicTasks
         }
-        Remove-Item $_.FullName -Recurse -Force
+        throw $updateError
     }
 
-    Get-ChildItem $rollbackDir -Force | ForEach-Object {
-        Copy-Item $_.FullName -Destination $InstallDir -Recurse -Force
+    Get-ChildItem $rollbackRoot -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -Skip 3 |
+        Remove-Item -Recurse -Force
+    Write-Host "DurielMedic Clinic Server updated successfully to $($manifest.version)."
+} finally {
+    if ($tempRoot -and (Test-Path $tempRoot)) {
+        Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
-
-    Start-ScheduledTask -TaskName "DurielMedic Clinic Server" -ErrorAction SilentlyContinue
-    Start-ScheduledTask -TaskName "DurielMedic Sync Worker" -ErrorAction SilentlyContinue
-    Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
-    throw
+    if ($hasMutex) {
+        $mutex.ReleaseMutex()
+    }
+    $mutex.Dispose()
+    Stop-Transcript | Out-Null
 }
-
-Start-ScheduledTask -TaskName "DurielMedic Clinic Server" -ErrorAction SilentlyContinue
-Start-ScheduledTask -TaskName "DurielMedic Sync Worker" -ErrorAction SilentlyContinue
-
-Get-ChildItem $rollbackRoot -Directory | Sort-Object LastWriteTime -Descending | Select-Object -Skip 3 | Remove-Item -Recurse -Force
-Remove-Item $tempRoot -Recurse -Force
-Write-Host "DurielMedic Clinic Server updated to $($manifest.version)."

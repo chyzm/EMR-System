@@ -329,7 +329,7 @@ class EyeAppointmentListView(ListView):
         if date_filter:
             qs = qs.filter(date=date_filter)
         user = self.request.user
-        if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE']:
+        if user.role not in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST']:
             qs = qs.filter(Q(provider=user) | Q(patient__created_by=user))
         today = timezone.localdate()
         qs = qs.annotate(
@@ -353,7 +353,6 @@ def today_appointment_count(request):
     today = timezone.localdate()
     count = EyeAppointment.objects.filter(
         clinic_id=clinic_id,
-        provider=request.user,
         date=today,
         status='SCHEDULED',
     ).exclude(
@@ -732,8 +731,10 @@ def delete_eye_exam(request, exam_id):
 # Medical Records
 # --------------------
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def add_eye_medical_record(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id, clinic__clinic_type='EYE')
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic, clinic__clinic_type='EYE')
 
     if request.method == 'POST':
         form = EyeMedicalRecordForm(request.POST)
@@ -765,8 +766,11 @@ def add_eye_medical_record(request, patient_id):
 
 
 
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def edit_eye_medical_record(request, record_id):
-    record = get_object_or_404(EyeMedicalRecord, id=record_id)
+    record = get_object_or_404(EyeMedicalRecord, id=record_id, clinic=request.clinic)
     
     if request.method == 'POST':
         form = EyeMedicalRecordForm(request.POST, instance=record)
@@ -795,8 +799,10 @@ def edit_eye_medical_record(request, record_id):
 #     return render(request, 'eye/medical_records/delete_medical_record', {'object': record})
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def delete_eye_medical_record(request, record_id):
-    record = get_object_or_404(EyeMedicalRecord, pk=record_id)
+    record = get_object_or_404(EyeMedicalRecord, pk=record_id, clinic=request.clinic)
 
     if request.method == "POST":
         record.delete()

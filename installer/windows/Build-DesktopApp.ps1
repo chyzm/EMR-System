@@ -9,7 +9,8 @@ $ProjectRoot = (Resolve-Path $ProjectRoot).ProviderPath
 Set-Location $ProjectRoot
 
 $desktopVersionPath = Join-Path $ProjectRoot "DESKTOP_VERSION"
-$Version | Set-Content -Path $desktopVersionPath -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($desktopVersionPath, $Version, $utf8NoBom)
 
 $commonArgs = @(
     "--noconfirm",
@@ -35,6 +36,7 @@ $commonArgs = @(
     "--hidden-import", "core.management.commands.activate_local_clinic",
     "--hidden-import", "core.management.commands.sync_worker",
     "--hidden-import", "core.management.commands.sync_once",
+    "--hidden-import", "core.management.commands.local_update_config",
     "--hidden-import", "waitress",
     "desktop_launcher.py"
 )

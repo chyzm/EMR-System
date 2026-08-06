@@ -614,6 +614,11 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
     def test_func(self):
         return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'LAB_TECHNICIAN']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        clinic_id = self.request.session.get('clinic_id')
+        return queryset.filter(clinic_id=clinic_id) if clinic_id else queryset.none()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -639,7 +644,13 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         ).order_by('-date_admitted').first()
 
         # Medical Records Pagination (show for both GENERAL and EYE clinics)
-        medical_records_list = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+        can_view_general_notes = self.request.user.role == 'DOCTOR'
+        can_view_eye_notes = self.request.user.role in ['DOCTOR', 'OPTOMETRIST']
+        context['can_view_case_notes'] = can_view_general_notes or can_view_eye_notes
+        medical_records_list = (
+            MedicalRecord.objects.filter(patient=patient).order_by('-created_at')
+            if can_view_general_notes else MedicalRecord.objects.none()
+        )
         medical_paginator = Paginator(medical_records_list, items_per_page)
         medical_page = self.request.GET.get('medical_page', 1)
         
@@ -654,7 +665,10 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
         # Eye Medical Records Pagination (for EYE clinic)
         if self.request.session.get('clinic_type') == 'EYE':
-            eye_medical_records_list = patient.eye_medical_records.all().order_by('-created_at')
+            eye_medical_records_list = (
+                patient.eye_medical_records.all().order_by('-created_at')
+                if can_view_eye_notes else patient.eye_medical_records.none()
+            )
             eye_medical_paginator = Paginator(eye_medical_records_list, items_per_page)
             eye_medical_page = self.request.GET.get('eye_medical_page', 1)
             try:
@@ -1080,7 +1094,6 @@ def create_bill(request, patient_id=None):
             'appointments': Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time')[:5],
             'admissions': Admission.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_admitted')[:5],
             'prescriptions': Prescription.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_prescribed', '-id')[:8],
-            'medical_records': MedicalRecord.objects.filter(patient=patient).order_by('-created_at')[:5],
             'dental': dental_activity,
         }
 
@@ -2130,9 +2143,9 @@ def bulk_delete_logs(request):
 @role_required('ADMIN', 'DOCTOR', 'OPTOMETRIST')
 def add_prescription(request, patient_id):
     """Add prescription with inventory integration and logging."""
-    patient = get_object_or_404(Patient, patient_id=patient_id)
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=clinic)
 
     # Get active medications for this clinic
     medications = ClinicMedication.objects.filter(
@@ -2142,12 +2155,13 @@ def add_prescription(request, patient_id):
 
     if request.method == 'POST':
         # Use PrescriptionForm to handle validation
-        form = PrescriptionForm(request.POST, clinic=clinic)
+        form = PrescriptionForm(request.POST, clinic=clinic, patient=patient)
         if form.is_valid():
             prescription = form.save(commit=False)
             prescription.patient = patient
             prescription.clinic = clinic
             prescription.prescribed_by = request.user
+            prescription.custom_medication = None
             prescription.save()
 
             log_action(
@@ -2172,7 +2186,7 @@ def add_prescription(request, patient_id):
         else:
             messages.error(request, "Please correct the errors below.")
     else:
-        form = PrescriptionForm(clinic=clinic, initial={'patient': patient})
+        form = PrescriptionForm(clinic=clinic, patient=patient)
 
     return render(request, 'prescription/add_prescription.html', {
         'form': form,
@@ -2183,54 +2197,14 @@ def add_prescription(request, patient_id):
 
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def edit_prescription(request, pk):
-    prescription = get_object_or_404(Prescription, pk=pk)
-    patient = prescription.patient
-
-    # Ensure the user belongs to the clinic of this prescription
-    if prescription.clinic not in request.user.clinic.all():
-        return HttpResponseForbidden("You do not have permission to access this page.")
-
-    # Get medications for the current clinic to populate the dropdown
-    clinic_id = request.session.get('clinic_id')
-    medications = ClinicMedication.objects.filter(
-        clinic_id=clinic_id,
-        status='ACTIVE'
-    ).order_by('name')
-
-    # Pass the current medication ID to template for pre-selection
-    current_medication_id = prescription.clinic_medication.id if prescription.clinic_medication else None
-
-    if request.method == 'POST':
-        medication_id = request.POST.get('medication')
-        
-        try:
-            medication = ClinicMedication.objects.get(id=medication_id, clinic_id=clinic_id)
-        except ClinicMedication.DoesNotExist:
-            messages.error(request, "Invalid medication selected.")
-            return redirect('core:patient_detail', pk=patient.patient_id)
-        
-        # Update prescription
-        prescription.clinic_medication = medication
-        prescription.dosage = request.POST.get('dosage')
-        prescription.instructions = request.POST.get('instructions')
-        prescription.save()
-
-        log_action(
-            request,
-            'UPDATE',
-            prescription,
-            details=f"Updated prescription for {patient.full_name}"
-        )
-        messages.success(request, "Prescription updated successfully.")
-        return redirect('core:patient_detail', pk=patient.patient_id)
-
-    return render(request, 'prescription/edit_prescription.html', {
-        'prescription': prescription,
-        'patient': patient,
-        'medications': medications,
-        'current_medication_id': current_medication_id,
-    })
+    prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
+    messages.warning(request, 'Prescriptions are permanent clinical orders and cannot be edited. Deactivate it and create a new prescription instead.')
+    if prescription.admission_id:
+        return redirect('DurielMedicApp:admission_detail', admission_id=prescription.admission_id)
+    return redirect('core:patient_detail', pk=prescription.patient.patient_id)
 
 
 # @login_required
@@ -2372,16 +2346,17 @@ def prescription_menu(request):
 from django import shortcuts
 from django.utils import timezone
 
+@require_POST
 @login_required
-@user_passes_test(lambda u: u.role in ['ADMIN', 'DOCTOR', 'OPERATOR'])  
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def deactivate_prescription(request, pk):
-    prescription = get_object_or_404(Prescription, pk=pk)
+    prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     patient = prescription.patient
-
-    if request.method == 'POST':
+    if prescription.is_active:
         prescription.is_active = False
-        prescription.deactivated_at = timezone.now()  # Add this line
-        prescription.save()
+        prescription.deactivated_at = timezone.now()
+        prescription.save(update_fields=['is_active', 'deactivated_at'])
         
         # ✅ Manual logging
         log_action(
@@ -2391,36 +2366,24 @@ def deactivate_prescription(request, pk):
             details=f"Deactivated prescription for {patient.full_name}"
         )
         
-        messages.success(request, "Prescription has been deactivated.")
-        return redirect('core:patient_detail', pk=patient.patient_id)
-
-    return render(request, 'prescription/deactivate_prescription.html', {
-        'prescription': prescription,
-        'patient': patient
-    })
+        messages.success(request, "Prescription has been deactivated. Its clinical history was retained.")
+    else:
+        messages.info(request, 'Prescription is already inactive.')
+    if prescription.admission_id:
+        return redirect('DurielMedicApp:admission_detail', admission_id=prescription.admission_id)
+    return redirect('core:patient_detail', pk=patient.patient_id)
     
     
 
 @login_required
-@user_passes_test(lambda u: u.role in ['ADMIN', 'DOCTOR'])  # adjust roles as needed
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def delete_prescription(request, pk):
-    prescription = get_object_or_404(Prescription, pk=pk, clinic_id=request.session.get('clinic_id'))
-    patient = prescription.patient
-
-    if request.method == "POST":
-        # ✅ Manual logging
-        log_action(
-            request,
-            'DELETE',
-            prescription,
-            details=f"Deleted prescription for {patient.full_name}"
-        )
-        
-        prescription.delete()
-        messages.success(request, "Prescription deleted successfully.")
-        return redirect('core:prescription_list')
-
-    return render(request, 'prescription/confirm_delete.html', {'prescription': prescription})
+    prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
+    messages.warning(request, 'Prescriptions cannot be deleted. Deactivate the prescription to preserve the clinical audit trail.')
+    if prescription.admission_id:
+        return redirect('DurielMedicApp:admission_detail', admission_id=prescription.admission_id)
+    return redirect('core:patient_detail', pk=prescription.patient.patient_id)
 
 
 
@@ -2953,8 +2916,12 @@ from django.utils import timezone
 @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def dispense_prescription(request, pk):
     """Dispense prescription, deduct stock, and add to billing."""
-    prescription = get_object_or_404(Prescription, pk=pk)
+    prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     patient = prescription.patient
+
+    if prescription.admission_id:
+        messages.error(request, 'Admission prescriptions are administered and billed by nurses from the admission chart.')
+        return redirect('DurielMedicApp:admission_detail', admission_id=prescription.admission_id)
 
     if not prescription.clinic_medication:
         messages.error(request, "This prescription is not from clinic inventory and cannot be dispensed.")
@@ -3083,7 +3050,10 @@ def bulk_dispense(request):
             return redirect(request.META.get('HTTP_REFERER'))
 
         prescriptions = Prescription.objects.filter(
-            id__in=selected_ids, stock_deducted=False
+            id__in=selected_ids,
+            clinic=request.clinic,
+            admission__isnull=True,
+            stock_deducted=False,
         )
         
         if not prescriptions.exists():

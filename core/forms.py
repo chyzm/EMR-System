@@ -605,24 +605,17 @@ class StockAdjustmentForm(forms.Form):
 
 
 class PrescriptionForm(forms.ModelForm):
-    """Enhanced prescription form with clinic medication support and Tailwind styling"""
+    """Create an immutable prescription from the selected clinic's inventory."""
     
     class Meta:
         model = Prescription
         fields = [
-            'patient', 'clinic_medication', 'custom_medication', 
+            'clinic_medication',
             'dosage', 'frequency', 'duration', 'quantity_prescribed', 'instructions'
         ]
         widgets = {
-            'patient': forms.Select(attrs={
-                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
-            }),
             'clinic_medication': forms.Select(attrs={
-                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
-            }),
-            'custom_medication': forms.TextInput(attrs={
-                'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
-                'placeholder': 'Enter custom medication name'
+                'class': 'mt-2 block w-full rounded-md border-2 border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
             }),
             'dosage': forms.TextInput(attrs={
                 'class': 'mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm',
@@ -650,6 +643,7 @@ class PrescriptionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.clinic = kwargs.pop('clinic', None)
+        self.patient = kwargs.pop('patient', None)
         super().__init__(*args, **kwargs)
 
         if self.clinic:
@@ -673,20 +667,15 @@ class PrescriptionForm(forms.ModelForm):
                 choices.append((med.id, choice_text))
             
             self.fields['clinic_medication'].choices = choices
-            self.fields['patient'].queryset = Patient.objects.filter(clinic=self.clinic)
-
-
     def clean(self):
         cleaned_data = super().clean()
         clinic_medication = cleaned_data.get('clinic_medication')
-        custom_medication = cleaned_data.get('custom_medication')
-
-        if not clinic_medication and not custom_medication:
-            raise forms.ValidationError("Please select a medication from inventory or enter a custom medication name.")
-        if clinic_medication and custom_medication:
-            raise forms.ValidationError("Please select either clinic medication OR enter custom medication, not both.")
+        if not clinic_medication:
+            raise forms.ValidationError("Select a medication from the clinic pharmacy.")
+        if self.clinic and clinic_medication.clinic_id != self.clinic.id:
+            raise forms.ValidationError("The selected medication does not belong to this clinic.")
         if clinic_medication:
-            quantity = cleaned_data.get('quantity_prescribed', 1)
+            quantity = cleaned_data.get('quantity_prescribed') or 1
             if clinic_medication.quantity_in_stock < quantity:
                 raise forms.ValidationError(
                     f"Insufficient stock. Available: {clinic_medication.quantity_in_stock}, "

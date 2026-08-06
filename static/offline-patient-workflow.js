@@ -193,6 +193,11 @@
     event.preventDefault();
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
+    const isLoopbackServer = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    if (navigator.onLine || isLoopbackServer || document.body?.dataset.serverSyncRole === 'local') {
+      showToast('The server is available. Use the normal patient page form so this entry saves immediately.', 'blue');
+      return;
+    }
     const action = form.dataset.action;
     const payload = { _patient_sync_id: selectedPatient.syncId, _offline_workspace: 'true' };
     new FormData(form).forEach((fieldValue, key) => {

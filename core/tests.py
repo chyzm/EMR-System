@@ -1,10 +1,13 @@
 from decimal import Decimal
+import json
+import os
 import uuid
 import tempfile
 from datetime import timedelta
 from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -12,7 +15,12 @@ from core.models import (
     Clinic, Patient, Billing, Payment, ServicePriceList, Notification,
     ServerSyncOutbox, ServerSyncState,
 )
-from core.server_sync import apply_change, serialize_instance, push_pending_outbox
+from core.server_sync import (
+    apply_change,
+    push_pending_outbox,
+    serialize_instance,
+    sync_worker_lock,
+)
 from DurielMedicApp.models import Admission, Appointment, FollowUp
 
 
@@ -375,6 +383,35 @@ class SyncQueueTests(TestCase):
         notification = Notification.objects.create(clinic=self.clinic, message='New appointment')
         self.assertTrue(ServerSyncOutbox.objects.filter(record_sync_id=notification.sync_id).exists())
 
+    def test_sync_worker_lock_prevents_overlapping_workers(self):
+        with tempfile.TemporaryDirectory() as runtime_root, patch.dict(
+            os.environ,
+            {'DURIELMEDIC_RUNTIME_DIR': runtime_root},
+        ):
+            with sync_worker_lock() as first_worker:
+                self.assertTrue(first_worker)
+                with sync_worker_lock() as second_worker:
+                    self.assertFalse(second_worker)
+            with sync_worker_lock() as next_pass:
+                self.assertTrue(next_pass)
+
+    def test_local_update_config_exposes_manifest_without_sync_secret(self):
+        self.activate_local_sync()
+        state = ServerSyncState.objects.get(key='local_server')
+        state.value['update_manifest_url'] = 'https://cloud.example/releases/update-manifest.json'
+        state.save(update_fields=['value', 'updated_at'])
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            output_path = os.path.join(output_dir, 'update-config.json')
+            call_command('local_update_config', '--output', output_path)
+            with open(output_path, encoding='utf-8') as config_file:
+                payload = json.load(config_file)
+
+        self.assertTrue(payload['activated'])
+        self.assertEqual(payload['role'], 'local')
+        self.assertEqual(payload['update_manifest_url'], 'https://cloud.example/releases/update-manifest.json')
+        self.assertNotIn('sync_token', payload)
+
     def test_patient_profile_picture_payload_contains_and_restores_file(self):
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             self.patient.profile_picture = SimpleUploadedFile('avatar.png', b'fake-png-content', content_type='image/png')
@@ -525,4 +562,4 @@ class SyncQueueTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Service-Worker-Allowed'], '/')
-        self.assertIn('durielmedic-pages-v4', response.content.decode('utf-8'))
+        self.assertIn('durielmedic-pages-v5', response.content.decode('utf-8'))

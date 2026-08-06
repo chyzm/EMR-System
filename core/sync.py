@@ -591,8 +591,6 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'core.ServicePriceList',
     'core.MedicationCategory',
     'core.ClinicMedication',
-    'core.Prescription',
-    'core.StockMovement',
     'DurielMedicApp.Appointment',
     'DurielEyeApp.EyeAppointment',
     'DurielDentalApp.DentalAppointment',
@@ -602,6 +600,9 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'DurielEyeApp.EyeExam',
     'DurielDentalApp.DentalExam',
     'DurielMedicApp.Admission',
+    'core.Prescription',
+    'core.Billing',
+    'core.StockMovement',
     'DurielMedicApp.MedicationAdministration',
     'DurielMedicApp.AdmissionHandover',
     'DurielMedicApp.FollowUp',
@@ -610,7 +611,6 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'DurielDentalApp.DentalProcedure',
     'DurielDentalApp.DentalFollowUp',
     'DurielDentalApp.DentalMedicalRecord',
-    'core.Billing',
     'core.Payment',
     'core.Notification',
     'core.NotificationRead',
@@ -820,16 +820,20 @@ def server_sync_pull(request):
 
     batch_size = getattr(settings, 'SYNC_BATCH_SIZE', 25)
     bootstrap_done = True
+    has_more = False
     if include_bootstrap:
         changes, has_more_bootstrap = _clinic_snapshot_changes(clinic, bootstrap_offset, batch_size)
         bootstrap_done = not has_more_bootstrap
-        queryset = ServerSyncChange.objects.none()
+        has_more = has_more_bootstrap
+        change_items = []
     else:
         changes = []
         queryset = ServerSyncChange.objects.filter(clinic=clinic, id__gt=since)
         if requester_node_id:
             queryset = queryset.exclude(origin_node_id=requester_node_id)
-        queryset = queryset.order_by('id')[:batch_size]
+        change_items = list(queryset.order_by('id')[:batch_size + 1])
+        has_more = len(change_items) > batch_size
+        change_items = change_items[:batch_size]
 
     changes.extend([
         {
@@ -843,7 +847,7 @@ def server_sync_pull(request):
             'payload': item.payload,
             'created_at': item.created_at.isoformat(),
         }
-        for item in queryset
+        for item in change_items
     ])
     users = []
     for user in get_user_model().objects.filter(
@@ -873,4 +877,5 @@ def server_sync_pull(request):
         'nextCursor': next_cursor,
         'bootstrapDone': bootstrap_done,
         'nextBootstrapOffset': bootstrap_offset + len(changes) if include_bootstrap else 0,
+        'hasMore': has_more,
     })

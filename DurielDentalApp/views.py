@@ -49,7 +49,7 @@ def dental_dashboard(request):
     week_end = week_start + timedelta(days=6)
 
     appointments = DentalAppointment.objects.filter(clinic_id=clinic_id, date=today).select_related('patient', 'provider').order_by('start_time')
-    if request.user.role not in DENTAL_FRONT_DESK_ROLES:
+    if request.user.role not in [*DENTAL_FRONT_DESK_ROLES, 'DOCTOR']:
         appointments = appointments.filter(provider=request.user)
 
     stats = {
@@ -87,7 +87,7 @@ class DentalAppointmentListView(LoginRequiredMixin, ListView):
             qs = qs.filter(date=self.request.GET['date'])
         if self.request.GET.get('status'):
             qs = qs.filter(status=self.request.GET['status'])
-        if self.request.user.role not in DENTAL_FRONT_DESK_ROLES:
+        if self.request.user.role not in [*DENTAL_FRONT_DESK_ROLES, 'DOCTOR']:
             qs = qs.filter(provider=self.request.user)
         return qs.order_by('date', 'start_time')
 
@@ -176,7 +176,6 @@ def today_appointment_count(request):
     if clinic_id:
         count = DentalAppointment.objects.filter(
             clinic_id=clinic_id,
-            provider=request.user,
             date=timezone.localdate(),
             status__in=['SCHEDULED', 'CHECKED_IN'],
         ).count()
@@ -194,7 +193,7 @@ def patient_dental_chart(request, patient_id):
         'plans': DentalTreatmentPlan.objects.filter(patient=patient)[:10],
         'procedures': DentalProcedure.objects.filter(patient=patient).select_related('performed_by')[:10],
         'followups': DentalFollowUp.objects.filter(patient=patient)[:10],
-        'records': DentalMedicalRecord.objects.filter(patient=patient)[:10],
+        'records': DentalMedicalRecord.objects.filter(patient=patient)[:10] if request.user.role == 'DOCTOR' else [],
     })
 
 
@@ -313,6 +312,7 @@ def complete_follow_up(request, pk):
 
 @login_required
 @clinic_selected_required
+@role_required('DOCTOR')
 def add_medical_record(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id, clinic_id=_clinic_id(request))
     if request.method == 'POST':

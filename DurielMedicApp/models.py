@@ -188,11 +188,19 @@ class MedicationAdministration(models.Model):
     )
     medication_name = models.CharField(max_length=200)
     dose = models.CharField(max_length=100)
+    quantity_administered = models.PositiveIntegerField(default=1)
     route = models.CharField(max_length=50, blank=True)
     scheduled_time = models.DateTimeField(null=True, blank=True)
     administered_at = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='GIVEN')
     administered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    billing = models.ForeignKey(
+        'core.Billing',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='medication_administrations',
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

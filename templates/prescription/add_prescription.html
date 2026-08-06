@@ -21,28 +21,13 @@
     {{ form.non_field_errors }}
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Patient Field -->
-      <div class="form-group">
-        <label for="{{ form.patient.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-          {{ form.patient.label }}
-        </label>
-        {{ form.patient }}
-      </div>
-      
       <!-- Clinic Medication Field -->
       <div class="form-group">
         <label for="{{ form.clinic_medication.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
           {{ form.clinic_medication.label }}
         </label>
         {{ form.clinic_medication }}
-      </div>
-      
-      <!-- Custom Medication Field -->
-      <div class="form-group">
-        <label for="{{ form.custom_medication.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-          {{ form.custom_medication.label }}
-        </label>
-        {{ form.custom_medication }}
+        {% if form.clinic_medication.errors %}<div class="mt-1 text-sm text-red-600">{{ form.clinic_medication.errors|join:", " }}</div>{% endif %}
       </div>
       
       <!-- Dosage Field -->
@@ -51,6 +36,7 @@
           {{ form.dosage.label }}
         </label>
         {{ form.dosage }}
+        {% if form.dosage.errors %}<div class="mt-1 text-sm text-red-600">{{ form.dosage.errors|join:", " }}</div>{% endif %}
       </div>
       
       <!-- Frequency Field -->
@@ -59,6 +45,7 @@
           {{ form.frequency.label }}
         </label>
         {{ form.frequency }}
+        {% if form.frequency.errors %}<div class="mt-1 text-sm text-red-600">{{ form.frequency.errors|join:", " }}</div>{% endif %}
       </div>
       
       <!-- Duration Field -->
@@ -67,6 +54,7 @@
           {{ form.duration.label }}
         </label>
         {{ form.duration }}
+        {% if form.duration.errors %}<div class="mt-1 text-sm text-red-600">{{ form.duration.errors|join:", " }}</div>{% endif %}
       </div>
       
       <!-- Quantity Prescribed Field -->
@@ -75,6 +63,7 @@
           {{ form.quantity_prescribed.label }}
         </label>
         {{ form.quantity_prescribed }}
+        {% if form.quantity_prescribed.errors %}<div class="mt-1 text-sm text-red-600">{{ form.quantity_prescribed.errors|join:", " }}</div>{% endif %}
       </div>
     </div>
     
@@ -84,12 +73,14 @@
         {{ form.instructions.label }}
       </label>
       {{ form.instructions }}
+      {% if form.instructions.errors %}<div class="mt-1 text-sm text-red-600">{{ form.instructions.errors|join:", " }}</div>{% endif %}
     </div>
 
-    <div class="pt-4">
+    <div class="flex items-center gap-3 pt-4">
       <button type="submit" class="bg-blue-800 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md">
         Save Prescription
       </button>
+      {% if cancel_url %}<a href="{{ cancel_url }}" class="rounded-lg border border-gray-300 px-5 py-2.5 text-gray-700">Cancel</a>{% endif %}
     </div>
   </form>
 </div>
@@ -137,39 +128,4 @@
   }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const select = document.getElementById('medication');
-  const searchInput = document.getElementById('medication-search');
-
-  select.addEventListener('focus', function() {
-    searchInput.classList.remove('hidden');
-    searchInput.focus();
-  });
-
-  searchInput.addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase();
-    const options = select.options;
-
-    for (let i = 0; i < options.length; i++) {
-      const option = options[i];
-      if (option.text.toLowerCase().includes(searchTerm)) {
-        option.style.display = '';
-      } else {
-        option.style.display = 'none';
-      }
-    }
-  });
-
-  document.addEventListener('click', function(e) {
-    if (e.target !== select && e.target !== searchInput) {
-      searchInput.classList.add('hidden');
-    }
-  });
-
-  searchInput.addEventListener('blur', function() {
-    setTimeout(() => { this.classList.add('hidden'); }, 200);
-  });
-});
-</script>
 {% endblock %}

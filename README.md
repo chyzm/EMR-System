@@ -63,6 +63,10 @@ Initial cloud bootstrap is paginated, while routine changes use a durable cursor
 
 Bootstrap data is versioned. When a release adds a newly synchronized record or file type, installed clinics automatically perform one new paginated bootstrap after upgrading; operators do not need to clear the SQLite cursor manually.
 
+Normal saves are never sent to IndexedDB while either the cloud server or clinic local server is reachable. Forms submit to Django and use the normal success message and redirect. The browser queue is only used by a cached cloud page after the browser genuinely loses connectivity; clinic-local pages continue saving directly to SQLite even when the internet is unavailable.
+
+The worker drains multiple bootstrap/change pages per pass and survives transient request failures. Bootstrap version 3 orders dependencies as patient → admission → prescription/billing → medication administration, so an admission cannot be skipped merely because one of its related rows has not arrived yet.
+
 ## Clinic Modules
 
 DurielMedic supports three clinic operating modes from the same shared platform:
@@ -89,6 +93,16 @@ The General clinic module supports:
 - Follow-ups
 - Lab queue
 - Billing and payment
+
+Inpatient medication responsibilities are deliberately separated:
+
+- Doctors create as many pharmacy-backed prescriptions as clinically required.
+- A prescription cannot be edited or deleted; a doctor deactivates it and creates a replacement, preserving the audit trail.
+- Nurses select active prescriptions on the admission chart and record Given, Held, Refused, or Missed administrations.
+- A Given administration atomically checks the remaining prescribed quantity and pharmacy stock, deducts the administered units, creates a stock movement, and adds one linked medication charge to the patient's bill.
+- Held, Refused, and Missed entries remain on the chart but do not deduct stock or create a charge.
+
+All doctors can see the clinic's complete appointment queue. General medical case notes are restricted to doctors; eye clinical notes remain available to the doctor/optometrist clinical roles. Billing staff see billable activity without receiving general case-note contents.
 
 Admission records include:
 
@@ -276,10 +290,10 @@ Use Inno Setup plus PyInstaller to build a Windows desktop-style `.exe` installe
 Build the installer on your own/release machine:
 
 ```powershell
-.\installer\windows\Build-InnoPackage.ps1 `
-  -Version "1.0.0" `
-  -PackageBaseUrl "https://durielmedic.com.ng/releases"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.9" -PackageBaseUrl "https://durielmedic.com.ng/releases"
 ```
+
+Run that command from the repository root on the release/developer PC. Do not run it from `C:\Program Files` on a clinic PC.
 
 This stages a clean package in:
 
@@ -331,6 +345,14 @@ The installer creates a desktop/start-menu app shortcut:
 DurielMedic Clinic Server
 ```
 
+It also creates three Windows Scheduled Tasks as `SYSTEM`:
+
+- `DurielMedic Clinic Server` starts the local web server at Windows startup.
+- `DurielMedic Sync Worker` starts 30 seconds later and continuously pushes and pulls clinic data whenever the cloud is reachable.
+- `DurielMedic Clinic Updater` checks for a SHA-256-verified release package daily at 2:00 AM and also runs later when the computer was off at 2:00 AM.
+
+The server and sync therefore do not depend on a staff member opening the desktop shortcut. Opening the shortcut simply opens the already-running server in the browser. A runtime lock prevents a shortcut-started worker and the scheduled worker from processing the sync queue at the same time.
+
 When opened, the desktop app:
 
 - prepares the local runtime in ProgramData
@@ -363,22 +385,28 @@ http://localhost:9000
 
 ## Local Updates
 
-The clinic server updater checks the activation-provided `update_manifest_url` daily at 2:00 AM.
+The packaged clinic server updater checks the activation-provided `update_manifest_url` daily at 2:00 AM. `StartWhenAvailable` makes Windows run a missed check after the PC is turned back on.
 
-The manifest points to a versioned release zip and includes its SHA-256 hash. When a newer version is available, the updater:
+The manifest points to a versioned release ZIP containing the new frozen desktop executable, the updater scripts, and `VERSION`. It includes the package SHA-256 hash. When a newer version is available, the updater:
 
 - downloads the release zip
-- verifies the hash
+- requires HTTPS and verifies the SHA-256 hash
+- validates the package layout and version
 - stops the local web and sync scheduled tasks
-- copies the current app files into `rollback\before-<version>-<timestamp>`
-- replaces app code/templates/static files
-- preserves `.env`, `.venv`, `db.sqlite3`, `media`, and `logs`
-- runs `pip install -r requirements.txt`
-- runs `python manage.py migrate`
-- restarts the local web and sync tasks
-- restores the rollback copy if the update or migration fails
+- backs up the installed app and SQLite database under `C:\ProgramData\DurielMedicClinicServer\rollback`
+- installs the new desktop executable and updater files
+- refreshes the packaged code/templates/static files into the ProgramData runtime
+- runs migrations and Django system checks
+- starts the web server and verifies that port `9000` becomes healthy
+- starts continuous cloud sync
+- restores both the previous executable and database if any update, migration, check, or startup step fails
+- keeps the three most recent rollback snapshots
 
-This is how code/template updates reach the local clinic server without rebuilding or rerunning the Inno installer every time.
+Clinic data, `.env`, media, and logs remain in `C:\ProgramData\DurielMedicClinicServer\runtime`; application releases remain in `C:\Program Files\DurielMedic Clinic Server`. The update never replaces the live clinic database with a database from the release package.
+
+### One-time transition from installers 1.0.8 and earlier
+
+Older installers did not install the updater script/task and cannot discover a new manifest by themselves. Install one newly built `DurielMedic-Clinic-Server-Setup.exe` on those clinic PCs using a fresh activation URL. This preserves the ProgramData clinic database and installs the three automatic tasks. After that transition, future code/template releases use only the ZIP and manifest; the clinic does not rerun Setup for each version.
 
 To update installed clinics after a new release:
 
@@ -386,19 +414,34 @@ To update installed clinics after a new release:
 2. Build the local update package with a new version:
 
 ```powershell
-.\installer\windows\Build-InnoPackage.ps1 `
-  -Version "1.0.1" `
-  -PackageBaseUrl "https://durielmedic.com.ng/releases"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.10" -PackageBaseUrl "https://durielmedic.com.ng/releases"
 ```
 
-3. Upload these two files to your `/releases/` static folder:
+3. Upload the ZIP first, then upload the manifest last to your `/releases/` static folder:
 
 ```text
-dist\durielmedic-clinic-server-1.0.1.zip
+dist\durielmedic-clinic-server-1.0.10.zip
 dist\update-manifest.json
 ```
 
+Uploading the manifest last prevents a clinic from seeing a new version before its ZIP is fully available.
+
 4. The clinic updater applies the update automatically at 2:00 AM, or you can run the `DurielMedic Clinic Updater` scheduled task manually.
+
+The build now creates the desktop executable before creating the ZIP and refuses to finish if the ZIP does not contain the executable, version, and updater scripts. Do not upload the older source-only ZIP format.
+
+`-ReuseDesktopExecutable` is only for repackaging installer/updater scripts at the same already-built version. The builder refuses to reuse an executable whose `DESKTOP_VERSION` differs. Any Python, template, static, model, or migration change requires the normal full build without that switch.
+
+To inspect or trigger automation on a clinic PC, open PowerShell as Administrator:
+
+```powershell
+Get-ScheduledTask -TaskName "DurielMedic Clinic Server","DurielMedic Sync Worker","DurielMedic Clinic Updater"
+Start-ScheduledTask -TaskName "DurielMedic Clinic Updater"
+Get-Content "C:\ProgramData\DurielMedicClinicServer\runtime\logs\updater.log" -Tail 100
+Get-Content "C:\ProgramData\DurielMedicClinicServer\runtime\logs\launcher.log" -Tail 100
+```
+
+The data worker retries on its configured interval (30 seconds by default), so local changes queue safely while the internet is unavailable and push after connectivity returns. It also pulls cloud changes in the same pass.
 
 ## What Activation Imports
 
@@ -457,6 +500,15 @@ URL:       /static/
 Directory: /home/<pythonanywhere-username>/EMR-System/staticfiles
 ```
 
+Configure the separate release download mapping as well:
+
+```text
+URL:       /releases/
+Directory: /home/<pythonanywhere-username>/EMR-System/releases
+```
+
+Create that `releases` directory outside Git deployment data, upload each versioned ZIP there, and replace `update-manifest.json` only after the ZIP upload finishes. Confirm both direct HTTPS URLs return files before publishing the manifest to clinics.
+
 Use the actual project path if it differs, then reload the PythonAnywhere web app. Django admin CSS is collected under `staticfiles/admin/`; a relative `STATIC_URL` will make admin pages request CSS from the wrong URL, so the application uses `/static/` explicitly.
 
 The central server exposes:
@@ -479,7 +531,7 @@ X-Sync-Activation-Token: <SYNC_ACTIVATION_TOKEN>
 
 ## Running the Worker in Production
 
-On Windows, the Inno installer installs `DurielMedicClinicServer.exe` as the desktop launcher. Opening the app starts the local web server and sync worker, then opens the browser.
+On Windows, the Inno installer installs `DurielMedicClinicServer.exe` as the desktop launcher and registers the web server and sync worker to run at machine startup. Opening the shortcut starts them only when required and opens the browser.
 
 For real clinic deployments, do not use Django `runserver` as the long-running local web server. `runserver` is acceptable for pilot/internal testing, but the clinic installer should run the app through a production WSGI runner such as Waitress:
 
@@ -493,7 +545,7 @@ The sync worker remains a separate background process:
 python3 manage.py sync_worker
 ```
 
-The desktop app starts both the WSGI web process and the sync worker when launched.
+The Scheduled Tasks keep the WSGI web process and sync worker running independently of a logged-in desktop user. The desktop launcher remains a convenient way to open the app.
 
 ## Onboarding Checklist
 
@@ -566,6 +618,7 @@ For Dental clinic:
 
 - `core/server_sync.py`: serialization, capture helpers, push/pull logic, and remote apply logic.
 - `core/management/commands/sync_worker.py`: background worker.
+- `core/management/commands/local_update_config.py`: exposes the non-secret local update URL to the packaged updater.
 - `core/management/commands/activate_local_clinic.py`: local activation from cloud URL.
 - `desktop_launcher.py`: PyInstaller desktop launcher that starts the local server and sync worker.
 - `installer/windows/DurielMedicClinicServer.iss`: Inno Setup installer definition.
@@ -573,6 +626,7 @@ For Dental clinic:
 - `installer/windows/Build-DesktopApp.ps1`: builds `DurielMedicClinicServer.exe`.
 - `installer/windows/Install-DurielMedicClinic.ps1`: legacy script-based local activation helper.
 - `installer/windows/Update-DurielMedicClinic.ps1`: installed-machine code/template updater.
+- `installer/windows/Configure-DurielMedicTasks.ps1`: installs/removes the automatic server, sync, and updater tasks.
 - `core/migrations/0003_server_sync.py`: durable sync tables.
 - `CLINIC_INSTALLATION.md`: clinic-facing installation instructions.
 - `DurielMedicApp/migrations/0004_admission_inpatient_chart.py`: admission/discharge/medication chart expansion.

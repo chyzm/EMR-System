@@ -530,8 +530,14 @@
     if (!action || form.dataset.offlineReady === 'true') return;
     form.dataset.offlineReady = 'true';
     form.addEventListener('submit', async (event) => {
+      const serverRole = document.body?.dataset.serverSyncRole || 'standalone';
+      const isLoopbackServer = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+      // A reachable cloud or clinic server must process normal POST requests.
+      // The IndexedDB queue is only a fallback for a cached cloud page whose
+      // browser has genuinely lost network connectivity.
+      if (serverRole === 'local' || isLoopbackServer || navigator.onLine) return;
       const hasAttachment = Array.from(form.querySelectorAll('input[type="file"]')).some((input) => input.files && input.files.length);
-      if (navigator.onLine && hasAttachment) return;
+      if (hasAttachment) return;
       event.preventDefault();
       if (!form.reportValidity()) return;
       try {

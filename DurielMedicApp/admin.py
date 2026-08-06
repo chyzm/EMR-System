@@ -61,12 +61,18 @@ class AdmissionAdmin(admin.ModelAdmin):
 
 @admin.register(MedicationAdministration)
 class MedicationAdministrationAdmin(admin.ModelAdmin):
-    list_display = ('patient', 'admission', 'medication_name', 'dose', 'route', 'status', 'administered_by', 'administered_at')
+    list_display = ('patient', 'admission', 'medication_name', 'dose', 'quantity_administered', 'route', 'status', 'billing', 'administered_by', 'administered_at')
     list_filter = ('patient__clinic', 'status', 'route', 'administered_at')
     search_fields = ('patient__patient_id', 'patient__first_name', 'patient__last_name', 'medication_name', 'dose')
-    list_select_related = ('patient', 'admission', 'prescription', 'administered_by')
+    list_select_related = ('patient', 'admission', 'prescription', 'billing', 'administered_by')
     date_hierarchy = 'administered_at'
-    readonly_fields = ('sync_id', 'created_at')
+    readonly_fields = tuple(field.name for field in MedicationAdministration._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AdmissionHandover)

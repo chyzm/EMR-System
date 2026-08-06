@@ -3,7 +3,7 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from core.server_sync import internet_available, pull_remote_changes, push_pending_outbox, role
+from core.server_sync import internet_available, pull_remote_changes, push_pending_outbox, role, sync_worker_lock
 
 
 class Command(BaseCommand):
@@ -19,12 +19,27 @@ class Command(BaseCommand):
             return
 
         while True:
-            if internet_available():
-                pushed = push_pending_outbox()
-                pulled = pull_remote_changes()
-                self.stdout.write(f"pushed={pushed} pulled={pulled}")
-            else:
-                self.stdout.write('central server unavailable; waiting')
+            with sync_worker_lock() as acquired:
+                if not acquired:
+                    self.stdout.write('another sync worker is active; waiting')
+                elif internet_available():
+                    try:
+                        pushed = push_pending_outbox()
+                        pull_results = []
+                        # Drain several bootstrap/change pages per pass. This keeps a
+                        # new clinic from waiting one full interval for every 25 rows.
+                        for _ in range(20):
+                            pulled = pull_remote_changes()
+                            pull_results.append(pulled)
+                            if not pulled.get('has_more'):
+                                break
+                        self.stdout.write(f"pushed={pushed} pulled={pull_results}")
+                    except Exception as exc:
+                        # A transient network or malformed remote row must not kill
+                        # the background worker. The next pass retries safely.
+                        self.stderr.write(self.style.ERROR(f'sync pass failed: {exc}'))
+                else:
+                    self.stdout.write('central server unavailable; waiting')
 
             if options['once']:
                 return

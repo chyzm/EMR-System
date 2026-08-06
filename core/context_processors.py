@@ -1,4 +1,5 @@
 from core.models import Clinic  # adjust import
+from core.server_sync import role as server_sync_role
 
 def clinic_context(request):
     clinic_logo_url = None
@@ -12,5 +13,6 @@ def clinic_context(request):
             pass
 
     return {
-        "clinic_logo_url": clinic_logo_url
+        "clinic_logo_url": clinic_logo_url,
+        "server_sync_role": server_sync_role(),
     }

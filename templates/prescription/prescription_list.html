@@ -38,7 +38,7 @@
           <tr>
             <td class="px-3 py-4 whitespace-nowrap">
               <input type="checkbox" name="selected_prescriptions" value="{{ prescription.id }}" class="mx-auto"
-                     {% if prescription.stock_deducted %}disabled{% endif %}>
+                     {% if prescription.stock_deducted or prescription.admission_id %}disabled{% endif %}>
             </td>
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.patient.full_name }}</td>
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.prescribed_by.get_full_name }}</td>
@@ -65,9 +65,12 @@
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.clinic_medication.selling_price|floatformat:2 }}</td>
             <td class="px-3 py-4 whitespace-nowrap">
               <div class="flex flex-col sm:flex-row gap-1 sm:gap-2">
-                <a href="{% url 'core:edit_prescription' prescription.id %}" class="text-blue-600 hover:text-blue-900 text-sm">Edit</a>
-                <a href="{% url 'core:delete_prescription' prescription.id %}" class="text-red-600 hover:text-red-900 text-sm">Delete</a>
-                <a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>
+                {% if prescription.is_active and request.user.role == 'DOCTOR' %}
+                  <form method="post" action="{% url 'core:deactivate_prescription' prescription.id %}">
+                    {% csrf_token %}<button type="submit" class="text-amber-700 hover:text-amber-900 text-sm">Deactivate</button>
+                  </form>
+                {% endif %}
+                {% if not prescription.admission_id %}<a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>{% endif %}
               </div>
             </td>
           </tr>

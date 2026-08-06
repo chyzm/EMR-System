@@ -29,7 +29,7 @@
   }
 
   function textArea(label, name, attributes = '') {
-    return `<div><label class="block text-sm font-medium text-gray-700 mb-1">${label}</label><textarea name="${name}" ${attributes} class="w-full px-3 py-2 border border-gray-300 rounded-md" rows="3"></textarea></div>`;
+    return `<div><label class="block text-sm font-medium text-gray-700 mb-1">${label}</label><textarea name="${name}" ${attributes} class="w-full px-3 py-2 border border-gray-300 rounded-md" rows="2"></textarea></div>`;
   }
 
   function selectField(label, name, options, attributes = '') {
@@ -37,7 +37,7 @@
   }
 
   function submit(label) {
-    return `<div class="pt-3"><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">${label}</button></div>`;
+    return `<div class="sticky bottom-0 -mx-5 mt-5 flex justify-end border-t border-gray-200 bg-white px-5 py-4"><button type="submit" class="px-5 py-2.5 bg-blue-600 text-white rounded-md font-medium shadow hover:bg-blue-700">${label}</button></div>`;
   }
 
   function contextRole() {
@@ -75,21 +75,23 @@
     if (panel) return panel;
     panel = document.createElement('div');
     panel.id = 'local-patient-detail';
-    panel.className = 'hidden fixed inset-0 z-[90] overflow-y-auto bg-gray-900/60 p-4 md:p-8';
+    panel.className = 'hidden fixed inset-0 p-0 md:p-4';
+    panel.style.cssText = 'z-index:9999;background:rgba(15,23,42,.72);backdrop-filter:blur(2px);';
     panel.innerHTML = `
-      <div class="mx-auto max-w-5xl rounded-xl bg-gray-50 shadow-2xl">
-        <div class="flex items-start justify-between rounded-t-xl bg-gray-800 px-6 py-4 text-white">
+      <div class="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-gray-50 shadow-2xl md:max-h-[calc(100vh-2rem)] md:rounded-xl">
+        <div class="flex flex-none items-start justify-between bg-gray-800 px-5 py-4 text-white md:rounded-t-xl md:px-6">
           <div><h2 id="local-patient-name" class="text-xl font-semibold"></h2><p id="local-patient-id" class="text-sm text-gray-300"></p></div>
-          <button id="close-local-patient" type="button" class="rounded bg-gray-700 px-3 py-1 hover:bg-gray-600">Close</button>
+          <button id="close-local-patient" type="button" class="ml-4 rounded-md bg-gray-700 px-3 py-2 text-sm font-medium hover:bg-gray-600">Close</button>
         </div>
-        <div class="p-6">
-          <div id="local-patient-summary" class="mb-6 rounded-lg bg-white p-4 shadow"></div>
-          <div id="local-workflow-actions" class="mb-5 flex flex-wrap gap-2"></div>
-          <div class="rounded-lg bg-white p-5 shadow"><h3 id="local-form-title" class="mb-4 text-lg font-semibold"></h3><form id="local-workflow-form" class="space-y-4"></form></div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+          <div id="local-patient-summary" class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"></div>
+          <div id="local-workflow-actions" class="mb-4 flex gap-2 overflow-x-auto pb-1"></div>
+          <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"><h3 id="local-form-title" class="mb-4 text-lg font-semibold"></h3><form id="local-workflow-form" class="space-y-4"></form></div>
           <div id="local-patient-activity" class="mt-6 rounded-lg bg-white p-5 shadow"></div>
         </div>
       </div>`;
     document.body.appendChild(panel);
+    panel.addEventListener('click', (event) => { if (event.target === panel) closePanel(); });
     panel.querySelector('#close-local-patient').addEventListener('click', closePanel);
     panel.querySelector('#local-workflow-actions').addEventListener('click', (event) => {
       const button = event.target.closest('[data-local-action]');
@@ -101,6 +103,7 @@
 
   function closePanel() {
     ensurePanel().classList.add('hidden');
+    document.body.style.overflow = '';
     if (location.hash.startsWith('#offline-patient=')) history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
 
@@ -142,8 +145,9 @@
     const actions = ['appointment', 'vitals', 'medical', 'admission', 'followup', 'billing', 'payment'];
     const currentStatus = value(selectedPatient, 'status') || 'REGISTERED';
     const permitted = actions.filter((action) => allowedRoles(action).includes(contextRole()) && actionAllowedForStatus(action, currentStatus));
-    panel.querySelector('#local-workflow-actions').innerHTML = permitted.map((action) => `<button type="button" data-local-action="${action}" class="rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-blue-600 hover:text-white">${action === 'medical' ? 'Patient Record' : action.charAt(0).toUpperCase() + action.slice(1)}</button>`).join('');
+    panel.querySelector('#local-workflow-actions').innerHTML = permitted.map((action) => `<button type="button" data-local-action="${action}" class="flex-none whitespace-nowrap rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-blue-600 hover:text-white">${action === 'medical' ? 'Patient Record' : action.charAt(0).toUpperCase() + action.slice(1)}</button>`).join('');
     panel.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
     await renderActivity();
     if (permitted.length) await renderAction(permitted[0]);
   }
@@ -161,7 +165,7 @@
     if (action === 'appointment') {
       const providers = await optionRecords('provider');
       const options = providers.map((provider) => `<option value="${escapeHtml(value(provider, 'id'))}">${escapeHtml(value(provider, 'name'))} (${escapeHtml(value(provider, 'role'))})</option>`).join('');
-      form.innerHTML = `${selectField('Provider', 'provider', options, 'required')}<div class="grid gap-4 md:grid-cols-2">${field('Date', 'date', 'date', 'required')}${selectField('Payment type', 'payment_type', '<option value="SELF">Self paid</option><option value="INSURANCE">Insurance</option>')}</div><div class="grid gap-4 md:grid-cols-2">${field('Start time', 'start_time', 'time', 'required')}${field('End time', 'end_time', 'time', 'required')}</div>${textArea('Reason', 'reason', 'required')}${textArea('Notes', 'notes')}${submit('Save Appointment')}`;
+      form.innerHTML = `${selectField('Provider', 'provider', options, 'required')}<div class="grid gap-4 md:grid-cols-2">${field('Date', 'date', 'date', 'required')}${selectField('Payment type', 'payment_type', '<option value="SELF">Self paid</option><option value="INSURANCE">Insurance</option>')}</div><div class="grid gap-4 md:grid-cols-2">${field('Start time', 'start_time', 'time', 'required')}${field('End time', 'end_time', 'time', 'required')}</div><div class="grid gap-4 md:grid-cols-2">${textArea('Reason', 'reason', 'required')}${textArea('Notes', 'notes')}</div>${submit('Save Appointment')}`;
     } else if (action === 'vitals') {
       const appointments = await optionRecords('appointment', (record) => value(record, 'patient_sync_id') === selectedPatient.syncId || value(record, '_patient_sync_id') === selectedPatient.syncId);
       const options = appointments.map((appointment) => `<option value="${escapeHtml(appointment.syncId)}">${escapeHtml(value(appointment, 'date'))} ${escapeHtml(value(appointment, 'start_time'))} — ${escapeHtml(value(appointment, 'reason'))}</option>`).join('');
@@ -189,6 +193,11 @@
     event.preventDefault();
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
+    const isLoopbackServer = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    if (navigator.onLine || isLoopbackServer || document.body?.dataset.serverSyncRole === 'local') {
+      showToast('The server is available. Use the normal patient page form so this entry saves immediately.', 'blue');
+      return;
+    }
     const action = form.dataset.action;
     const payload = { _patient_sync_id: selectedPatient.syncId, _offline_workspace: 'true' };
     new FormData(form).forEach((fieldValue, key) => {
@@ -261,4 +270,8 @@
   }
   window.addEventListener('hashchange', openFromHash);
   window.addEventListener('offlinequeuechange', renderLocalPatients);
+  document.addEventListener('keydown', (event) => {
+    const panel = document.getElementById('local-patient-detail');
+    if (event.key === 'Escape' && panel && !panel.classList.contains('hidden')) closePanel();
+  });
 })();

@@ -2,63 +2,58 @@ param(
     [string]$ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..").ProviderPath,
     [string]$InnoCompiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
     [string]$Version = "1.0.0",
-    [string]$PackageBaseUrl = ""
+    [string]$PackageBaseUrl = "",
+    [switch]$ReuseDesktopExecutable
 )
 
 $ErrorActionPreference = "Stop"
-
 $ProjectRoot = (Resolve-Path $ProjectRoot).ProviderPath
 $distRoot = Join-Path $ProjectRoot "dist"
 $stageDir = Join-Path $distRoot "durielmedic-clinic-server"
 $desktopVersionPath = Join-Path $ProjectRoot "DESKTOP_VERSION"
-$Version | Set-Content -Path $desktopVersionPath -Encoding UTF8
+$desktopBuildScript = Join-Path $PSScriptRoot "Build-DesktopApp.ps1"
+$desktopExe = Join-Path $distRoot "DurielMedicClinicServer.exe"
+$updaterSource = Join-Path $PSScriptRoot "Update-DurielMedicClinic.ps1"
+$configureSource = Join-Path $PSScriptRoot "Configure-DurielMedicTasks.ps1"
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 if (-not (Test-Path $distRoot)) {
     New-Item -ItemType Directory -Path $distRoot | Out-Null
 }
 
+# Build the executable first. The update ZIP must contain this exact executable;
+# source-only ZIPs cannot update the frozen desktop application.
+if ($ReuseDesktopExecutable) {
+    if (-not (Test-Path $desktopExe -PathType Leaf)) {
+        throw "Cannot reuse the desktop executable because $desktopExe does not exist."
+    }
+    $builtVersion = if (Test-Path $desktopVersionPath -PathType Leaf) {
+        (Get-Content $desktopVersionPath -Raw).Trim()
+    } else {
+        ""
+    }
+    if ($builtVersion -ne $Version) {
+        throw "Refusing to reuse desktop version $builtVersion for requested version $Version."
+    }
+} else {
+    [System.IO.File]::WriteAllText($desktopVersionPath, $Version, $utf8NoBom)
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $desktopBuildScript -ProjectRoot $ProjectRoot -Version $Version
+    if ($LASTEXITCODE -ne 0) {
+        throw "Desktop build failed with exit code $LASTEXITCODE."
+    }
+}
+if (-not (Test-Path $desktopExe -PathType Leaf)) {
+    throw "Desktop executable not found at $desktopExe."
+}
+
 if (Test-Path $stageDir) {
     Remove-Item $stageDir -Recurse -Force
 }
-New-Item -ItemType Directory -Path $stageDir | Out-Null
-
-$excludeDirs = @(
-    ".git",
-    ".venv",
-    "env",
-    "venv",
-    "myenv",
-    "__pycache__",
-    ".pytest_cache",
-    "dist",
-    "media",
-    "logs"
-)
-$excludeFiles = @(
-    ".env",
-    "db.sqlite3",
-    "OFFLINE*.md",
-    "*.pyc",
-    "*.pyo"
-)
-
-Get-ChildItem $ProjectRoot -Force | ForEach-Object {
-    if ($excludeDirs -contains $_.Name) {
-        return
-    }
-    $entry = $_
-    $excludedFile = $excludeFiles | Where-Object { $entry.Name -like $_ }
-    if (-not $entry.PSIsContainer -and $excludedFile) {
-        return
-    }
-    Copy-Item $entry.FullName -Destination $stageDir -Recurse -Force
-}
-
-Get-ChildItem $stageDir -Recurse -Include *.pyc,*.pyo | Remove-Item -Force
-Get-ChildItem $stageDir -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-
-$versionPath = Join-Path $stageDir "VERSION"
-$Version | Set-Content -Path $versionPath -Encoding UTF8
+New-Item -ItemType Directory -Path (Join-Path $stageDir "updater") -Force | Out-Null
+Copy-Item $desktopExe (Join-Path $stageDir "DurielMedicClinicServer.exe") -Force
+Copy-Item $updaterSource (Join-Path $stageDir "updater\Update-DurielMedicClinic.ps1") -Force
+Copy-Item $configureSource (Join-Path $stageDir "updater\Configure-DurielMedicTasks.ps1") -Force
+[System.IO.File]::WriteAllText((Join-Path $stageDir "VERSION"), $Version, $utf8NoBom)
 
 $zipPath = Join-Path $distRoot "durielmedic-clinic-server-$Version.zip"
 if (Test-Path $zipPath) {
@@ -66,24 +61,51 @@ if (Test-Path $zipPath) {
 }
 Compress-Archive -Path (Join-Path $stageDir "*") -DestinationPath $zipPath -Force
 $sha256 = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$packageUrl = if ($PackageBaseUrl) { "$($PackageBaseUrl.TrimEnd('/'))/durielmedic-clinic-server-$Version.zip" } else { "durielmedic-clinic-server-$Version.zip" }
+$packageUrl = if ($PackageBaseUrl) {
+    "$($PackageBaseUrl.TrimEnd('/'))/durielmedic-clinic-server-$Version.zip"
+} else {
+    "durielmedic-clinic-server-$Version.zip"
+}
 $manifest = [ordered]@{
     version = $Version
     package_url = $packageUrl
     sha256 = $sha256
+    package_type = "desktop-executable"
 }
-$manifest | ConvertTo-Json | Set-Content -Path (Join-Path $distRoot "update-manifest.json") -Encoding UTF8
+$manifestJson = $manifest | ConvertTo-Json
+[System.IO.File]::WriteAllText((Join-Path $distRoot "update-manifest.json"), $manifestJson, $utf8NoBom)
 
-$desktopBuildScript = Join-Path $PSScriptRoot "Build-DesktopApp.ps1"
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $desktopBuildScript -ProjectRoot $ProjectRoot -Version $Version
-
-$desktopExe = Join-Path $distRoot "DurielMedicClinicServer.exe"
-if (-not (Test-Path $desktopExe)) {
-    throw "Desktop executable not found at $desktopExe. Build failed."
+# Fail the release build if the ZIP is not a packaged-desktop update. This
+# catches the old source-only archive format before it is uploaded to clinics.
+$validationDir = Join-Path $env:TEMP ("durielmedic-package-check-" + [guid]::NewGuid().ToString("N"))
+try {
+    Expand-Archive -Path $zipPath -DestinationPath $validationDir -Force
+    foreach ($requiredRelativePath in @(
+        "DurielMedicClinicServer.exe",
+        "VERSION",
+        "updater\Update-DurielMedicClinic.ps1",
+        "updater\Configure-DurielMedicTasks.ps1"
+    )) {
+        if (-not (Test-Path (Join-Path $validationDir $requiredRelativePath) -PathType Leaf)) {
+            throw "Update ZIP validation failed: $requiredRelativePath is missing."
+        }
+    }
+    $validatedVersion = (Get-Content (Join-Path $validationDir "VERSION") -Raw).Trim()
+    if ($validatedVersion -ne $Version) {
+        throw "Update ZIP validation failed: package version is $validatedVersion, expected $Version."
+    }
+} finally {
+    Remove-Item $validationDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-if (-not (Test-Path $InnoCompiler)) {
+if (-not (Test-Path $InnoCompiler -PathType Leaf)) {
     throw "Inno Setup compiler not found at $InnoCompiler"
 }
-
 & $InnoCompiler "/DMyAppVersion=$Version" (Join-Path $PSScriptRoot "DurielMedicClinicServer.iss")
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+}
+
+Write-Host "Installer: $(Join-Path $distRoot 'DurielMedic-Clinic-Server-Setup.exe')"
+Write-Host "Update ZIP: $zipPath"
+Write-Host "Manifest: $(Join-Path $distRoot 'update-manifest.json')"

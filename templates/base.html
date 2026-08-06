@@ -144,46 +144,18 @@
 
     /* Add this to your base.html <style> section after the gradient-bg rule */
 
-/* Hide Django's default ugly error lists completely */
+/* Keep validation errors visible so failed saves are never silent. */
 .errorlist {
-    display: none !important;
-}
-
-ul.errorlist {
-    display: none !important;
-}
-
-.errorlist li {
-    display: none !important;
-}
-
-.errorlist li ul.errorlist {
-    display: none !important;
-}
-
-/* Hide any form error displays that might leak through */
-form .errorlist {
-    display: none !important;
-}
-
-/* Hide them in any context */
-* .errorlist {
-    display: none !important;
-}
-
-/* Additional safety nets */
-ul[class*="errorlist"] {
-    display: none !important;
-}
-
-li ul[id*="_error"] {
-    display: none !important;
+    margin-top: .35rem;
+    list-style: none;
+    color: #b91c1c;
+    font-size: .875rem;
 }
   </style>
 
   {% block extra_css %}{% endblock %}
 </head>
-<body class="gradient-bg text-gray-800">
+<body class="gradient-bg text-gray-800" data-server-sync-role="{{ server_sync_role|default:'standalone' }}">
   <script>
     const updateConnectionStatus = () => {
       const onlineIndicator = document.getElementById('connection-indicator');
@@ -217,8 +189,8 @@ li ul[id*="_error"] {
     window.addEventListener('offline', updateConnectionStatus);
     document.addEventListener('DOMContentLoaded', updateConnectionStatus);
   </script>
-  <script src="{% static 'offline-app.js' %}?v=4"></script>
-  <script src="{% static 'offline-patient-workflow.js' %}?v=4" defer></script>
+  <script src="{% static 'offline-app.js' %}?v=5"></script>
+  <script src="{% static 'offline-patient-workflow.js' %}?v=5" defer></script>
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <div class="hidden md:flex md:flex-shrink-0">

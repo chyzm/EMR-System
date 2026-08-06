@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import json
+import os
 import uuid
 from pathlib import Path
 
@@ -106,6 +107,51 @@ def role():
     if config.get('activated'):
         return 'local'
     return getattr(settings, 'SYNC_SERVER_ROLE', 'standalone')
+
+
+def sync_worker_lock_path():
+    runtime_root = os.getenv('DURIELMEDIC_RUNTIME_DIR')
+    base_path = Path(runtime_root) if runtime_root else Path(settings.BASE_DIR)
+    base_path.mkdir(parents=True, exist_ok=True)
+    return base_path / 'sync-worker.lock'
+
+
+@contextlib.contextmanager
+def sync_worker_lock(stale_after_seconds=600):
+    """Prevent the desktop launcher and startup task from syncing concurrently."""
+    lock_path = sync_worker_lock_path()
+    file_descriptor = None
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        try:
+            file_descriptor = os.open(lock_path, flags)
+        except FileExistsError:
+            try:
+                lock_age = timezone.now().timestamp() - lock_path.stat().st_mtime
+            except OSError:
+                yield False
+                return
+            if lock_age < stale_after_seconds:
+                yield False
+                return
+            try:
+                lock_path.unlink()
+                file_descriptor = os.open(lock_path, flags)
+            except (OSError, FileExistsError):
+                yield False
+                return
+        os.write(file_descriptor, str(os.getpid()).encode('utf-8'))
+        yield True
+    finally:
+        if file_descriptor is not None:
+            try:
+                os.close(file_descriptor)
+            except OSError:
+                pass
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
 
 
 def model_label(model):
@@ -548,7 +594,7 @@ def pull_remote_changes():
         return {'applied': 0, 'skipped': 'missing-clinic-sync-id'}
     state_value = dict(state.value or {})
     cursor = int(state_value.get('cursor') or 0)
-    required_bootstrap_version = getattr(settings, 'SYNC_BOOTSTRAP_VERSION', 2)
+    required_bootstrap_version = getattr(settings, 'SYNC_BOOTSTRAP_VERSION', 3)
     bootstrap_version_matches = int(state_value.get('bootstrap_version') or 0) == required_bootstrap_version
     bootstrap_done = bool(state_value.get('bootstrap_done')) and bootstrap_version_matches
     bootstrap_offset = int(state_value.get('bootstrap_offset') or 0) if bootstrap_version_matches else 0
@@ -598,6 +644,8 @@ def pull_remote_changes():
         'bootstrap': not bootstrap_done,
         'cursor': state.value['cursor'],
         'failed': len(failures),
+        'has_more': bool(data.get('hasMore')),
+        'bootstrap_done': remote_bootstrap_done,
     }
 
 

@@ -50,6 +50,9 @@ Name: "{commonappdata}\DurielMedicClinicServer\runtime\media"; Permissions: user
 
 [Files]
 Source: "..\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist\durielmedic-clinic-server\VERSION"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Update-DurielMedicClinic.ps1"; DestDir: "{app}\updater"; Flags: ignoreversion
+Source: "Configure-DurielMedicTasks.ps1"; DestDir: "{app}\updater"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -58,12 +61,26 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{sys}\icacls.exe"; Parameters: """{commonappdata}\DurielMedicClinicServer"" /grant Users:(OI)(CI)M /T"; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""DurielMedic Clinic Server 9000"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=private,domain"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--activate ""{code:GetActivationUrl}"""; StatusMsg: "Activating DurielMedic Clinic Server..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\updater\Configure-DurielMedicTasks.ps1"" -InstallDir ""{app}"" -Uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveDurielMedicTasks"
 
 [Code]
 var
   ActivationPage: TInputQueryWizardPage;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  { An older clinic-server process may be holding the executable open. }
+  { Stop only DurielMedic's known tasks/process before replacing the app. }
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "DurielMedic Clinic Server"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "DurielMedic Sync Worker"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM DurielMedicClinicServer.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
 
 procedure InitializeWizard;
 begin
@@ -89,7 +106,30 @@ begin
   end;
 end;
 
-function GetActivationUrl(Param: String): String;
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  ActivationArgs: String;
+  ConfigureArgs: String;
 begin
-  Result := ActivationPage.Values[0];
+  if CurStep = ssPostInstall then
+  begin
+    WizardForm.StatusLabel.Caption := 'Activating DurielMedic Clinic Server...';
+    ActivationArgs := '--activate "' + ActivationPage.Values[0] + '"';
+    if (not Exec(ExpandConstant('{app}\{#MyAppExeName}'), ActivationArgs, '', SW_HIDE,
+      ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+    begin
+      RaiseException('Clinic activation failed. Generate a fresh activation URL in the cloud clinic settings and run Setup again.');
+    end;
+
+    WizardForm.StatusLabel.Caption := 'Enabling automatic clinic server and cloud sync...';
+    ConfigureArgs := '-NoProfile -ExecutionPolicy Bypass -File "' +
+      ExpandConstant('{app}\updater\Configure-DurielMedicTasks.ps1') + '" -InstallDir "' +
+      ExpandConstant('{app}') + '" -Port 9000 -StartTasks';
+    if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), ConfigureArgs,
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+    begin
+      RaiseException('DurielMedic background task setup failed. Run Setup as an administrator.');
+    end;
+  end;
 end;

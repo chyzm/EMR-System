@@ -1,6 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.db.models import Sum
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from core.models import CustomUser, Patient, Prescription
@@ -155,8 +156,7 @@ class MedicationAdministrationForm(forms.ModelForm):
         model = MedicationAdministration
         fields = [
             'prescription',
-            'medication_name',
-            'dose',
+            'quantity_administered',
             'route',
             'scheduled_time',
             'administered_at',
@@ -165,8 +165,7 @@ class MedicationAdministrationForm(forms.ModelForm):
         ]
         widgets = {
             'prescription': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
-            'medication_name': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Medication name'}),
-            'dose': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g., 500mg'}),
+            'quantity_administered': forms.NumberInput(attrs={'min': 1, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'route': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g., Oral, IV, IM'}),
             'scheduled_time': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'administered_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
@@ -175,14 +174,42 @@ class MedicationAdministrationForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        admission = kwargs.pop('admission', None)
+        self.admission = kwargs.pop('admission', None)
         super().__init__(*args, **kwargs)
-        if admission:
+        if self.admission:
             self.fields['prescription'].queryset = Prescription.objects.filter(
-                patient=admission.patient,
-                clinic=admission.clinic,
+                patient=self.admission.patient,
+                clinic=self.admission.clinic,
                 is_active=True,
+                clinic_medication__isnull=False,
             ).order_by('-date_prescribed')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        prescription = cleaned_data.get('prescription')
+        quantity = cleaned_data.get('quantity_administered') or 0
+        if not prescription:
+            raise ValidationError('Select an active prescription before recording administration.')
+        if not self.admission or (
+            prescription.patient_id != self.admission.patient_id
+            or prescription.clinic_id != self.admission.clinic_id
+        ):
+            raise ValidationError('This prescription does not belong to the admitted patient.')
+        if not prescription.is_active:
+            raise ValidationError('This prescription has been deactivated and cannot be administered.')
+        if not prescription.clinic_medication_id:
+            raise ValidationError('Only medication supplied by the clinic pharmacy can be administered.')
+        already_given = prescription.administrations.filter(status='GIVEN').exclude(
+            pk=self.instance.pk,
+        ).aggregate(total=Sum('quantity_administered'))['total'] or 0
+        if quantity < 1:
+            self.add_error('quantity_administered', 'Enter at least one unit.')
+        elif already_given + quantity > prescription.quantity_prescribed:
+            self.add_error(
+                'quantity_administered',
+                f'Only {max(prescription.quantity_prescribed - already_given, 0)} unit(s) remain on this prescription.',
+            )
+        return cleaned_data
 
 
 class AdmissionHandoverForm(forms.ModelForm):

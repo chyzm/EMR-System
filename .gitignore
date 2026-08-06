@@ -17,8 +17,10 @@ logs/
 rollback/
 
 # Release/install artifacts
+build/
 dist/
 Output/
+*.spec
 *.exe
 *.msi
 *.zip

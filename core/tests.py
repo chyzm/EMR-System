@@ -17,6 +17,7 @@ from core.models import (
 )
 from core.server_sync import (
     apply_change,
+    pull_remote_changes,
     push_pending_outbox,
     serialize_instance,
     sync_worker_lock,
@@ -411,6 +412,38 @@ class SyncQueueTests(TestCase):
         self.assertEqual(payload['role'], 'local')
         self.assertEqual(payload['update_manifest_url'], 'https://cloud.example/releases/update-manifest.json')
         self.assertNotIn('sync_token', payload)
+
+    def test_partial_bootstrap_records_version_and_advances_next_page(self):
+        self.activate_local_sync()
+        ServerSyncState.objects.update_or_create(
+            key='central_pull_cursor',
+            defaults={'value': {
+                'cursor': 0,
+                'bootstrap_done': False,
+                'bootstrap_offset': 25,
+                'bootstrap_version': 0,
+            }},
+        )
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            'changes': [],
+            'users': [],
+            'nextCursor': 0,
+            'bootstrapDone': False,
+            'nextBootstrapOffset': 25,
+            'hasMore': True,
+        }
+
+        with patch('core.server_sync.requests.get', return_value=response) as request_get:
+            first = pull_remote_changes()
+            second = pull_remote_changes()
+
+        self.assertTrue(first['has_more'])
+        self.assertEqual(request_get.call_args_list[0].kwargs['params']['bootstrap_offset'], 0)
+        self.assertEqual(request_get.call_args_list[1].kwargs['params']['bootstrap_offset'], 25)
+        state = ServerSyncState.objects.get(key='central_pull_cursor').value
+        self.assertEqual(state['bootstrap_version'], 3)
 
     def test_patient_profile_picture_payload_contains_and_restores_file(self):
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):

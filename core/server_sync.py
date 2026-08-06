@@ -635,7 +635,10 @@ def pull_remote_changes():
         'bootstrap_done': remote_bootstrap_done,
         'bootstrap_offset': 0 if remote_bootstrap_done else data.get('nextBootstrapOffset', bootstrap_offset + applied),
         'failed_changes': failures[-100:],
-        'bootstrap_version': required_bootstrap_version if remote_bootstrap_done else state_value.get('bootstrap_version', 0),
+        # Record the version as soon as the first page starts. Keeping the old
+        # version until the final page makes the next call treat every partial
+        # bootstrap as a new bootstrap and reset its offset back to zero.
+        'bootstrap_version': required_bootstrap_version,
     }
     state.save(update_fields=['value', 'updated_at'])
     return {

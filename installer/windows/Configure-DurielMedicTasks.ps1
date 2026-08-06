@@ -9,6 +9,10 @@ $ErrorActionPreference = "Stop"
 $serverTaskName = "DurielMedic Clinic Server"
 $syncTaskName = "DurielMedic Sync Worker"
 $updaterTaskName = "DurielMedic Clinic Updater"
+$taskNames = @($serverTaskName, $syncTaskName, $updaterTaskName)
+$taskLogDir = Join-Path $env:ProgramData "DurielMedicClinicServer\runtime\logs"
+New-Item -ItemType Directory -Path $taskLogDir -Force | Out-Null
+Start-Transcript -Path (Join-Path $taskLogDir "task-config.log") -Append | Out-Null
 
 function Stop-And-UnregisterTask([string]$TaskName) {
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -20,6 +24,7 @@ if ($Uninstall) {
     Stop-And-UnregisterTask $syncTaskName
     Stop-And-UnregisterTask $updaterTaskName
     Write-Host "DurielMedic background tasks removed. Clinic data in ProgramData was preserved."
+    Stop-Transcript | Out-Null
     exit 0
 }
 
@@ -72,6 +77,12 @@ Register-ScheduledTask -TaskName $serverTaskName -Action $serverAction -Trigger 
 Register-ScheduledTask -TaskName $syncTaskName -Action $syncAction -Trigger $syncTrigger -Principal $principal -Settings $longRunningSettings -Force | Out-Null
 Register-ScheduledTask -TaskName $updaterTaskName -Action $updateAction -Trigger $updateTrigger -Principal $principal -Settings $updaterSettings -Force | Out-Null
 
+foreach ($taskName in $taskNames) {
+    if (-not (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) {
+        throw "Scheduled task registration did not persist: $taskName"
+    }
+}
+
 if ($StartTasks) {
     Start-ScheduledTask -TaskName $serverTaskName
     Start-Sleep -Seconds 2
@@ -79,3 +90,4 @@ if ($StartTasks) {
 }
 
 Write-Host "DurielMedic server, sync, and updater tasks configured for automatic startup."
+Stop-Transcript | Out-Null

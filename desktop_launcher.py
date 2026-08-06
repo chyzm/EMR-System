@@ -319,6 +319,14 @@ def serve_mode() -> int:
     os.environ.update(runtime_env(project_root))
     from DurielMedic.wsgi import application
 
+    # Waitress serves the WSGI application but does not serve Django static
+    # assets. The packaged clinic server has no separate nginx/static server,
+    # so wrap only desktop mode with Django's static handler.
+    if os.getenv("DURIELMEDIC_DESKTOP") == "1":
+        from django.contrib.staticfiles.handlers import StaticFilesHandler
+
+        application = StaticFilesHandler(application)
+
     try:
         from waitress import serve
     except ModuleNotFoundError:

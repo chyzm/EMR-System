@@ -290,7 +290,7 @@ Use Inno Setup plus PyInstaller to build a Windows desktop-style `.exe` installe
 Build the installer on your own/release machine:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.9" -PackageBaseUrl "https://durielmedic.com.ng/releases"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.10" -PackageBaseUrl "https://durielmedic.com.ng/releases"
 ```
 
 Run that command from the repository root on the release/developer PC. Do not run it from `C:\Program Files` on a clinic PC.
@@ -414,13 +414,13 @@ To update installed clinics after a new release:
 2. Build the local update package with a new version:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.10" -PackageBaseUrl "https://durielmedic.com.ng/releases"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Build-InnoPackage.ps1" -Version "1.0.11" -PackageBaseUrl "https://durielmedic.com.ng/releases"
 ```
 
 3. Upload the ZIP first, then upload the manifest last to your `/releases/` static folder:
 
 ```text
-dist\durielmedic-clinic-server-1.0.10.zip
+dist\durielmedic-clinic-server-1.0.11.zip
 dist\update-manifest.json
 ```
 
@@ -439,6 +439,7 @@ Get-ScheduledTask -TaskName "DurielMedic Clinic Server","DurielMedic Sync Worker
 Start-ScheduledTask -TaskName "DurielMedic Clinic Updater"
 Get-Content "C:\ProgramData\DurielMedicClinicServer\runtime\logs\updater.log" -Tail 100
 Get-Content "C:\ProgramData\DurielMedicClinicServer\runtime\logs\launcher.log" -Tail 100
+Get-Content "C:\ProgramData\DurielMedicClinicServer\runtime\logs\task-config.log" -Tail 100
 ```
 
 The data worker retries on its configured interval (30 seconds by default), so local changes queue safely while the internet is unavailable and push after connectivity returns. It also pulls cloud changes in the same pass.

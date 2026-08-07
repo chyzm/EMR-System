@@ -17,6 +17,32 @@ $updaterSource = Join-Path $PSScriptRoot "Update-DurielMedicClinic.ps1"
 $configureSource = Join-Path $PSScriptRoot "Configure-DurielMedicTasks.ps1"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
+# ---------------------------------------------------------
+# Validate updater source before building the release.
+# Prevent accidentally packaging an old updater.
+# ---------------------------------------------------------
+
+if (-not (Test-Path $updaterSource -PathType Leaf)) {
+    throw "Release aborted: updater source not found at $updaterSource"
+}
+
+$updaterContent = Get-Content $updaterSource -Raw
+
+if ($updaterContent -notmatch 'TimeoutSeconds\s*=\s*120') {
+    throw "Release aborted: updater does not contain the 120-second startup timeout."
+}
+
+if ($updaterContent -notmatch 'Port \$Port is free') {
+    throw "Release aborted: updater does not contain the port-release protection."
+}
+
+if ($updaterContent -notmatch 'Migration marker updated') {
+    throw "Release aborted: updater does not contain the migration-marker fix."
+}
+
+Write-Host "Updater validation passed."
+
+
 if (-not (Test-Path $distRoot)) {
     New-Item -ItemType Directory -Path $distRoot | Out-Null
 }

@@ -109,38 +109,151 @@ def role():
     return getattr(settings, 'SYNC_SERVER_ROLE', 'standalone')
 
 
-def sync_worker_lock_path():
+def _sync_lock_base_path():
     runtime_root = os.getenv('DURIELMEDIC_RUNTIME_DIR')
     base_path = Path(runtime_root) if runtime_root else Path(settings.BASE_DIR)
     base_path.mkdir(parents=True, exist_ok=True)
-    return base_path / 'sync-worker.lock'
+    return base_path
+
+
+def sync_worker_lock_path():
+    """Short-lived lock used around one push/pull sync pass."""
+    return _sync_lock_base_path() / 'sync-worker.lock'
+
+
+def sync_worker_owner_lock_path():
+    """Process-lifetime lock proving there is only one long-running worker."""
+    return _sync_lock_base_path() / 'sync-worker-owner.lock'
+
+
+def _pid_is_running(pid):
+    """Return True when pid still represents a live process.
+
+    Windows uses OpenProcess/WaitForSingleObject instead of os.kill(pid, 0),
+    because os.kill has different semantics on Windows.
+    """
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+
+    if os.name == 'nt':
+        try:
+            import ctypes
+
+            process_query_limited_information = 0x1000
+            synchronize = 0x00100000
+            wait_timeout = 0x00000102
+
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(
+                process_query_limited_information | synchronize,
+                False,
+                pid,
+            )
+            if not handle:
+                # Access denied can mean the process exists under another
+                # account (for example SYSTEM). Be conservative in that case.
+                error_code = kernel32.GetLastError()
+                return error_code == 5
+
+            try:
+                return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            # Never steal a lock merely because liveness detection failed.
+            return True
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _read_lock_owner(lock_path):
+    try:
+        raw = lock_path.read_text(encoding='utf-8').strip()
+    except OSError:
+        return None
+
+    if not raw:
+        return None
+
+    # Backward compatibility with the old lock format, which contained only PID.
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+
+    try:
+        payload = json.loads(raw)
+        return int(payload.get('pid'))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def _lock_age_seconds(lock_path):
+    try:
+        return max(0, timezone.now().timestamp() - lock_path.stat().st_mtime)
+    except OSError:
+        return 0
 
 
 @contextlib.contextmanager
-def sync_worker_lock(stale_after_seconds=600):
-    """Prevent the desktop launcher and startup task from syncing concurrently."""
-    lock_path = sync_worker_lock_path()
+def _pid_file_lock(lock_path, malformed_stale_after_seconds=120):
+    """Acquire a PID-aware lock and recover immediately from dead owners."""
     file_descriptor = None
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    acquired = False
+
     try:
-        try:
-            file_descriptor = os.open(lock_path, flags)
-        except FileExistsError:
+        for _ in range(2):
             try:
-                lock_age = timezone.now().timestamp() - lock_path.stat().st_mtime
-            except OSError:
-                yield False
-                return
-            if lock_age < stale_after_seconds:
-                yield False
-                return
-            try:
-                lock_path.unlink()
                 file_descriptor = os.open(lock_path, flags)
-            except (OSError, FileExistsError):
-                yield False
-                return
-        os.write(file_descriptor, str(os.getpid()).encode('utf-8'))
+                acquired = True
+                break
+            except FileExistsError:
+                owner_pid = _read_lock_owner(lock_path)
+
+                if owner_pid and _pid_is_running(owner_pid):
+                    yield False
+                    return
+
+                # A lock belonging to a dead process is stale immediately.
+                # For malformed legacy files, wait briefly before reclaiming.
+                if owner_pid is None and _lock_age_seconds(lock_path) < malformed_stale_after_seconds:
+                    yield False
+                    return
+
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    yield False
+                    return
+
+        if not acquired or file_descriptor is None:
+            yield False
+            return
+
+        payload = {
+            'pid': os.getpid(),
+            'created_at': timezone.now().isoformat(),
+        }
+        os.write(
+            file_descriptor,
+            json.dumps(payload, separators=(',', ':')).encode('utf-8'),
+        )
         yield True
     finally:
         if file_descriptor is not None:
@@ -148,11 +261,28 @@ def sync_worker_lock(stale_after_seconds=600):
                 os.close(file_descriptor)
             except OSError:
                 pass
+
+        if acquired:
+            # Only delete the lock if this process still owns it.
             try:
-                lock_path.unlink()
+                if _read_lock_owner(lock_path) == os.getpid():
+                    lock_path.unlink()
             except OSError:
                 pass
 
+
+@contextlib.contextmanager
+def sync_worker_owner_lock():
+    """Allow only one long-running sync_worker process per clinic machine."""
+    with _pid_file_lock(sync_worker_owner_lock_path()) as acquired:
+        yield acquired
+
+
+@contextlib.contextmanager
+def sync_worker_lock():
+    """Prevent sync_once and the background worker from syncing concurrently."""
+    with _pid_file_lock(sync_worker_lock_path()) as acquired:
+        yield acquired
 
 def model_label(model):
     return f'{model._meta.app_label}.{model.__name__}'

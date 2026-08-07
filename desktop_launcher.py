@@ -356,6 +356,32 @@ def open_browser_once() -> None:
     webbrowser.open(browser_url(), new=1)
 
 
+def request_sync_task_start() -> None:
+    """Ask Windows Task Scheduler to run the single managed sync worker.
+
+    The desktop launcher must never spawn sync_worker directly. Task Scheduler
+    owns the worker lifecycle and is configured with MultipleInstances=IgnoreNew.
+    """
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        return
+
+    try:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        result = subprocess.run(
+            ["schtasks.exe", "/Run", "/TN", "DurielMedic Sync Worker"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            creationflags=creationflags,
+        )
+        if result.returncode != 0:
+            log_launcher(
+                f"sync task start request returned exit_code={result.returncode}"
+            )
+    except OSError as exc:
+        log_launcher(f"sync task start request failed error={exc}")
+
+
 def main() -> int:
     if "--serve" in sys.argv:
         return serve_mode()
@@ -379,23 +405,18 @@ def main() -> int:
         return 1
 
     if is_server_running():
+        request_sync_task_start()
         open_browser_once()
         return 0
 
     server = launch_process(project_root, server_command())
-    sync_worker = None
     if wait_for_server():
-        sync_worker = launch_process(project_root, sync_worker_command())
+        # The Windows Scheduled Task is the single owner of sync_worker.
+        # The desktop launcher may request that task to run, but it never
+        # creates a second sync worker process itself.
+        request_sync_task_start()
         open_browser_once()
-        try:
-            return server.wait()
-        finally:
-            if sync_worker and sync_worker.poll() is None:
-                sync_worker.terminate()
-                try:
-                    sync_worker.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    sync_worker.kill()
+        return server.wait()
 
     server.poll()
     return 1

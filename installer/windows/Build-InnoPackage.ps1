@@ -15,6 +15,9 @@ $desktopBuildScript = Join-Path $PSScriptRoot "Build-DesktopApp.ps1"
 $desktopExe = Join-Path $distRoot "DurielMedicClinicServer.exe"
 $updaterSource = Join-Path $PSScriptRoot "Update-DurielMedicClinic.ps1"
 $configureSource = Join-Path $PSScriptRoot "Configure-DurielMedicTasks.ps1"
+$desktopLauncherSource = Join-Path $ProjectRoot "desktop_launcher.py"
+$serverSyncSource = Join-Path $ProjectRoot "core\server_sync.py"
+$syncWorkerSource = Join-Path $ProjectRoot "core\management\commands\sync_worker.py"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 # ---------------------------------------------------------
@@ -41,6 +44,28 @@ if ($updaterContent -notmatch 'Migration marker updated') {
 }
 
 Write-Host "Updater validation passed."
+
+$launcherContent = Get-Content $desktopLauncherSource -Raw
+if ($launcherContent -match 'launch_process\(project_root,\s*sync_worker_command\(\)\)') {
+    throw "Release aborted: desktop launcher still spawns its own sync worker."
+}
+
+$serverSyncContent = Get-Content $serverSyncSource -Raw
+if ($serverSyncContent -notmatch 'def\s+sync_worker_owner_lock') {
+    throw "Release aborted: server_sync.py does not contain the single-worker owner lock."
+}
+
+$syncWorkerContent = Get-Content $syncWorkerSource -Raw
+if ($syncWorkerContent -notmatch 'sync_worker_owner_lock') {
+    throw "Release aborted: sync_worker.py does not enforce single-worker ownership."
+}
+
+$configureContent = Get-Content $configureSource -Raw
+if ($configureContent -notmatch 'sync-worker-owner\.lock') {
+    throw "Release aborted: task configuration does not clean the sync owner lock."
+}
+
+Write-Host "Sync ownership validation passed."
 
 
 if (-not (Test-Path $distRoot)) {

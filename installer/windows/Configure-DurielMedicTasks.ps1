@@ -10,9 +10,38 @@ $serverTaskName = "DurielMedic Clinic Server"
 $syncTaskName = "DurielMedic Sync Worker"
 $updaterTaskName = "DurielMedic Clinic Updater"
 $taskNames = @($serverTaskName, $syncTaskName, $updaterTaskName)
-$taskLogDir = Join-Path $env:ProgramData "DurielMedicClinicServer\runtime\logs"
+$runtimeRoot = Join-Path $env:ProgramData "DurielMedicClinicServer\runtime"
+$taskLogDir = Join-Path $runtimeRoot "logs"
+$syncPassLock = Join-Path $runtimeRoot "sync-worker.lock"
+$syncOwnerLock = Join-Path $runtimeRoot "sync-worker-owner.lock"
 New-Item -ItemType Directory -Path $taskLogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $taskLogDir "task-config.log") -Append | Out-Null
+
+
+function Stop-OrphanedSyncWorkers {
+    try {
+        $workers = @(
+            Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.Name -eq "DurielMedicClinicServer.exe" -and
+                    $_.CommandLine -match '--manage\s+sync_worker'
+                }
+        )
+
+        foreach ($worker in $workers) {
+            Write-Host "Stopping stale sync worker PID=$($worker.ProcessId)"
+            Stop-Process -Id $worker.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    }
+    catch {
+        Write-Warning "Unable to enumerate stale sync workers: $_"
+    }
+
+    Start-Sleep -Seconds 1
+
+    Remove-Item $syncPassLock -Force -ErrorAction SilentlyContinue
+    Remove-Item $syncOwnerLock -Force -ErrorAction SilentlyContinue
+}
 
 function Stop-And-UnregisterTask([string]$TaskName) {
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -40,6 +69,7 @@ if (-not (Test-Path $updaterScript -PathType Leaf)) {
 
 Stop-ScheduledTask -TaskName $serverTaskName -ErrorAction SilentlyContinue
 Stop-ScheduledTask -TaskName $syncTaskName -ErrorAction SilentlyContinue
+Stop-OrphanedSyncWorkers
 
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $startupTrigger = New-ScheduledTaskTrigger -AtStartup

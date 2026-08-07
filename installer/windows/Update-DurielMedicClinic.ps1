@@ -19,6 +19,8 @@ $logsRoot = Join-Path $runtimeRoot "logs"
 $rollbackRoot = Join-Path $dataRoot "rollback"
 $serverTaskName = "DurielMedic Clinic Server"
 $syncTaskName = "DurielMedic Sync Worker"
+$syncPassLock = Join-Path $runtimeRoot "sync-worker.lock"
+$syncOwnerLock = Join-Path $runtimeRoot "sync-worker-owner.lock"
 
 New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $rollbackRoot -Force | Out-Null
@@ -63,6 +65,14 @@ function Get-PortListener {
 }
 
 
+
+function Remove-SyncWorkerLocks {
+    Remove-Item $syncPassLock -Force -ErrorAction SilentlyContinue
+    Remove-Item $syncOwnerLock -Force -ErrorAction SilentlyContinue
+    Write-Host "Sync worker locks cleared."
+}
+
+
 function Stop-DurielMedicProcesses {
     Write-Host "Stopping DurielMedic background services..."
 
@@ -71,12 +81,15 @@ function Stop-DurielMedicProcesses {
 
     Start-Sleep -Seconds 2
 
-    # First terminate the known packaged executable.
-    try {
-        & taskkill.exe /F /IM "DurielMedicClinicServer.exe" 2>$null | Out-Null
-    }
-    catch {
-        # "Process not found" is not an update failure.
+    # First terminate the known packaged executable only when it exists.
+    $knownProcesses = Get-Process -Name "DurielMedicClinicServer" -ErrorAction SilentlyContinue
+    if ($knownProcesses) {
+        try {
+            & taskkill.exe /F /IM "DurielMedicClinicServer.exe" 2>$null | Out-Null
+        }
+        catch {
+            # Remaining processes are handled by the CIM cleanup below.
+        }
     }
 
     # Catch any remaining packaged DurielMedic processes.
@@ -106,6 +119,9 @@ function Stop-DurielMedicProcesses {
 
         if (-not $listener) {
             Write-Host "Port $Port is free."
+            # All DurielMedic processes are stopped at this point, so any
+            # remaining sync lock can only be stale.
+            Remove-SyncWorkerLocks
             return
         }
 

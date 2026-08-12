@@ -31,12 +31,8 @@ def log_save_action(sender, instance, created, **kwargs):
     clinic = None
     user = None
 
-    # ✅ Prefer clinic from current request session
+    # Prefer clinic from current request session.
     if request and request.user.is_authenticated:
-        # 🚫 Skip if superuser
-        if request.user.is_superuser:
-            return
-
         clinic_id = request.session.get('clinic_id')
         if clinic_id:
             try:
@@ -86,10 +82,6 @@ def log_delete_action(sender, instance, **kwargs):
     if not request or not request.user.is_authenticated:
         return
 
-    # 🚫 Skip if superuser
-    if request.user.is_superuser:
-        return
-    
     clinic = None
     user = request.user
     
@@ -131,10 +123,6 @@ from django.contrib.auth.signals import user_login_failed
 @receiver(user_login_failed)
 def log_failed_login(sender, credentials, request, **kwargs):
     try:
-        # 🚫 Skip logging failed login for superuser username
-        if credentials.get('username') and hasattr(request, 'user') and request.user.is_superuser:
-            return
-
         ActionLog.objects.create(
             user=None,
             clinic_id=request.session.get('clinic_id'),

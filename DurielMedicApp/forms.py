@@ -5,14 +5,17 @@ from django.db.models import Sum
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from core.models import CustomUser, Patient, Prescription
-from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord, MedicationAdministration, AdmissionHandover
+from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord, PhysiotherapyReferral, MedicationAdministration, AdmissionHandover
 
 class VitalsForm(forms.ModelForm):
     class Meta:
         model = Vitals
-        fields = '__all__'
+        fields = [
+            'blood_pressure', 'pulse', 'temperature', 'weight',
+            'respiratory_rate', 'oxygen_saturation', 'height', 'bmi',
+            'category', 'notes',
+        ]
         widgets = {
-            'appointment': forms.HiddenInput(),
             'notes': forms.Textarea(attrs={
                 'rows': 3,
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200'
@@ -304,7 +307,7 @@ class AppointmentForm(forms.ModelForm):
             self.fields['provider'].queryset = CustomUser.objects.filter(
                 clinic__id=clinic_id,
                 is_active=True,
-                role__in=['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE'],
+                role__in=['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'PHYSIOTHERAPIST'],
             ).distinct().order_by('first_name', 'last_name', 'username')
         
         # Format patient names as "Name (Patient ID) + DOB"
@@ -388,6 +391,8 @@ class MedicalRecordForm(forms.ModelForm):
 
 
 class PhysiotherapyRecordForm(forms.ModelForm):
+    session_count = forms.IntegerField(required=False, min_value=0)
+
     class Meta:
         model = PhysiotherapyRecord
         fields = [
@@ -401,6 +406,8 @@ class PhysiotherapyRecordForm(forms.ModelForm):
             'exercises_prescribed',
             'modalities_used',
             'progress_notes',
+            'session_count',
+            'session_dates',
             'additional_notes',
         ]
         widgets = {
@@ -414,5 +421,32 @@ class PhysiotherapyRecordForm(forms.ModelForm):
             'exercises_prescribed': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter exercises prescribed...'}),
             'modalities_used': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter modalities used (e.g., ultrasound, TENS, heat/cold therapy)...'}),
             'progress_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter progress notes...'}),
+            'session_count': forms.NumberInput(attrs={'min': 0, 'class': 'form-control', 'placeholder': 'Number of sessions held'}),
+            'session_dates': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'One session date per line, e.g. 2026-08-11'}),
             'additional_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter any additional notes...'}),
         }
+
+
+class PhysiotherapyReferralForm(forms.ModelForm):
+    class Meta:
+        model = PhysiotherapyReferral
+        fields = ['assigned_to', 'priority', 'reason', 'notes']
+        widgets = {
+            'assigned_to': forms.Select(attrs={'class': 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'}),
+            'priority': forms.Select(attrs={'class': 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'}),
+            'reason': forms.Textarea(attrs={'rows': 4, 'class': 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100', 'placeholder': 'Reason for physiotherapy referral...'}),
+            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100', 'placeholder': 'Optional handoff notes...'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+        if clinic:
+            self.fields['assigned_to'].queryset = CustomUser.objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role='PHYSIOTHERAPIST',
+            ).distinct().order_by('first_name', 'last_name', 'username')
+        self.fields['assigned_to'].label_from_instance = lambda obj: obj.get_full_name() or obj.username
+        self.fields['assigned_to'].required = False
+        self.fields['assigned_to'].empty_label = 'Any available physiotherapist'

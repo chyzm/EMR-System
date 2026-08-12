@@ -32,6 +32,7 @@ urlpatterns = [
 
     # Eye Exams
     path('appointments/<int:appointment_id>/record-exam/',views.record_eye_exam,name='record_eye_exam'),
+    path('exams/<int:exam_id>/', views.view_eye_exam, name='view_eye_exam'),
     path('exams/<int:exam_id>/edit/',views.edit_eye_exam, name='edit_eye_exam'),
     path('exams/<int:exam_id>/delete/', views.delete_eye_exam, name='delete_eye_exam'),
     

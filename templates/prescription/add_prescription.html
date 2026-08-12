@@ -18,6 +18,10 @@
 
   <form method="POST" class="space-y-6">
     {% csrf_token %}
+    {% if appointment %}
+      <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+      <input type="hidden" name="appointment_type" value="{{ appointment_type }}">
+    {% endif %}
     {{ form.non_field_errors }}
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

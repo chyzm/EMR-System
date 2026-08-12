@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Reconcile Prescription{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto bg-white shadow-md rounded-lg p-6">
+  <h2 class="text-2xl font-semibold text-blue-900 mb-4">Reconcile Prescription</h2>
+
+  <div class="mb-4 text-sm text-gray-700">
+    <p><strong>Patient:</strong> {{ prescription.patient.full_name }}</p>
+    <p><strong>Medication:</strong> {{ prescription.medication_name }}</p>
+    <p><strong>Quantity:</strong> {{ prescription.quantity_prescribed }}</p>
+    <p><strong>Billing credit:</strong> ₦{{ total_price|floatformat:2 }}</p>
+  </div>
+
+  <form method="POST" class="space-y-4">
+    {% csrf_token %}
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1" for="reconcile_type">Reason Type</label>
+      <select id="reconcile_type" name="reconcile_type" required class="w-full border rounded px-3 py-2">
+        <option value="">Select an option</option>
+        <option value="RETURNED">Medication returned</option>
+        <option value="CHANGED">Medication changed</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1" for="reason">Reconciliation Note</label>
+      <textarea id="reason" name="reason" rows="4" required class="w-full border rounded px-3 py-2" placeholder="Document what happened and who approved it."></textarea>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-500">
+        Confirm Reconciliation
+      </button>
+      <a href="{% url 'core:prescription_list' %}" class="text-blue-900 hover:underline">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

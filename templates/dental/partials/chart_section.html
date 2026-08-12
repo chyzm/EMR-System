@@ -1,0 +1,39 @@
+{% load dental_extras %}
+
+<section id="{{ page_param }}-section" class="rounded-xl border bg-white p-5 shadow-sm">
+  <h2 class="mb-3 font-semibold">{{ title }}</h2>
+  <div class="space-y-3">
+    {% for item in items %}
+      <div class="rounded-lg border p-3">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div class="text-sm text-gray-500">{{ item|get_attr:date_attr }}</div>
+            <div class="font-medium">{{ item|get_attr:primary_attr|default:"Untitled" }}</div>
+            <p class="whitespace-pre-line text-sm text-gray-700">{{ item|get_attr:secondary_attr|default:"" }}</p>
+          </div>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <a href="{% url 'DurielDentalApp:dental_file_detail' file_type item.pk %}" class="rounded border px-3 py-1 text-xs hover:bg-gray-50">View</a>
+            <a href="{% url 'DurielDentalApp:dental_file_edit' file_type item.pk %}" class="rounded border px-3 py-1 text-xs hover:bg-gray-50">Edit</a>
+            <a href="{% url 'DurielDentalApp:dental_file_pdf' file_type item.pk %}" class="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700">PDF</a>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <p class="text-sm text-gray-500">{{ empty_text }}</p>
+    {% endfor %}
+  </div>
+
+  {% if items.paginator.num_pages > 1 %}
+    <div class="mt-4 flex items-center justify-between border-t pt-3 text-sm">
+      <div class="text-gray-500">Page {{ items.number }} of {{ items.paginator.num_pages }}</div>
+      <div class="flex gap-2">
+        {% if items.has_previous %}
+          <a class="rounded border px-3 py-1 hover:bg-gray-50" href="?{{ page_param }}={{ items.previous_page_number }}#{{ page_param }}-section">Previous</a>
+        {% endif %}
+        {% if items.has_next %}
+          <a class="rounded border px-3 py-1 hover:bg-gray-50" href="?{{ page_param }}={{ items.next_page_number }}#{{ page_param }}-section">Next</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>

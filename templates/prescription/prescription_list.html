@@ -45,7 +45,7 @@
             <td class="px-3 py-4 whitespace-nowrap hidden sm:table-cell">{{ prescription.date_prescribed }}</td>
             <td class="px-3 py-4">
               <div class="text-sm text-gray-900
-                          {% if prescription.stock_deducted %}bg-green-100 p-1 rounded{% elif prescription.returned_from_billing %}bg-purple-100{% elif prescription.clinic_medication.is_out_of_stock %}bg-gray-100 p-1 rounded{% elif prescription.clinic_medication.is_low_stock %}bg-yellow-50 p-1 rounded{% endif %}">
+                          {% if prescription.stock_deducted %}bg-red-50 p-1 rounded border border-red-100{% elif prescription.returned_from_billing %}bg-purple-100{% elif prescription.clinic_medication.is_out_of_stock %}bg-gray-100 p-1 rounded{% elif prescription.clinic_medication.is_low_stock %}bg-yellow-50 p-1 rounded{% endif %}">
                 {{ prescription.clinic_medication.name }}
                  <div class="text-sm text-gray-500">
                 {{ prescription.clinic_medication.manufacturer }} - 
@@ -57,7 +57,7 @@
                 {% endif %}
               </div>
                 {% if prescription.stock_deducted %}
-                  <span class="text-green-600 font-semibold ml-2">(DISPENSED)</span>
+                  <span class="text-red-600 font-semibold ml-2">(DISPENSED)</span>
                 {% endif %}
               </div>
             </td>
@@ -65,12 +65,19 @@
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.clinic_medication.selling_price|floatformat:2 }}</td>
             <td class="px-3 py-4 whitespace-nowrap">
               <div class="flex flex-col sm:flex-row gap-1 sm:gap-2">
-                {% if prescription.is_active and request.user.role == 'DOCTOR' %}
+                {% if prescription.is_active and can_prescribe and not prescription.stock_deducted %}
                   <form method="post" action="{% url 'core:deactivate_prescription' prescription.id %}">
                     {% csrf_token %}<button type="submit" class="text-amber-700 hover:text-amber-900 text-sm">Deactivate</button>
                   </form>
                 {% endif %}
-                {% if not prescription.admission_id %}<a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>{% endif %}
+                {% if prescription.stock_deducted %}
+                  <span class="text-red-600 font-semibold text-sm">Dispensed</span>
+                  {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'PHARMACIST' %}
+                    <a href="{% url 'core:reconcile_prescription' prescription.id %}" class="text-blue-600 hover:text-blue-900 text-sm">Reconcile</a>
+                  {% endif %}
+                {% elif not prescription.admission_id %}
+                  <a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>
+                {% endif %}
               </div>
             </td>
           </tr>

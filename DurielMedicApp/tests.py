@@ -28,9 +28,9 @@ class InpatientMedicationWorkflowTests(TestCase):
             is_subscription_active=True,
         )
         User = get_user_model()
-        self.doctor = User.objects.create_user(username='doctor', password='secret', role='DOCTOR')
-        self.other_doctor = User.objects.create_user(username='doctor2', password='secret', role='DOCTOR')
-        self.nurse = User.objects.create_user(username='nurse', password='secret', role='NURSE')
+        self.doctor = User.objects.create_user(username='doctor', email='ward-doctor@example.com', password='secret', role='DOCTOR')
+        self.other_doctor = User.objects.create_user(username='doctor2', email='ward-doctor2@example.com', password='secret', role='DOCTOR')
+        self.nurse = User.objects.create_user(username='nurse', email='ward-nurse@example.com', password='secret', role='NURSE')
         for user in (self.doctor, self.other_doctor, self.nurse):
             user.clinic.add(self.clinic)
             user.primary_clinic = self.clinic

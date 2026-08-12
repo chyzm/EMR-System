@@ -79,8 +79,8 @@
             </form>
         </div>
 
-        <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 slide-in">
+	        <!-- Summary Cards -->
+	        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 slide-in">
             <div class="stat-card rounded-2xl p-6 card-hover">
                 <div class="flex items-center justify-between mb-4">
                     <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-3 rounded-xl">
@@ -119,9 +119,78 @@
                 <h3 class="text-gray-500 text-sm font-medium mb-2">Outstanding</h3>
                 <p class="text-3xl font-bold text-gray-800">₦{{ total_amount|subtract:total_paid|floatformat:2 }}</p>
             </div>
-        </div>
+	        </div>
 
-        <!-- Bills Table -->
+	        <!-- Patients Due for Billing -->
+	        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border fade-in">
+	            <div class="bg-blue-900 px-6 py-4">
+	                <h2 class="text-xl font-semibold text-white">Patients Due for Billing</h2>
+	                <p class="text-sm text-blue-100">Completed clinical work not yet rolled into a final bill. Saving the bill removes it from this queue.</p>
+	            </div>
+	            <div class="overflow-x-auto">
+	                <table class="min-w-full divide-y divide-gray-200">
+	                    <thead class="bg-gray-50">
+	                        <tr>
+	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Context</th>
+	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">What Was Done</th>
+	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estimated</th>
+	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+	                        </tr>
+	                    </thead>
+	                    <tbody class="bg-white divide-y divide-gray-200">
+	                        {% for group in due_billing_groups %}
+	                        <tr class="hover:bg-blue-50">
+	                            <td class="px-6 py-4 whitespace-nowrap">
+	                                <div class="text-sm font-medium text-gray-900">{{ group.patient.full_name }}</div>
+	                                <div class="text-xs text-gray-500">{{ group.patient.patient_id }}</div>
+	                            </td>
+	                            <td class="px-6 py-4 text-sm text-gray-700">
+	                                {% if group.appointment %}
+	                                    {{ group.appointment_type|title }} appointment<br>
+	                                    <span class="text-xs text-gray-500">{{ group.appointment.date }} {{ group.appointment.start_time|time:"h:i A" }}</span>
+	                                {% elif group.encounter %}
+	                                    {{ group.encounter.get_encounter_type_display }}<br>
+	                                    <span class="text-xs text-gray-500">{{ group.encounter.started_at|date:"M j, Y H:i" }}</span>
+	                                {% else %}
+	                                    Patient activity
+	                                {% endif %}
+	                            </td>
+	                            <td class="px-6 py-4 text-sm text-gray-700">
+	                                {% for item in group.items %}
+	                                    <div class="mb-1">
+	                                        <span class="font-medium">{{ item.description }}</span>
+	                                        <span class="text-xs text-gray-500">({{ item.get_source_type_display }})</span>
+	                                    </div>
+	                                {% endfor %}
+	                            </td>
+	                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">₦{{ group.total|floatformat:2 }}</td>
+	                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+	                                <a href="{{ group.create_bill_url }}" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+	                                    Create Bill
+	                                </a>
+	                                {% if request.user.role == 'ADMIN' %}
+	                                <form method="post" action="{% url 'core:deactivate_billing_queue' %}" class="mt-2" onsubmit="return confirm('Deactivate this billing queue entry? The clinical record will remain, but these pending billing items will be removed from the queue.');">
+	                                    {% csrf_token %}
+	                                    <input type="hidden" name="line_items" value="{{ group.deactivate_item_ids }}">
+	                                    <button type="submit" class="inline-flex items-center rounded-lg border border-red-200 px-4 py-2 text-red-600 hover:bg-red-50">
+	                                        Deactivate
+	                                    </button>
+	                                </form>
+	                                {% endif %}
+	                            </td>
+	                        </tr>
+	                        {% empty %}
+	                        <tr>
+	                            <td colspan="5" class="px-6 py-6 text-center text-gray-500">No completed clinical work is awaiting billing.</td>
+	                        </tr>
+	                        {% endfor %}
+	                    </tbody>
+	                </table>
+	            </div>
+	        </div>
+
+	        <!-- Bills Table -->
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden border card-hover fade-in">
             <div class="bg-gray-800 px-6 py-4">
                 <h2 class="text-xl font-semibold text-white">Billing Records</h2>

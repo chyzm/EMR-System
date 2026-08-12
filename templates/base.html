@@ -210,21 +210,21 @@
             {% if request.session.clinic_id %}
               <!-- Eye clinic Dashboard-->
                   {% if request.session.clinic_type == "EYE" %}
-                    <a href="{% url 'DurielEyeApp:eye_dashboard' %}" 
-                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'eye_dashboard' %}active{% endif %}">
+                    <a href="{% url 'core:clinic_dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
                       <i class="fas fa-tachometer-alt mr-3"></i>
                       Dashboard
                     </a>
                     <!-- Medical clinic Dashboard-->
                   {% elif request.session.clinic_type == "GENERAL" %}
-                    <a href="{% url 'DurielMedicApp:dashboard' %}" 
-                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <a href="{% url 'core:clinic_dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
                       <i class="fas fa-tachometer-alt mr-3"></i>
                       Dashboard
                     </a>
                   {% elif request.session.clinic_type == "DENTAL" %}
-                    <a href="{% url 'DurielDentalApp:dental_dashboard' %}" 
-                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dental_dashboard' %}active{% endif %}">
+                    <a href="{% url 'core:clinic_dashboard' %}" 
+                      class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
                       <i class="fas fa-tooth mr-3"></i>
                       Dashboard
                     </a>
@@ -244,7 +244,7 @@
           
             <!-- Other sidebar items only if clinic selected -->
             {% if request.session.clinic_id %}
-              {% if request.user.is_superuser or request.user.role == 'ADMIN' %} 
+              {% if can_access_administration %}
               <a href="{% url 'core:manage_roles' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'manage_roles' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-tools mr-3"></i>
@@ -252,7 +252,7 @@
               </a>
               {% endif %}
 
-              {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+              {% if can_access_administration %}
               <a href="{% url 'core:activity_log' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
                <i class="fas fa-tasks mr-3"></i>
@@ -260,7 +260,7 @@
               </a>
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST,PHYSIOTHERAPIST' %}
+              {% if can_access_patients %}
               <a href="{% url 'core:patient_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-users mr-3"></i>
@@ -268,20 +268,20 @@
               </a>
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
+              {% if can_access_appointments %}
               {% if request.session.clinic_type == "GENERAL" %}
               {% url 'DurielMedicApp:today_appointment_count' as appt_today_count_url %}
               <a href="{% url 'DurielMedicApp:appointment_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
                 <span class="flex-1">Appointments</span>
-                {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+                {% if can_see_appointment_badge and appt_today_count_url %}
                 <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                       data-count-url="{{ appt_today_count_url }}"></span>
                 {% endif %}
               </a>
 
-              {% if request.user.role in 'ADMIN,DOCTOR,NURSE' %}
+              {% if can_access_admissions %}
               <a href="{% url 'DurielMedicApp:admission_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'admission' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-bed-pulse mr-3"></i>
@@ -294,7 +294,7 @@
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
                 <span class="flex-1">Appointments</span>
-                {% if request.user.role in 'DOCTOR,OPTOMETRIST' and appt_today_count_url %}
+                {% if can_see_appointment_badge and appt_today_count_url %}
                 <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                       data-count-url="{{ appt_today_count_url }}"></span>
                 {% endif %}
@@ -305,20 +305,22 @@
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-calendar-alt mr-3"></i>
                 <span class="flex-1">Appointments</span>
-                {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+                {% if can_see_appointment_badge and appt_today_count_url %}
                 <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                       data-count-url="{{ appt_today_count_url }}"></span>
                 {% endif %}
               </a>
-              <a href="{% url 'DurielDentalApp:procedure_list' %}" 
-                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="fas fa-tooth mr-3"></i>
-                Procedures
-              </a>
+              {% if can_view_dental_chart %}
+                <a href="{% url 'DurielDentalApp:procedure_list' %}" 
+                   class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
+                  <i class="fas fa-tooth mr-3"></i>
+                  Procedures
+                </a>
+              {% endif %}
               {% endif %}
               {% endif %}
 
-              {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST' %}
+              {% if can_view_followups %}
               {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:followup_list' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
@@ -341,7 +343,7 @@
               {% endif %}
               {% endif %}
           
-              {% if request.user.role in 'ADMIN,PHARMACIST' %}
+              {% if can_access_pharmacy %}
               <a href="{% url 'core:prescription_menu' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-prescription mr-3"></i>
@@ -349,7 +351,7 @@
               </a>
               {% endif %}
 
-              {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+              {% if can_manage_services %}
                 <a href="{% url 'core:service_list' %}"
                   class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link ">
                   <i class="fas fa-wallet mr-3"></i>
@@ -357,7 +359,7 @@
                 </a>
                 {% endif %}
 
-              {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+              {% if can_manage_billing %}
               <a href="{% url 'core:billing_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-money-bill-wave mr-3"></i>
@@ -365,7 +367,16 @@
               </a>
               {% endif %}
 
-              {% if request.user.role in 'DOCTOR,NURSE,LAB_TECHNICIAN' %}
+              {% if request.user.role == 'ADMIN' or request.user.role == 'NURSE' or request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' or request.user.role == 'DENTIST' %}
+              <a href="{% url 'DurielMedicApp:vitals_queue' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'vitals_queue' %}active{% endif %}">
+                <i class="fas fa-heartbeat mr-3"></i>
+                <span class="flex-1">Vitals Queue</span>
+                <span class="js-vitals-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+              </a>
+              {% endif %}
+
+              {% if can_access_lab_queue %}
               <a href="{% url 'core:lab_queue' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-flask mr-3"></i>
@@ -374,7 +385,16 @@
               </a>
               {% endif %}
 
-              {% if request.user.role == 'ADMIN' %}
+              {% if request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+              <a href="{% url 'DurielMedicApp:physiotherapy_queue' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'physiotherapy_queue' %}active{% endif %}">
+                <i class="fas fa-person-walking mr-3"></i>
+                <span class="flex-1">Physio Queue</span>
+                <span class="js-physio-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+              </a>
+              {% endif %}
+
+              {% if can_manage_lab %}
               <a href="{% url 'core:lab_test_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-vials mr-3"></i>
@@ -382,7 +402,7 @@
               </a>
               {% endif %}
 
-              {% if request.user.role == 'ADMIN' %}
+              {% if can_view_reports %}
               {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:generate_report' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
@@ -399,11 +419,13 @@
               {% endif %}
 
 
+              {% if can_access_settings %}
               <a href="{% url 'core:settings' %}" 
                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-cog mr-3"></i>
                 Settings
               </a>
+              {% endif %}
               {% endif %}
             {% endif %}
           </nav>
@@ -455,16 +477,14 @@
                 <button onclick="toggleNotifications()" class="p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative transition-all">
                   <i class="fas fa-bell text-lg"></i>
                   {% get_unread_notifications request.user request.session.clinic_id as unread_notifs %}
-                    {% if unread_notifs.exists %}
-                      <span class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
-                    {% endif %}
+                    <span id="notification-pulse" class="{% if not unread_notifs.exists %}hidden {% endif %}absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 pulse-dot"></span>
                   {% comment %} {% endwith %} {% endcomment %}
                 </button>
 
                 <div id="notification-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl py-1 ring-1 ring-black ring-opacity-5 z-50 slide-in">
-                  <div class="max-h-96 overflow-y-auto">
+                  <div id="notification-list" class="max-h-96 overflow-y-auto">
                     {% for notification in unread_notifs|slice:":5" %}
-                      <a href="{{ notification.link|default:'#' }}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
+                      <a href="{% url 'core:mark_notification_read' notification.pk %}" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors {% if not notification.is_read %}font-semibold bg-blue-50{% endif %}">
                         <div class="flex justify-between items-center">
                           <span>{{ notification.message }}</span>
                           <span class="text-xs text-gray-500 ml-2 whitespace-nowrap">{{ notification.created_at|timesince }} ago</span>
@@ -529,20 +549,20 @@
         <!-- Dashboard link with same conditions as desktop -->
         {% if request.session.clinic_id %}
           {% if request.session.clinic_type == "EYE" %}
-            <a href="{% url 'DurielEyeApp:eye_dashboard' %}" 
-              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'eye_dashboard' %}active{% endif %}">
+            <a href="{% url 'core:clinic_dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
               <i class="fas fa-tachometer-alt mr-3"></i>
               Dashboard
             </a>
           {% elif request.session.clinic_type == "GENERAL" %}
-            <a href="{% url 'DurielMedicApp:dashboard' %}" 
-              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <a href="{% url 'core:clinic_dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
               <i class="fas fa-tachometer-alt mr-3"></i>
               Dashboard
             </a>
           {% elif request.session.clinic_type == "DENTAL" %}
-            <a href="{% url 'DurielDentalApp:dental_dashboard' %}" 
-              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'dental_dashboard' %}active{% endif %}">
+            <a href="{% url 'core:clinic_dashboard' %}" 
+              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'clinic_dashboard' %}active{% endif %}">
               <i class="fas fa-tooth mr-3"></i>
               Dashboard
             </a>
@@ -561,7 +581,7 @@
 
         <!-- Other menu items with same conditions as desktop -->
         {% if request.session.clinic_id %}
-          {% if request.user.is_superuser or request.user.role == 'ADMIN' %} 
+          {% if can_access_administration %}
           <a href="{% url 'core:manage_roles' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'manage_roles' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-tools mr-3"></i>
@@ -569,7 +589,7 @@
           </a>
           {% endif %}
 
-          {% if request.user.is_superuser or request.user.role == 'ADMIN' %}
+          {% if can_access_administration %}
           <a href="{% url 'core:activity_log' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
            <i class="fas fa-tasks mr-3"></i>
@@ -577,7 +597,7 @@
           </a>
           {% endif %}
       
-          {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST,PHYSIOTHERAPIST' %}
+          {% if can_access_patients %}
           <a href="{% url 'core:patient_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-users mr-3"></i>
@@ -585,20 +605,20 @@
           </a>
           {% endif %}
       
-          {% if request.user.role in 'ADMIN,DOCTOR,RECEPTIONIST,NURSE,OPTOMETRIST' %}
+          {% if can_access_appointments %}
           {% if request.session.clinic_type == "GENERAL" %}
           {% url 'DurielMedicApp:today_appointment_count' as appt_today_count_url %}
           <a href="{% url 'DurielMedicApp:appointment_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-calendar-alt mr-3"></i>
             <span class="flex-1">Appointments</span>
-            {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+            {% if can_see_appointment_badge and appt_today_count_url %}
             <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                   data-count-url="{{ appt_today_count_url }}"></span>
             {% endif %}
           </a>
 
-          {% if request.user.role in 'ADMIN,DOCTOR,NURSE' %}
+          {% if can_access_admissions %}
           <a href="{% url 'DurielMedicApp:admission_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'admission' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-bed-pulse mr-3"></i>
@@ -611,7 +631,7 @@
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-calendar-alt mr-3"></i>
             <span class="flex-1">Appointments</span>
-            {% if request.user.role in 'DOCTOR,OPTOMETRIST' and appt_today_count_url %}
+            {% if can_see_appointment_badge and appt_today_count_url %}
             <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                   data-count-url="{{ appt_today_count_url }}"></span>
             {% endif %}
@@ -622,20 +642,22 @@
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-calendar-alt mr-3"></i>
             <span class="flex-1">Appointments</span>
-            {% if request.user.role == 'DOCTOR' and appt_today_count_url %}
+            {% if can_see_appointment_badge and appt_today_count_url %}
             <span class="js-appointment-today-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"
                   data-count-url="{{ appt_today_count_url }}"></span>
             {% endif %}
           </a>
-          <a href="{% url 'DurielDentalApp:procedure_list' %}" 
-             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="fas fa-tooth mr-3"></i>
-            Procedures
-          </a>
+          {% if can_view_dental_chart %}
+            <a href="{% url 'DurielDentalApp:procedure_list' %}" 
+               class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'procedure' in request.resolver_match.url_name %}active{% endif %}">
+              <i class="fas fa-tooth mr-3"></i>
+              Procedures
+            </a>
+          {% endif %}
           {% endif %}
           {% endif %}
 
-          {% if request.user.role in 'ADMIN,DOCTOR,NURSE,RECEPTIONIST,OPTOMETRIST' %}
+          {% if can_view_followups %}
           {% if request.session.clinic_type == "GENERAL" %}
           <a href="{% url 'DurielMedicApp:followup_list' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'followup' in request.resolver_match.url_name %}active{% endif %}">
@@ -658,7 +680,7 @@
           {% endif %}
           {% endif %}
       
-          {% if request.user.role in 'ADMIN,PHARMACIST' %}
+          {% if can_access_pharmacy %}
           <a href="{% url 'core:prescription_menu' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-prescription mr-3"></i>
@@ -668,7 +690,7 @@
 
          
 
-          {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+              {% if can_manage_services %}
           <a href="{% url 'core:service_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link ">
             <i class="fas fa-money-bill-wave mr-3"></i>
@@ -676,7 +698,7 @@
           </a>
           {% endif %}
       
-          {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+          {% if can_manage_billing %}
           <a href="{% url 'core:billing_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-money-bill-wave mr-3"></i>
@@ -684,7 +706,16 @@
           </a>
           {% endif %}
 
-          {% if request.user.role in 'DOCTOR,NURSE,LAB_TECHNICIAN' %}
+          {% if request.user.role == 'ADMIN' or request.user.role == 'NURSE' or request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' or request.user.role == 'DENTIST' %}
+          <a href="{% url 'DurielMedicApp:vitals_queue' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'vitals_queue' %}active{% endif %}">
+            <i class="fas fa-heartbeat mr-3"></i>
+            <span class="flex-1">Vitals Queue</span>
+            <span class="js-vitals-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+          </a>
+          {% endif %}
+
+          {% if can_access_lab_queue %}
           <a href="{% url 'core:lab_queue' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-flask mr-3"></i>
@@ -693,7 +724,16 @@
           </a>
           {% endif %}
 
-          {% if request.user.role == 'ADMIN' %}
+          {% if request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+          <a href="{% url 'DurielMedicApp:physiotherapy_queue' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'physiotherapy_queue' %}active{% endif %}">
+            <i class="fas fa-person-walking mr-3"></i>
+            <span class="flex-1">Physio Queue</span>
+            <span class="js-physio-queue-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+          </a>
+          {% endif %}
+
+          {% if can_manage_lab %}
           <a href="{% url 'core:lab_test_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-vials mr-3"></i>
@@ -701,7 +741,7 @@
           </a>
           {% endif %}
 
-          {% if request.user.role == 'ADMIN' %}
+          {% if can_view_reports %}
               {% if request.session.clinic_type == "GENERAL" %}
               <a href="{% url 'DurielMedicApp:generate_report' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
@@ -719,11 +759,13 @@
 
 
               
+          {% if can_access_settings %}
           <a href="{% url 'core:settings' %}" 
             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-cog mr-3"></i>
             Settings
           </a>
+          {% endif %}
           {% endif %}
         {% endif %}
       </nav>
@@ -776,22 +818,49 @@
     function toggleNotifications() {
       const dropdown = document.getElementById('notification-dropdown');
       dropdown.classList.toggle('hidden');
-    
-      if (!dropdown.classList.contains('hidden')) {
-        // Send request to mark all as read
-        fetch("{% url 'core:mark_notification_read' 0 %}".replace('0', notificationId), {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'Content-Type': 'application/json'
-          }
-        }).then(response => {
-          if (response.ok) {
-            console.log('Notifications marked as read');
-          }
-        });
-      }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const list = document.getElementById('notification-list');
+      const pulse = document.getElementById('notification-pulse');
+      if (!list || !pulse) return;
+
+      async function refreshNotifications() {
+        try {
+          const res = await fetch("{% url 'core:unread_notifications_api' %}", { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          const notifications = data.notifications || [];
+          pulse.classList.toggle('hidden', Number(data.count || 0) === 0);
+          if (!notifications.length) {
+            list.innerHTML = '<div class="px-4 py-3 text-sm text-gray-500 text-center">No notifications</div>';
+            return;
+          }
+          list.innerHTML = '';
+          notifications.slice(0, 5).forEach((notification) => {
+            const item = document.createElement('a');
+            item.href = `/notifications/mark-read/${notification.id}/?next=${encodeURIComponent(notification.link || '#')}`;
+            item.className = 'block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors font-semibold bg-blue-50';
+            const row = document.createElement('div');
+            row.className = 'flex justify-between items-center';
+            const message = document.createElement('span');
+            message.textContent = notification.message;
+            const time = document.createElement('span');
+            time.className = 'text-xs text-gray-500 ml-2 whitespace-nowrap';
+            time.textContent = notification.created_at;
+            row.appendChild(message);
+            row.appendChild(time);
+            item.appendChild(row);
+            list.appendChild(item);
+          });
+        } catch (e) {
+          // Keep the current list if the polling request fails.
+        }
+      }
+
+      refreshNotifications();
+      setInterval(refreshNotifications, 15000);
+    });
     
     // Close dropdown if clicked outside
     document.addEventListener('click', function(event) {
@@ -817,14 +886,17 @@
 
     // Lab queue badge polling (every 30 seconds)
     document.addEventListener('DOMContentLoaded', function() {
-      const badges = document.querySelectorAll('.js-lab-queue-count');
-      if (!badges.length) return;
+      const queues = [
+        { selector: '.js-lab-queue-count', url: "{% url 'core:lab_queue_count' %}" },
+        { selector: '.js-vitals-queue-count', url: "{% url 'DurielMedicApp:vitals_queue_count' %}" },
+        { selector: '.js-physio-queue-count', url: "{% url 'DurielMedicApp:physiotherapy_queue_count' %}" },
+      ];
 
-      const url = "{% url 'core:lab_queue_count' %}";
-
-      async function refreshLabQueueCount() {
+      async function refreshQueueCount(queue) {
+        const badges = document.querySelectorAll(queue.selector);
+        if (!badges.length) return;
         try {
-          const res = await fetch(url, { credentials: 'same-origin' });
+          const res = await fetch(queue.url, { credentials: 'same-origin' });
           if (!res.ok) return;
           const data = await res.json();
           const count = Number(data.count || 0);
@@ -843,8 +915,12 @@
         }
       }
 
-      refreshLabQueueCount();
-      setInterval(refreshLabQueueCount, 30000);
+      function refreshQueueCounts() {
+        queues.forEach(refreshQueueCount);
+      }
+
+      refreshQueueCounts();
+      setInterval(refreshQueueCounts, 30000);
     });
 
     // Today's appointments badge polling (every 30 seconds)
@@ -898,7 +974,8 @@
   </script>
 
 
-  <!-- WebSocket for real-time notifications -->
+  {% comment %}
+  WebSocket for real-time notifications is currently not in use.
   <script>
     const ws_scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const ws_path = ws_scheme + '://' + window.location.host + "/ws/notifications/";
@@ -910,7 +987,8 @@
         // Example: append to notification dropdown
         alert(data.message); // Replace with your notification UI
     };
-    </script>
+  </script>
+  {% endcomment %}
   
   {% block extra_js %}{% endblock %}
 </body>

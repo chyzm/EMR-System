@@ -26,14 +26,14 @@ class DentalExamAdmin(admin.ModelAdmin):
 
 @admin.register(DentalTreatmentPlan)
 class DentalTreatmentPlanAdmin(admin.ModelAdmin):
-    list_display = ('patient', 'title', 'priority', 'status', 'estimated_cost', 'created_at')
+    list_display = ('patient', 'title', 'priority', 'status', 'created_at')
     list_filter = ('clinic', 'priority', 'status')
     search_fields = ('patient__first_name', 'patient__last_name', 'title')
 
 
 @admin.register(DentalProcedure)
 class DentalProcedureAdmin(admin.ModelAdmin):
-    list_display = ('patient', 'procedure_name', 'tooth_numbers', 'cost', 'status', 'performed_at')
+    list_display = ('patient', 'procedure_name', 'tooth_numbers', 'status', 'performed_at')
     list_filter = ('clinic', 'status', 'performed_at')
     search_fields = ('patient__first_name', 'patient__last_name', 'procedure_name', 'tooth_numbers')
 

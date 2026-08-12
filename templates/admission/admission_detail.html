@@ -9,6 +9,9 @@
     </div>
     <div class="flex gap-2">
       <a href="{% url 'core:patient_detail' patient.patient_id %}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Patient Chart</a>
+      {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
+        <a href="{% url 'core:create_bill' %}?admission_id={{ admission.id }}" class="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm text-blue-700 hover:bg-blue-50">Create Bill</a>
+      {% endif %}
       {% if not admission.discharged %}
         {% if request.user.role == 'DOCTOR' %}
           <a href="{% url 'DurielMedicApp:add_admission_prescription' admission.id %}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Prescribe Medication</a>
@@ -58,11 +61,12 @@
 
   {% if admission.discharged %}
     <div class="rounded-xl border border-green-200 bg-green-50 p-6">
-      <h2 class="mb-4 text-lg font-semibold text-green-900">Discharge Summary</h2>
+      <h2 class="mb-4 text-lg font-semibold text-green-900">Discharge Notes / Summary</h2>
       <div class="grid gap-5 md:grid-cols-2">
         <div><div class="text-sm font-medium text-green-800">Diagnosis</div><p class="whitespace-pre-line text-green-900">{{ admission.discharge_diagnosis|default:"-" }}</p></div>
         <div><div class="text-sm font-medium text-green-800">Condition</div><p class="text-green-900">{{ admission.get_discharge_condition_display|default:"-" }}</p></div>
         <div><div class="text-sm font-medium text-green-800">Summary</div><p class="whitespace-pre-line text-green-900">{{ admission.discharge_summary|default:"-" }}</p></div>
+        <div><div class="text-sm font-medium text-green-800">Instructions</div><p class="whitespace-pre-line text-green-900">{{ admission.discharge_instructions|default:"-" }}</p></div>
         <div><div class="text-sm font-medium text-green-800">Follow-up Plan</div><p class="whitespace-pre-line text-green-900">{{ admission.follow_up_plan|default:"-" }}</p></div>
       </div>
     </div>

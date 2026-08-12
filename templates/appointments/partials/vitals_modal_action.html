@@ -1,0 +1,84 @@
+{% if can_access_vitals %}
+  {% if not appointment.has_vitals %}
+    <button type="button"
+            @click="vitalsOpen = true"
+            class="block w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded text-center">
+      <i class="fas fa-heart-pulse mr-2"></i>
+      {% if appointment.clinic.clinic_type == "EYE" or appointment.clinic.clinic_type == "DENTAL" %}Show Vitals (Optional){% else %}Show Vitals{% endif %}
+    </button>
+
+    <div x-show="vitalsOpen"
+         x-transition
+         class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black bg-opacity-50 px-3 py-6 sm:px-4">
+      <div @click.away="vitalsOpen = false"
+           class="w-full max-w-2xl rounded-lg bg-white p-4 text-left shadow-xl sm:p-6">
+        <div class="mb-4 flex items-start justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Vitals</h2>
+            <p class="text-sm text-gray-500">
+              {{ appointment.patient.full_name }} - {{ appointment.date|date:"M j, Y" }}
+              {% if appointment.clinic.clinic_type == "EYE" or appointment.clinic.clinic_type == "DENTAL" %} - Optional{% endif %}
+            </p>
+          </div>
+          <button type="button" @click="vitalsOpen = false" class="text-gray-400 hover:text-gray-700">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <form method="post" action="{% url 'DurielMedicApp:record_appointment_vitals' clinic_type=appointment.clinic.clinic_type appointment_id=appointment.pk %}" class="space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="min-w-0">
+              <label for="vitals-bp-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Blood Pressure</label>
+              <input id="vitals-bp-{{ appointment.pk }}" name="blood_pressure" required maxlength="10" placeholder="120/80" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-pulse-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Pulse</label>
+              <input id="vitals-pulse-{{ appointment.pk }}" name="pulse" type="number" required min="0" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-temp-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Temperature</label>
+              <input id="vitals-temp-{{ appointment.pk }}" name="temperature" type="number" step="0.1" required class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-weight-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Weight</label>
+              <input id="vitals-weight-{{ appointment.pk }}" name="weight" type="number" step="0.1" required class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-rr-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Respiratory Rate</label>
+              <input id="vitals-rr-{{ appointment.pk }}" name="respiratory_rate" type="number" min="0" placeholder="breaths/min" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-spo2-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Oxygen Saturation (%)</label>
+              <input id="vitals-spo2-{{ appointment.pk }}" name="oxygen_saturation" type="number" min="0" max="100" placeholder="98" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-height-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Height</label>
+              <input id="vitals-height-{{ appointment.pk }}" name="height" type="number" step="0.1" placeholder="cm" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0">
+              <label for="vitals-bmi-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">BMI</label>
+              <input id="vitals-bmi-{{ appointment.pk }}" name="bmi" type="number" step="0.1" placeholder="Auto/manual" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="min-w-0 sm:col-span-2">
+              <label for="vitals-category-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Category</label>
+              <select id="vitals-category-{{ appointment.pk }}" name="category" required class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                <option value="CONSULT">Consultation</option>
+                <option value="FOLLOWUP">Follow-Up</option>
+              </select>
+            </div>
+            <div class="min-w-0 sm:col-span-2">
+              <label for="vitals-notes-{{ appointment.pk }}" class="block text-sm font-medium text-gray-700">Notes</label>
+              <textarea id="vitals-notes-{{ appointment.pk }}" name="notes" rows="3" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+            </div>
+          </div>
+          <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" @click="vitalsOpen = false" class="w-full rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:w-auto">Cancel</button>
+            <button type="submit" class="w-full rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 sm:w-auto">Save Vitals</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% extends "base.html" %}
+
 
 {% block title %}Eye Appointments{% endblock %}
 
@@ -8,9 +8,11 @@
 <div class="container mx-auto px-4 py-6">
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Eye Clinic Appointments</h1>
-    <a href="{% url 'DurielEyeApp:appointment_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
-      <i class="fas fa-plus mr-2"></i> New Appointment
-    </a>
+    {% if can_create_appointment %}
+      <a href="{% url 'DurielEyeApp:appointment_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+        <i class="fas fa-plus mr-2"></i> New Appointment
+      </a>
+    {% endif %}
   </div>
 
   <!-- Filter Form -->
@@ -107,15 +109,31 @@
               </span>
             </td>
            
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-              <a href="{% url 'DurielEyeApp:appointment_detail' appointment.pk %}" class="text-blue-600 hover:text-blue-900 mr-3"><i class="fas fa-eye"></i></a>
-              {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
-              <a href="{% url 'DurielEyeApp:begin_consultation' appointment.patient_id %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-stethoscope"></i></a>
-              {% else %}
-              <a href="{% url 'core:patient_detail' appointment.patient_id %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-stethoscope"></i></a>
-              {% endif %}
-              <a href="{% url 'DurielEyeApp:appointment_update' appointment.pk %}" class="text-green-600 hover:text-green-900 mr-3"><i class="fas fa-edit"></i></a>
-              <a href="{% url 'DurielEyeApp:appointment_delete' appointment.pk %}" class="text-red-600 hover:text-red-900"><i class="fas fa-trash"></i></a>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+              <div x-data="{ open: false, vitalsOpen: false }" class="inline-block">
+                <button @click="open = true" type="button" class="text-2xl text-gray-600 hover:text-gray-900 focus:outline-none">⋮</button>
+                <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div @click.away="open = false" class="w-96 rounded-lg bg-white p-6 text-center shadow-lg">
+                    <h2 class="mb-4 text-lg font-semibold">Actions</h2>
+                    <div class="space-y-2">
+                      {% include "appointments/partials/vitals_modal_action.html" %}
+                      <a href="{% url 'DurielEyeApp:appointment_detail' appointment.pk %}" class="block rounded px-4 py-2 text-sm text-blue-700 hover:bg-blue-100">Open</a>
+                      {% if can_access_eye_consultation %}
+                        <a href="{% url 'DurielEyeApp:begin_consultation' appointment.patient_id %}" class="block rounded px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-100">Consultation</a>
+                      {% else %}
+                        <a href="{% url 'core:patient_detail' appointment.patient_id %}" class="block rounded px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-100">Patient</a>
+                      {% endif %}
+                      {% if can_manage_eye_appointments %}
+                        <a href="{% url 'DurielEyeApp:appointment_update' appointment.pk %}" class="block rounded px-4 py-2 text-sm text-green-700 hover:bg-green-100">Edit</a>
+                      {% endif %}
+                      {% if can_delete_eye_appointments %}
+                        <a href="{% url 'DurielEyeApp:appointment_delete' appointment.pk %}" class="block rounded px-4 py-2 text-sm text-red-600 hover:bg-red-100">Delete</a>
+                      {% endif %}
+                    </div>
+                    <button @click="open = false" class="mt-4 rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">Close</button>
+                  </div>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}

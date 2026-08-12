@@ -5,16 +5,21 @@ import uuid
 import tempfile
 from datetime import timedelta
 from unittest.mock import Mock, patch
+from django.contrib.auth import authenticate
 from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.core import mail
+from django.db import transaction
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from core.models import (
-    Clinic, Patient, Billing, Payment, ServicePriceList, Notification,
-    ServerSyncOutbox, ServerSyncState,
+    Clinic, Patient, Billing, BillingLineItem, Payment, ServicePriceList, Notification, ActionLog,
+    ServerSyncOutbox, ServerSyncState, ClinicMedication, Prescription, StockMovement, PatientEncounter,
 )
+from core.utils import log_action
 from core.server_sync import (
     apply_change,
     pull_remote_changes,
@@ -22,7 +27,7 @@ from core.server_sync import (
     serialize_instance,
     sync_worker_lock,
 )
-from DurielMedicApp.models import Admission, Appointment, FollowUp
+from DurielMedicApp.models import Admission, Appointment, FollowUp, PhysiotherapyReferral, Vitals
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
@@ -596,3 +601,931 @@ class SyncQueueTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Service-Worker-Allowed'], '/')
         self.assertIn('durielmedic-pages-v5', response.content.decode('utf-8'))
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class OperationalHealthTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.superuser = User.objects.create_superuser(
+            username='root',
+            email='root@example.com',
+            password='secret123',
+            role='ADMIN',
+        )
+        self.clinic = Clinic.objects.create(
+            name='Operational Clinic',
+            clinic_type='GENERAL',
+            address='1 Ops Road',
+            phone='08000000000',
+            email='ops@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.superuser.clinic.add(self.clinic)
+
+    def test_logs_healthcheck_reports_action_log_status(self):
+        response = self.client.get(reverse('core:logs_healthcheck'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'ok')
+        self.assertEqual(data['checks']['action_log_query'], 'ok')
+        self.assertIn('count', data['logs'])
+
+    def test_superuser_actions_are_audited(self):
+        request = Mock()
+        request.user = self.superuser
+        request.session = {'clinic_id': self.clinic.id}
+
+        log_action(request, 'UPDATE', self.clinic, details='Superuser audit test')
+
+        self.assertTrue(
+            ActionLog.objects.filter(
+                user=self.superuser,
+                clinic=self.clinic,
+                action='UPDATE',
+                details='Superuser audit test',
+            ).exists()
+        )
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class BillingAccessTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_user(username='billing-admin', email='billing-admin@example.com', password='secret', role='ADMIN')
+        self.receptionist = User.objects.create_user(username='billing-frontdesk', email='billing-frontdesk@example.com', password='secret', role='RECEPTIONIST')
+        self.doctor = User.objects.create_user(username='billing-doctor', email='billing-doctor@example.com', password='secret', role='DOCTOR')
+        self.dentist = User.objects.create_user(username='billing-dentist', email='billing-dentist@example.com', password='secret', role='DENTIST')
+        self.clinic = Clinic.objects.create(
+            name='Billing Clinic',
+            clinic_type='GENERAL',
+            address='1 Billing Road',
+            phone='08000000000',
+            email='billing@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.other_clinic = Clinic.objects.create(
+            name='Other Billing Clinic',
+            clinic_type='GENERAL',
+            address='2 Billing Road',
+            phone='08000000001',
+            email='otherbilling@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        for user in (self.admin, self.receptionist, self.doctor, self.dentist):
+            user.clinic.add(self.clinic)
+        self.patient = Patient.objects.create(
+            clinic=self.clinic,
+            first_name='Bill',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='F',
+            allergies='None',
+            contact='08012345678',
+            address='Billing Address',
+            emergency_contact='08087654321',
+            created_by=self.admin,
+        )
+        self.other_patient = Patient.objects.create(
+            clinic=self.other_clinic,
+            patient_id='TENANTB001',
+            first_name='Other',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='M',
+            allergies='None',
+            contact='08012345679',
+            address='Other Address',
+            emergency_contact='08087654322',
+            created_by=self.admin,
+        )
+        self.bill = Billing.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            service_date=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            amount=Decimal('1000.00'),
+            paid_amount=Decimal('0.00'),
+            description='Consultation',
+        )
+        self.other_bill = Billing.objects.create(
+            patient=self.other_patient,
+            clinic=self.other_clinic,
+            service_date=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            amount=Decimal('1000.00'),
+            paid_amount=Decimal('0.00'),
+            description='Other consultation',
+        )
+
+    def select_clinic_as(self, user):
+        self.client.force_login(user)
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def select_clinic(self):
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def test_admin_and_receptionist_can_open_billing(self):
+        for user in (self.admin, self.receptionist):
+            self.select_clinic_as(user)
+            response = self.client.get(reverse('core:billing_list'))
+            self.assertEqual(response.status_code, 200)
+            response = self.client.get(reverse('core:view_bill', args=[self.bill.pk]))
+            self.assertEqual(response.status_code, 200)
+
+    def test_create_bill_shows_patient_activity_handoff(self):
+        self.select_clinic_as(self.admin)
+        response = self.client.get(f"{reverse('core:create_bill')}?patient={self.patient.patient_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Recent Patient Activity for Billing')
+
+    def test_billing_queue_merges_items_from_same_appointment_flow(self):
+        self.select_clinic_as(self.admin)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Queue grouping',
+            status='COMPLETED',
+        )
+        appointment_ct = ContentType.objects.get_for_model(appointment)
+        encounter = PatientEncounter.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            encounter_type='GENERAL_CONSULTATION',
+            status='COMPLETED',
+            appointment_content_type=appointment_ct,
+            appointment_object_id=appointment.pk,
+            created_by=self.doctor,
+        )
+        BillingLineItem.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            appointment_content_type=appointment_ct,
+            appointment_object_id=appointment.pk,
+            source_type='CONSULTATION',
+            description='Consultation',
+            quantity=1,
+            unit_price=0,
+            status='APPROVED',
+            created_by=self.doctor,
+        )
+        BillingLineItem.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            encounter=encounter,
+            source_type='LAB',
+            description='FBC',
+            quantity=1,
+            unit_price=Decimal('2500.00'),
+            status='APPROVED',
+            created_by=self.doctor,
+        )
+
+        response = self.client.get(reverse('core:billing_list'))
+
+        self.assertEqual(response.status_code, 200)
+        groups = response.context['due_billing_groups']
+        matching_groups = [
+            group for group in groups
+            if group['patient'] == self.patient and group.get('appointment') == appointment
+        ]
+        self.assertEqual(len(matching_groups), 1)
+        self.assertEqual(len(matching_groups[0]['items']), 2)
+        self.assertContains(response, 'Consultation')
+        self.assertContains(response, 'FBC')
+
+    def test_admin_can_deactivate_billing_queue_entry(self):
+        self.select_clinic_as(self.admin)
+        item = BillingLineItem.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            source_type='PRESCRIPTION',
+            description='Paracetamol (500mg) (12)',
+            quantity=12,
+            unit_price=Decimal('100.00'),
+            status='APPROVED',
+            created_by=self.doctor,
+        )
+
+        response = self.client.post(reverse('core:deactivate_billing_queue'), {
+            'line_items': str(item.pk),
+        })
+
+        self.assertRedirects(response, reverse('core:billing_list'), fetch_redirect_response=False)
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'VOIDED')
+        self.assertTrue(ActionLog.objects.filter(details__icontains='Voided 1 billing queue item').exists())
+
+    def test_receptionist_cannot_deactivate_billing_queue_entry(self):
+        self.select_clinic_as(self.receptionist)
+        item = BillingLineItem.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            source_type='PRESCRIPTION',
+            description='Amatem Forte Softgel (6)',
+            quantity=6,
+            unit_price=Decimal('166.67'),
+            status='APPROVED',
+            created_by=self.doctor,
+        )
+
+        response = self.client.post(reverse('core:deactivate_billing_queue'), {
+            'line_items': str(item.pk),
+        })
+
+        self.assertIn(response.status_code, (302, 403))
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'APPROVED')
+
+    def test_receipt_hides_staff_user_id_and_exposes_email_and_thermal_actions(self):
+        self.select_clinic_as(self.admin)
+        Payment.objects.create(
+            billing=self.bill,
+            amount=Decimal('500.00'),
+            payment_method='CASH',
+            received_by=self.admin,
+        )
+
+        response = self.client.get(reverse('core:generate_receipt', args=[self.bill.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'User ID:')
+        self.assertContains(response, 'Email Patient')
+        self.assertContains(response, '80mm Print')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_receipt_email_is_sent_to_billed_patient(self):
+        self.select_clinic_as(self.admin)
+        self.patient.email = 'patient@example.com'
+        self.patient.save(update_fields=['email'])
+        Payment.objects.create(
+            billing=self.bill,
+            amount=Decimal('500.00'),
+            payment_method='CASH',
+            received_by=self.admin,
+        )
+
+        response = self.client.post(reverse('core:email_receipt', args=[self.bill.pk]))
+
+        self.assertRedirects(response, reverse('core:generate_receipt', args=[self.bill.pk]), fetch_redirect_response=False)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['patient@example.com'])
+        self.assertIn(self.clinic.name, mail.outbox[0].body)
+
+    def test_clinical_roles_cannot_open_billing_urls(self):
+        for user in (self.doctor, self.dentist):
+            self.select_clinic_as(user)
+            for url_name, args in (
+                ('core:billing_list', []),
+                ('core:view_bill', [self.bill.pk]),
+                ('core:record_payment', [self.bill.pk]),
+                ('core:edit_bill', [self.bill.pk]),
+                ('core:delete_bill', [self.bill.pk]),
+                ('core:generate_receipt', [self.bill.pk]),
+            ):
+                response = self.client.get(reverse(url_name, args=args))
+                self.assertIn(response.status_code, (302, 403), url_name)
+                if response.status_code == 302:
+                    self.assertIn(reverse('core:clinic_dashboard'), response['Location'])
+
+    def test_billing_detail_urls_are_scoped_to_selected_clinic(self):
+        self.select_clinic_as(self.admin)
+        for url_name in (
+            'core:view_bill',
+            'core:record_payment',
+            'core:edit_bill',
+            'core:delete_bill',
+            'core:generate_receipt',
+        ):
+            response = self.client.get(reverse(url_name, args=[self.other_bill.pk]))
+            self.assertEqual(response.status_code, 404, url_name)
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class PrescriptionReconciliationTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.clinic = Clinic.objects.create(
+            name='Pharmacy Clinic',
+            clinic_type='GENERAL',
+            address='123 Main',
+            phone='08000000000',
+            email='pharmacy@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.now().date(),
+            subscription_end_date=timezone.now().date() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.pharmacist = User.objects.create_user(username='pharm', password='secret', role='PHARMACIST')
+        self.doctor = User.objects.create_user(username='rxdoctor', password='secret', role='DOCTOR')
+        self.pharmacist.clinic.add(self.clinic)
+        self.doctor.clinic.add(self.clinic)
+        self.patient = Patient.objects.create(
+            clinic=self.clinic,
+            first_name='Uche',
+            last_name='Okaro',
+            date_of_birth='1990-01-01',
+            gender='M',
+            blood_group='O+',
+            contact='08012345678',
+            address='Test Address',
+            emergency_contact='08087654321',
+            created_by=self.doctor,
+        )
+        self.medication = ClinicMedication.objects.create(
+            clinic=self.clinic,
+            name='Paracetamol',
+            strength='500mg',
+            quantity_in_stock=5,
+            minimum_stock_level=2,
+            selling_price=Decimal('700.00'),
+            added_by=self.pharmacist,
+        )
+        self.prescription = Prescription.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            prescribed_by=self.doctor,
+            clinic_medication=self.medication,
+            dosage='500mg',
+            frequency='bd',
+            duration='3 days',
+            quantity_prescribed=1,
+            stock_deducted=True,
+        )
+        self.client.force_login(self.pharmacist)
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def test_reconcile_dispensed_prescription_restores_stock_credits_bill_and_logs(self):
+        response = self.client.post(reverse('core:reconcile_prescription', args=[self.prescription.pk]), {
+            'reconcile_type': 'RETURNED',
+            'reason': 'Patient returned unopened medication.',
+        })
+
+        self.assertRedirects(response, reverse('core:prescription_list'), fetch_redirect_response=False)
+        self.prescription.refresh_from_db()
+        self.medication.refresh_from_db()
+        self.assertFalse(self.prescription.stock_deducted)
+        self.assertEqual(self.medication.quantity_in_stock, 6)
+        self.assertTrue(StockMovement.objects.filter(
+            medication=self.medication,
+            movement_type='IN',
+            quantity=1,
+            reference__contains='reconciliation',
+        ).exists())
+        self.assertTrue(Billing.objects.filter(
+            patient=self.patient,
+            amount=Decimal('-700.00'),
+            description__icontains='Medication reconciliation credit',
+        ).exists())
+        self.assertTrue(ActionLog.objects.filter(
+            action='UPDATE',
+            details__icontains='Patient returned unopened medication.',
+        ).exists())
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class MultiTenantIsolationTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.clinic = Clinic.objects.create(
+            name='Alpha Clinic',
+            clinic_type='GENERAL',
+            address='1 Tenant A',
+            phone='08000000000',
+            email='a@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.other_clinic = Clinic.objects.create(
+            name='Beta Clinic',
+            clinic_type='GENERAL',
+            address='1 Tenant B',
+            phone='08000000001',
+            email='b@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.user = User.objects.create_user(username='tenant-a-doctor', password='secret', role='DOCTOR')
+        self.user.clinic.add(self.clinic)
+        self.patient = Patient.objects.create(
+            clinic=self.clinic,
+            first_name='Ada',
+            last_name='Tenant',
+            date_of_birth='1990-01-01',
+            gender='F',
+            allergies='None',
+            contact='08012345678',
+            address='Tenant A Address',
+            emergency_contact='08087654321',
+            created_by=self.user,
+        )
+        self.other_patient = Patient.objects.create(
+            clinic=self.other_clinic,
+            first_name='Other',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='M',
+            allergies='None',
+            contact='08012345679',
+            address='Tenant B Address',
+            emergency_contact='08087654322',
+            created_by=self.user,
+        )
+        self.other_appointment = Appointment.objects.create(
+            patient=self.other_patient,
+            provider=self.user,
+            clinic=self.other_clinic,
+            payment_type='SELF',
+            date=timezone.localdate(),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Other clinic appointment',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def test_patient_detail_blocks_other_clinic_patient(self):
+        response = self.client.get(reverse('core:patient_detail', args=[self.other_patient.patient_id]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_general_appointment_detail_blocks_other_clinic_appointment(self):
+        response = self.client.get(reverse('DurielMedicApp:appointment_detail', args=[self.other_appointment.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_patient_search_is_scoped_to_selected_clinic(self):
+        response = self.client.get(reverse('core:patient_search_api'), {'q': 'Patient'})
+        self.assertEqual(response.status_code, 200)
+        names = [item['name'] for item in response.json()['results']]
+        self.assertNotIn(self.other_patient.full_name, names)
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class WorkflowNotificationTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.clinic = Clinic.objects.create(
+            name='Notify Clinic',
+            clinic_type='GENERAL',
+            address='1 Notify Road',
+            phone='08000000000',
+            email='notify@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.receptionist = User.objects.create_user(username='notify-frontdesk', email='notify-frontdesk@example.com', password='secret', role='RECEPTIONIST')
+        self.doctor = User.objects.create_user(username='notify-doctor', email='notify-doctor@example.com', password='secret', role='DOCTOR')
+        self.nurse = User.objects.create_user(username='notify-nurse', email='notify-nurse@example.com', password='secret', role='NURSE')
+        self.physiotherapist = User.objects.create_user(username='notify-physio', email='notify-physio@example.com', password='secret', role='PHYSIOTHERAPIST')
+        for user in (self.receptionist, self.doctor, self.nurse, self.physiotherapist):
+            user.clinic.add(self.clinic)
+        self.patient = Patient.objects.create(
+            clinic=self.clinic,
+            first_name='Notify',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='F',
+            allergies='None',
+            contact='08012345678',
+            address='Notify Address',
+            emergency_contact='08087654321',
+            created_by=self.receptionist,
+        )
+        self.client.force_login(self.receptionist)
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def select_clinic(self):
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+    def test_general_appointment_creation_notifies_next_professionals(self):
+        response = self.client.post(reverse('DurielMedicApp:appointment_create'), {
+            'patient': self.patient.patient_id,
+            'provider': self.doctor.pk,
+            'date': (timezone.localdate() + timedelta(days=1)).isoformat(),
+            'start_time': '09:00',
+            'end_time': '09:30',
+            'reason': 'Consultation',
+            'notes': '',
+            'payment_type': 'SELF',
+        })
+
+        self.assertRedirects(response, reverse('DurielMedicApp:appointment_list'), fetch_redirect_response=False)
+        self.assertTrue(Notification.objects.filter(user=self.doctor, clinic=self.clinic, message__icontains='New general appointment').exists())
+        self.assertTrue(Notification.objects.filter(user=self.nurse, clinic=self.clinic, message__icontains='New general appointment').exists())
+
+    def test_vitals_queue_count_tracks_appointments_without_vitals(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='10:00',
+            end_time='10:30',
+            reason='Vitals needed',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.nurse)
+        self.select_clinic()
+        response = self.client.get(reverse('DurielMedicApp:vitals_queue_count'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 1)
+
+        vitals = Vitals.objects.create(
+            blood_pressure='120/80',
+            pulse=78,
+            temperature=37,
+            weight=70,
+            category='CONSULT',
+        )
+        vitals.set_appointment_object(appointment)
+        vitals.save()
+        response = self.client.get(reverse('DurielMedicApp:vitals_queue_count'))
+        self.assertEqual(response.json()['count'], 0)
+
+    def test_physio_queue_count_tracks_assigned_referrals(self):
+        PhysiotherapyReferral.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            referred_by=self.doctor,
+            assigned_to=self.physiotherapist,
+            reason='Mobility assessment',
+        )
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.get(reverse('DurielMedicApp:physiotherapy_queue_count'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 1)
+
+    def test_doctor_can_refer_appointment_to_physio_queue(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='14:00',
+            end_time='14:30',
+            reason='Back pain',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.doctor)
+        self.select_clinic()
+
+        response = self.client.get(reverse('DurielMedicApp:appointment_detail', args=[appointment.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Refer to Physio')
+
+        response = self.client.post(
+            f"{reverse('DurielMedicApp:refer_to_physiotherapy', args=[self.patient.patient_id])}?appointment_id={appointment.pk}",
+            {
+                'assigned_to': self.physiotherapist.pk,
+                'priority': 'ROUTINE',
+                'reason': 'Physiotherapy assessment needed',
+                'notes': 'Assess gait and pain control.',
+            },
+        )
+        self.assertRedirects(response, reverse('core:patient_detail', args=[self.patient.patient_id]), fetch_redirect_response=False)
+        referral = PhysiotherapyReferral.objects.get(patient=self.patient, clinic=self.clinic)
+        self.assertEqual(referral.appointment, appointment)
+        self.assertEqual(referral.assigned_to, self.physiotherapist)
+
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.get(reverse('DurielMedicApp:physiotherapy_queue_count'))
+        self.assertEqual(response.json()['count'], 1)
+
+    def test_doctor_sees_physio_referral_in_appointment_actions(self):
+        Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='16:00',
+            end_time='16:30',
+            reason='Appointment action referral',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.doctor)
+        self.select_clinic()
+
+        response = self.client.get(reverse('DurielMedicApp:appointment_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Refer to Physio')
+
+    def test_doctor_sees_physio_referral_button_on_completed_appointment(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='15:00',
+            end_time='15:30',
+            reason='Completed consultation needing physio',
+            status='COMPLETED',
+        )
+        self.client.force_login(self.doctor)
+        self.select_clinic()
+
+        response = self.client.get(reverse('DurielMedicApp:appointment_detail', args=[appointment.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Refer to Physio')
+
+    def test_finish_consultation_without_active_appointment_does_not_crash(self):
+        self.patient.status = 'CONSULTATION_COMPLETE'
+        self.patient.save(update_fields=['status'])
+        self.client.force_login(self.doctor)
+        self.select_clinic()
+
+        response = self.client.get(reverse('DurielMedicApp:finish_consultation', args=[self.patient.patient_id]))
+
+        self.assertRedirects(response, reverse('core:patient_detail', args=[self.patient.patient_id]), fetch_redirect_response=False)
+        self.patient.refresh_from_db()
+        self.assertEqual(self.patient.status, 'DISCHARGED')
+        self.assertTrue(Notification.objects.filter(
+            clinic=self.clinic,
+            message__icontains=f"Consultation completed for {self.patient.full_name}",
+        ).exists())
+
+    def test_physio_queue_count_includes_direct_physio_appointments(self):
+        Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.physiotherapist,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='13:00',
+            end_time='13:30',
+            reason='Direct physiotherapy',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.get(reverse('DurielMedicApp:physiotherapy_queue_count'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 1)
+
+    def test_direct_physio_appointment_completes_when_record_is_saved(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.physiotherapist,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='14:00',
+            end_time='14:30',
+            reason='Direct physiotherapy record',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.post(
+            f"{reverse('DurielMedicApp:add_physiotherapy_record', args=[self.patient.patient_id])}?appointment_id={appointment.pk}",
+            {
+                'appointment_id': appointment.pk,
+                'chief_complaint': 'Back pain',
+                'history_of_present_illness': '',
+                'past_medical_history': '',
+                'physical_examination': 'Reduced range of motion',
+                'diagnosis': 'Lumbar strain',
+                'treatment_goals': 'Pain control',
+                'treatment_plan': 'Exercise therapy',
+                'exercises_prescribed': '',
+                'modalities_used': '',
+                'progress_notes': '',
+                'additional_notes': '',
+            },
+        )
+        self.assertRedirects(response, reverse('DurielMedicApp:physiotherapy_queue'), fetch_redirect_response=False)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'COMPLETED')
+
+    def test_physio_record_save_without_appointment_id_clears_assigned_queue_item(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.physiotherapist,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='14:00',
+            end_time='14:30',
+            reason='Direct physiotherapy record',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.post(
+            reverse('DurielMedicApp:add_physiotherapy_record', args=[self.patient.patient_id]),
+            {
+                'chief_complaint': 'Back pain',
+                'history_of_present_illness': '',
+                'past_medical_history': '',
+                'physical_examination': 'Reduced range of motion',
+                'diagnosis': 'Lumbar strain',
+                'treatment_goals': 'Pain control',
+                'treatment_plan': 'Exercise therapy',
+                'exercises_prescribed': '',
+                'modalities_used': '',
+                'progress_notes': '',
+                'additional_notes': '',
+            },
+        )
+        self.assertRedirects(response, reverse('DurielMedicApp:physiotherapy_queue'), fetch_redirect_response=False)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'COMPLETED')
+        response = self.client.get(reverse('DurielMedicApp:physiotherapy_queue_count'))
+        self.assertEqual(response.json()['count'], 0)
+
+    def test_complete_physio_consultation_action_clears_queue_count(self):
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.physiotherapist,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='15:00',
+            end_time='15:30',
+            reason='Physiotherapy review',
+            status='SCHEDULED',
+        )
+        PhysiotherapyReferral.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            referred_by=self.doctor,
+            assigned_to=self.physiotherapist,
+            appointment=appointment,
+            reason='Mobility assessment',
+        )
+        self.client.force_login(self.physiotherapist)
+        self.select_clinic()
+        response = self.client.post(reverse('DurielMedicApp:complete_physiotherapy_consultation', args=[appointment.pk]))
+        self.assertRedirects(response, reverse('DurielMedicApp:physiotherapy_queue'), fetch_redirect_response=False)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'COMPLETED')
+        self.assertFalse(PhysiotherapyReferral.objects.filter(status__in=['PENDING', 'ACCEPTED', 'IN_PROGRESS']).exists())
+        response = self.client.get(reverse('DurielMedicApp:physiotherapy_queue_count'))
+        self.assertEqual(response.json()['count'], 0)
+
+    def test_appointment_can_target_physiotherapist(self):
+        response = self.client.post(reverse('DurielMedicApp:appointment_create'), {
+            'patient': self.patient.patient_id,
+            'provider': self.physiotherapist.pk,
+            'date': (timezone.localdate() + timedelta(days=1)).isoformat(),
+            'start_time': '11:00',
+            'end_time': '11:30',
+            'reason': 'Physiotherapy',
+            'notes': '',
+            'payment_type': 'SELF',
+        })
+        self.assertRedirects(response, reverse('DurielMedicApp:appointment_list'), fetch_redirect_response=False)
+        appointment = Appointment.objects.get(reason='Physiotherapy')
+        self.assertEqual(appointment.provider, self.physiotherapist)
+        self.assertTrue(Notification.objects.filter(user=self.physiotherapist, clinic=self.clinic, message__icontains='New general appointment').exists())
+
+    def test_appointment_charge_items_roll_into_final_bill(self):
+        service = ServicePriceList.objects.create(
+            clinic=self.clinic,
+            name='General Consultation',
+            price=Decimal('5000.00'),
+            is_active=True,
+        )
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='12:00',
+            end_time='12:30',
+            reason='Billing verification',
+            status='COMPLETED',
+        )
+        url = f"{reverse('core:create_bill')}?patient={self.patient.patient_id}&appointment_id={appointment.pk}&appointment_type=general"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        item = BillingLineItem.objects.get(patient=self.patient, clinic=self.clinic, source_type='CONSULTATION')
+        self.assertEqual(item.description, 'Consultation')
+        self.assertEqual(item.total_amount, Decimal('0.00'))
+        self.assertEqual(item.status, 'APPROVED')
+
+        response = self.client.post(reverse('core:create_bill'), {
+            'patient': self.patient.patient_id,
+            'appointment_id': appointment.pk,
+            'appointment_type': 'general',
+            'billing_line_items': [item.pk],
+            'service_date': timezone.localdate().isoformat(),
+            'due_date': (timezone.localdate() + timedelta(days=7)).isoformat(),
+            'amount': '0',
+            'paid_amount': '0',
+            'description': '',
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+        })
+        self.assertEqual(response.status_code, 302)
+        bill = Billing.objects.get(patient=self.patient, clinic=self.clinic, appointment_object_id=appointment.pk)
+        self.assertEqual(bill.amount, Decimal('0.00'))
+        item.refresh_from_db()
+        self.assertEqual(item.status, 'BILLED')
+        self.assertEqual(item.bill, bill)
+
+
+class ClinicScopedUsernameTests(TestCase):
+    def setUp(self):
+        self.clinic_a = Clinic.objects.create(
+            name='Tenant A',
+            clinic_type='GENERAL',
+            address='1 A Street',
+            phone='08000000001',
+            email='tenant-a@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.clinic_b = Clinic.objects.create(
+            name='Tenant B',
+            clinic_type='EYE',
+            address='1 B Street',
+            phone='08000000002',
+            email='tenant-b@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+
+    def create_staff(self, clinic, username, email):
+        User = get_user_model()
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password='secret',
+            role='DOCTOR',
+            primary_clinic=clinic,
+            is_staff=True,
+        )
+        user.clinic.add(clinic)
+        return user
+
+    def test_same_username_allowed_across_clinics_with_unique_email(self):
+        first = self.create_staff(self.clinic_a, 'frontdesk', 'frontdesk-a@example.com')
+        second = self.create_staff(self.clinic_b, 'frontdesk', 'frontdesk-b@example.com')
+        self.assertEqual(first.username, second.username)
+        self.assertNotEqual(first.primary_clinic, second.primary_clinic)
+
+    def test_same_username_blocked_inside_same_primary_clinic(self):
+        self.create_staff(self.clinic_a, 'nurse', 'nurse-a@example.com')
+        with self.assertRaises(Exception), transaction.atomic():
+            self.create_staff(self.clinic_a, 'nurse', 'nurse-b@example.com')
+
+    def test_email_is_globally_unique(self):
+        self.create_staff(self.clinic_a, 'doctor-a', 'shared@example.com')
+        with self.assertRaises(Exception), transaction.atomic():
+            self.create_staff(self.clinic_b, 'doctor-b', 'shared@example.com')
+
+    def test_duplicate_username_users_authenticate_by_email(self):
+        first = self.create_staff(self.clinic_a, 'shareduser', 'shared-a@example.com')
+        self.create_staff(self.clinic_b, 'shareduser', 'shared-b@example.com')
+        self.assertIsNone(authenticate(username='shareduser', password='secret'))
+        user = authenticate(username='shared-a@example.com', password='secret')
+        self.assertEqual(user, first)

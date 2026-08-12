@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Appointment Details{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6">
+  <div class="rounded-lg border bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">{{ appointment.patient.full_name }}</h1>
+        <p class="text-gray-600">{{ appointment.date|date:"M j, Y" }} {{ appointment.start_time|time:"H:i" }}-{{ appointment.end_time|time:"H:i" }}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Patient Detail</a>
+        <a href="{% url 'core:add_prescription' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=general" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Prescribe</a>
+        <a href="{% url 'core:order_lab_tests' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=general" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Order Lab</a>
+        {% if request.user.role == 'DOCTOR' and appointment.status != 'CANCELLED' %}
+        <a href="{% url 'DurielMedicApp:refer_to_physiotherapy' patient_id=appointment.patient.patient_id %}?appointment_id={{ appointment.id }}" class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">Refer to Physio</a>
+        {% endif %}
+        <a href="{% url 'core:create_bill' %}?patient={{ appointment.patient.patient_id }}&appointment_id={{ appointment.id }}&appointment_type=general" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Create Bill</a>
+        <a href="{% url 'DurielMedicApp:appointment_list' %}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Back</a>
+      </div>
+    </div>
+    <div class="mt-6 grid gap-4 md:grid-cols-3">
+      <div class="rounded-lg border bg-gray-50 p-4">
+        <div class="text-sm text-gray-500">Provider</div>
+        <div class="font-semibold">{{ appointment.provider.get_full_name|default:appointment.provider.username }}</div>
+      </div>
+      <div class="rounded-lg border bg-gray-50 p-4">
+        <div class="text-sm text-gray-500">Status</div>
+        <div class="font-semibold">{{ appointment.get_status_display }}</div>
+      </div>
+      <div class="rounded-lg border bg-gray-50 p-4">
+        <div class="text-sm text-gray-500">Payment</div>
+        <div class="font-semibold">{{ appointment.get_payment_type_display }}</div>
+      </div>
+    </div>
+    <div class="mt-6">
+      <h2 class="font-semibold text-gray-900">Reason</h2>
+      <p class="mt-2 whitespace-pre-line text-gray-700">{{ appointment.reason|default:"-" }}</p>
+    </div>
+    {% if appointment.notes %}
+    <div class="mt-6">
+      <h2 class="font-semibold text-gray-900">Notes</h2>
+      <p class="mt-2 whitespace-pre-line text-gray-700">{{ appointment.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

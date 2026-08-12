@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Eye Exam Details{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900">Eye Exam</h1>
+      <p class="text-sm text-gray-500">
+        {{ exam.patient.full_name }} - {{ exam.created_at|date:"M j, Y H:i" }}
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'core:patient_detail' exam.patient.patient_id %}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Back</a>
+      {% if request.user.role == 'OPTOMETRIST' %}
+      <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Edit</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <p class="text-sm text-gray-500">Recorded by {{ exam.created_by.get_full_name|default:"Unknown" }}</p>
+      {% if exam.appointment %}
+      <p class="text-sm text-gray-500">Appointment: {{ exam.appointment.date }} {{ exam.appointment.start_time|time:"h:i A" }}</p>
+      {% endif %}
+    </div>
+
+    <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section>
+        <h2 class="font-semibold text-gray-900 mb-3">Left Eye</h2>
+        <dl class="space-y-2 text-sm">
+          <div><dt class="font-medium text-gray-600 inline">Visual Acuity:</dt> <dd class="inline text-gray-900">{{ exam.visual_acuity_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Corrected VA:</dt> <dd class="inline text-gray-900">{{ exam.visual_acuity_left_corrected|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pinhole:</dt> <dd class="inline text-gray-900">{{ exam.pinhole_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Near Vision:</dt> <dd class="inline text-gray-900">{{ exam.near_vision_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">IOP:</dt> <dd class="inline text-gray-900">{{ exam.intraocular_pressure_left|default:"Not recorded" }} mmHg</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Refraction:</dt> <dd class="inline text-gray-900">{{ exam.refraction_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Objective Refraction:</dt> <dd class="inline text-gray-900">{{ exam.objective_refraction_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Final Prescription:</dt> <dd class="inline text-gray-900">{{ exam.final_prescription_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Sphere/Cylinder/Axis/Add:</dt> <dd class="inline text-gray-900">{{ exam.sphere_left|default:"Not recorded" }} / {{ exam.cylinder_left|default:"Not recorded" }} / {{ exam.axis_left|default:"Not recorded" }} / {{ exam.add_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pupil Size:</dt> <dd class="inline text-gray-900">{{ exam.pupil_size_left|default:"Not recorded" }}</dd></div>
+        </dl>
+      </section>
+
+      <section>
+        <h2 class="font-semibold text-gray-900 mb-3">Right Eye</h2>
+        <dl class="space-y-2 text-sm">
+          <div><dt class="font-medium text-gray-600 inline">Visual Acuity:</dt> <dd class="inline text-gray-900">{{ exam.visual_acuity_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Corrected VA:</dt> <dd class="inline text-gray-900">{{ exam.visual_acuity_right_corrected|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pinhole:</dt> <dd class="inline text-gray-900">{{ exam.pinhole_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Near Vision:</dt> <dd class="inline text-gray-900">{{ exam.near_vision_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">IOP:</dt> <dd class="inline text-gray-900">{{ exam.intraocular_pressure_right|default:"Not recorded" }} mmHg</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Refraction:</dt> <dd class="inline text-gray-900">{{ exam.refraction_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Objective Refraction:</dt> <dd class="inline text-gray-900">{{ exam.objective_refraction_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Final Prescription:</dt> <dd class="inline text-gray-900">{{ exam.final_prescription_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Sphere/Cylinder/Axis/Add:</dt> <dd class="inline text-gray-900">{{ exam.sphere_right|default:"Not recorded" }} / {{ exam.cylinder_right|default:"Not recorded" }} / {{ exam.axis_right|default:"Not recorded" }} / {{ exam.add_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pupil Size:</dt> <dd class="inline text-gray-900">{{ exam.pupil_size_right|default:"Not recorded" }}</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <div class="p-6 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+      <div><h3 class="font-medium text-gray-700">Chief Complaint</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.chief_complaint|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Diagnosis</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.diagnosis|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Anterior Segment</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.anterior_segment_findings|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Slit Lamp</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.slit_lamp_findings|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Fundus Exam</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.fundus_exam_findings|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Treatment Plan</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.treatment_plan|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Follow-up Plan</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.follow_up_plan|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Notes</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.notes|default:"Not recorded" }}</p></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

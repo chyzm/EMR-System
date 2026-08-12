@@ -6,9 +6,11 @@
 <div class="container mx-auto px-4 py-6">
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Eye Clinic Follow-ups</h1>
-    <a href="{% url 'DurielEyeApp:followup_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
-      <i class="fas fa-plus mr-2"></i> New Follow-up
-    </a>
+    {% if can_manage_eye_followups %}
+      <a href="{% url 'DurielEyeApp:followup_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+        <i class="fas fa-plus mr-2"></i> New Follow-up
+      </a>
+    {% endif %}
   </div>
 
   <!-- Follow-ups Table -->
@@ -50,10 +52,15 @@
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-              <a href="{% url 'DurielEyeApp:followup_update' followup.pk %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-edit"></i></a>
-              {% if not followup.completed %}
-              <a href="{% url 'DurielEyeApp:complete_eye_follow_up' followup.pk %}" class="text-green-600 hover:text-green-900 mr-3"><i class="fas fa-check"></i></a>
-              {% endif %}
+	              {% if can_manage_eye_followups %}
+	                <a href="{% url 'DurielEyeApp:followup_update' followup.pk %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-edit"></i></a>
+	              {% endif %}
+	              {% if not followup.completed and can_complete_eye_followups %}
+	              <form method="post" action="{% url 'DurielEyeApp:complete_eye_follow_up' followup.pk %}" class="inline">
+	                {% csrf_token %}
+	                <button type="submit" class="text-green-600 hover:text-green-900 mr-3"><i class="fas fa-check"></i></button>
+	              </form>
+	              {% endif %}
             </td>
           </tr>
           {% empty %}

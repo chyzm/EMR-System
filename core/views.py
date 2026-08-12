@@ -11,7 +11,7 @@ from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
 
-from .models import CustomUser, Patient, Billing, Clinic, Payment, Prescription, ServicePriceList 
+from .models import CustomUser, Patient, Billing, BillingLineItem, Clinic, Payment, Prescription, ServicePriceList, StockMovement
 from .forms import (CustomUserCreationForm, FacilityRegistrationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
 ServicePriceListForm)
 from DurielMedicApp.decorators import role_required
@@ -24,27 +24,38 @@ from django.db.models import Sum
 from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required, clinic_subscription_is_expired
+from core.permissions import PRESCRIBER_ROLES, can_manage_patient_demographics, can_view_patient
 from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord, Admission  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Count, Value, DecimalField
 from .models import ActionLog
-from .utils import log_action
+from .utils import (
+    log_action,
+    notify_roles,
+    get_or_create_encounter_for_appointment,
+    get_or_create_encounter_for_admission,
+    notify_role_handoff,
+)
 from django import forms
 from django.urls import reverse
 from DurielEyeApp.models import EyeAppointment
 from .models import Notification, NotificationRead
 from django.http import HttpResponseForbidden
+from django.views.decorators.http import require_GET
 from django.db import models
 from django.utils import timezone
 from DurielMedicApp.models import Appointment
 from DurielEyeApp.models import EyeAppointment
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.functions import Concat
+from django.db.models.functions import Coalesce
 from datetime import timedelta
+from django.core.mail import send_mail, BadHeaderError
+from django.conf import settings
 
 
 
@@ -56,15 +67,223 @@ def home_view(request):
     return render(request, "home.html")
 
 
+def terms_view(request):
+    return render(request, "legal/terms.html")
+
+
+def privacy_view(request):
+    return render(request, "legal/privacy.html")
+
+
 
 
 
 # ---------- Role Checks ----------
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN']
 
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
+
+
+def scoped_user_queryset_for_admin(request):
+    queryset = CustomUser.objects.all()
+    if request.user.is_superuser:
+        return queryset
+    clinic_id = request.session.get('clinic_id')
+    return queryset.filter(clinic__id=clinic_id).distinct() if clinic_id else queryset.none()
+
+
+@require_GET
+def logs_healthcheck(request):
+    try:
+        latest_log = ActionLog.objects.order_by('-timestamp').only('id', 'timestamp').first()
+        payload = {
+            'status': 'ok',
+            'checks': {
+                'action_log_query': 'ok',
+            },
+            'logs': {
+                'count': ActionLog.objects.count(),
+                'latest_id': latest_log.id if latest_log else None,
+                'latest_timestamp': latest_log.timestamp.isoformat() if latest_log else None,
+            },
+        }
+        status_code = 200
+    except Exception as exc:
+        payload = {
+            'status': 'error',
+            'checks': {
+                'action_log_query': 'failed',
+            },
+            'error': exc.__class__.__name__,
+        }
+        status_code = 503
+    return JsonResponse(payload, status=status_code)
+
+
+def clinic_dashboard_check(user):
+    return user.is_authenticated and getattr(user, 'role', None) in [
+        'ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST',
+        'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN'
+    ]
+
+
+def _dashboard_appointment_config(clinic_type):
+    if clinic_type == 'EYE':
+        from DurielEyeApp.models import EyeAppointment
+        return {
+            'model': EyeAppointment,
+            'list_url': 'DurielEyeApp:appointment_list',
+            'create_url': 'DurielEyeApp:appointment_create',
+            'report_url': 'DurielEyeApp:generate_report',
+            'reason_attr': 'reason',
+            'clinical_roles': ['DOCTOR', 'OPTOMETRIST'],
+            'front_desk_roles': ['ADMIN', 'RECEPTIONIST', 'NURSE'],
+        }
+    if clinic_type == 'DENTAL':
+        from DurielDentalApp.models import DentalAppointment
+        return {
+            'model': DentalAppointment,
+            'list_url': 'DurielDentalApp:appointment_list',
+            'create_url': 'DurielDentalApp:appointment_create',
+            'report_url': None,
+            'reason_attr': 'chief_complaint',
+            'clinical_roles': ['DENTIST'],
+            'front_desk_roles': ['ADMIN', 'RECEPTIONIST', 'NURSE'],
+        }
+    return {
+        'model': Appointment,
+        'list_url': 'DurielMedicApp:appointment_list',
+        'create_url': 'DurielMedicApp:add_appointment',
+        'report_url': 'DurielMedicApp:generate_report',
+        'reason_attr': 'reason',
+        'clinical_roles': ['DOCTOR'],
+        'front_desk_roles': ['ADMIN', 'RECEPTIONIST', 'NURSE'],
+    }
+
+
+@login_required
+@clinic_selected_required
+@user_passes_test(clinic_dashboard_check, login_url='login')
+def clinic_dashboard(request):
+    clinic_id = request.session.get('clinic_id')
+    clinic_type = request.session.get('clinic_type') or 'GENERAL'
+    today = timezone.localdate()
+    start_week = today - timedelta(days=today.weekday())
+    end_week = start_week + timedelta(days=6)
+    start_year = date(today.year, 1, 1)
+
+    config = _dashboard_appointment_config(clinic_type)
+    appointment_model = config['model']
+    patients = Patient.objects.filter(clinic_id=clinic_id)
+    appointments = appointment_model.objects.filter(clinic_id=clinic_id)
+    today_appointments = appointments.filter(date=today)
+
+    if request.user.role not in [*config['front_desk_roles'], *config['clinical_roles']]:
+        today_appointments = today_appointments.filter(provider=request.user)
+    elif request.user.role in config['clinical_roles']:
+        today_appointments = today_appointments.filter(provider=request.user)
+
+    financial_stats = Billing.objects.filter(
+        clinic_id=clinic_id,
+        status__in=['PENDING', 'PARTIAL'],
+    ).aggregate(
+        total_count=Count('id'),
+        total_amount=Coalesce(Sum('amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+    )
+
+    stats = {
+        'total_patients': patients.count(),
+        'new_patients_this_week': patients.filter(created_at__date__range=[start_week, today]).count(),
+        'new_patients_this_year': patients.filter(created_at__date__gte=start_year).count(),
+        'today_appointments': today_appointments.count(),
+        'completed_appointments_today': today_appointments.filter(status='COMPLETED').count(),
+        'week_appointments': appointments.filter(date__range=[start_week, end_week]).count(),
+        'pending_prescriptions': Prescription.objects.filter(patient__clinic_id=clinic_id, is_active=True).count(),
+        'new_prescriptions_this_week': Prescription.objects.filter(patient__clinic_id=clinic_id, date_prescribed__range=[start_week, today]).count(),
+        'pending_bills': financial_stats['total_count'],
+        'total_pending_amount': financial_stats['total_amount'],
+        'outstanding_balance': financial_stats['total_amount'] - financial_stats['total_paid'],
+    }
+
+    specialty_metrics = []
+    if clinic_type == 'EYE':
+        from DurielEyeApp.models import EyeExam, EyeFollowUp
+        stats['pending_followups'] = EyeFollowUp.objects.filter(clinic_id=clinic_id, completed=False).count()
+        stats['exams_this_week'] = EyeExam.objects.filter(patient__clinic_id=clinic_id, created_at__date__range=[start_week, today]).count()
+        specialty_metrics = [
+            {'label': 'Eye Exams This Week', 'value': stats['exams_this_week']},
+            {'label': 'Pending Follow-ups', 'value': stats['pending_followups']},
+        ]
+    elif clinic_type == 'DENTAL':
+        from DurielDentalApp.models import DentalFollowUp, DentalProcedure, DentalTreatmentPlan
+        stats['open_treatment_plans'] = DentalTreatmentPlan.objects.filter(clinic_id=clinic_id, status__in=['PROPOSED', 'ACCEPTED', 'IN_PROGRESS']).count()
+        stats['procedures_today'] = DentalProcedure.objects.filter(clinic_id=clinic_id, performed_at__date=today).count()
+        stats['pending_followups'] = DentalFollowUp.objects.filter(clinic_id=clinic_id, completed=False, scheduled_date__gte=today).count()
+        specialty_metrics = [
+            {'label': 'Open Treatment Plans', 'value': stats['open_treatment_plans']},
+            {'label': 'Procedures Today', 'value': stats['procedures_today']},
+            {'label': 'Pending Follow-ups', 'value': stats['pending_followups']},
+        ]
+    else:
+        stats['active_admissions'] = Admission.objects.filter(clinic_id=clinic_id, discharged=False).count()
+        specialty_metrics = [{'label': 'Active Admissions', 'value': stats['active_admissions']}]
+
+    reason_attr = config['reason_attr']
+    user_appointments = today_appointments.select_related('patient', 'clinic', 'provider').order_by('-start_time')
+    for appointment in user_appointments:
+        appointment.dashboard_reason = getattr(appointment, reason_attr, '') or getattr(appointment, 'notes', '') or 'No reason recorded'
+
+    paginator = Paginator(user_appointments, 3)
+    page = request.GET.get('page', 1)
+    try:
+        user_appointments_page = paginator.page(page)
+    except PageNotAnInteger:
+        user_appointments_page = paginator.page(1)
+    except EmptyPage:
+        user_appointments_page = paginator.page(paginator.num_pages)
+
+    recent_patients = patients.order_by('-created_at')[:5]
+    for patient in recent_patients:
+        if clinic_type == 'EYE':
+            patient.dashboard_last_appointment = patient.eye_appointments.order_by('-date', '-start_time').first()
+        elif clinic_type == 'DENTAL':
+            patient.dashboard_last_appointment = patient.dental_appointments.order_by('-date', '-start_time').first()
+        else:
+            patient.dashboard_last_appointment = patient.appointments.order_by('-date', '-start_time').first()
+        patient.dashboard_last_reason = (
+            getattr(patient.dashboard_last_appointment, reason_attr, '') if patient.dashboard_last_appointment else ''
+        )
+
+    read_global_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+    notifications = Notification.objects.filter(
+        Q(user=request.user, is_read=False, clinic_id=clinic_id) |
+        Q(user__isnull=True, clinic_id=clinic_id)
+    ).exclude(id__in=read_global_ids).order_by('-created_at')[:5]
+
+    can_schedule_appointment = request.user.role in config['front_desk_roles']
+    can_create_patient = request.user.role in ['ADMIN', 'RECEPTIONIST']
+    context = {
+        'stats': stats,
+        'user_appointments': user_appointments_page,
+        'recent_patients': recent_patients,
+        'notifications': notifications,
+        'today': today,
+        'clinic_id': clinic_id,
+        'clinic_type': clinic_type,
+        'appointment_list_url': config['list_url'],
+        'appointment_create_url': config['create_url'],
+        'report_url': config['report_url'],
+        'can_schedule_appointment': can_schedule_appointment,
+        'can_create_patient': can_create_patient,
+        'can_create_bill': request.user.role in ['ADMIN', 'RECEPTIONIST'],
+        'can_generate_report': request.user.role == 'ADMIN' and bool(config['report_url']),
+        'show_recent_patients': request.user.role in ['ADMIN', 'NURSE', 'RECEPTIONIST', 'DENTIST', 'OPTOMETRIST'],
+        'specialty_metrics': specialty_metrics,
+    }
+    return render(request, 'dashboard.html', context)
 
 
 
@@ -225,11 +444,11 @@ def select_clinic(request):
         log_login(request, request.user)
 
         if clinic.clinic_type == 'GENERAL':
-            return redirect('DurielMedicApp:dashboard')
+            return redirect('core:clinic_dashboard')
         elif clinic.clinic_type == 'EYE':
-            return redirect('DurielEyeApp:eye_dashboard')
+            return redirect('core:clinic_dashboard')
         elif clinic.clinic_type == 'DENTAL':
-            return redirect('DurielDentalApp:dental_dashboard')
+            return redirect('core:clinic_dashboard')
 
     primary_clinic_id = getattr(request.user, 'primary_clinic_id', None)
     active_count = sum(1 for x in clinics_enriched if not x['is_expired'])
@@ -337,17 +556,21 @@ def manage_user_roles(request):
                 user = new_user_form.save(commit=False)
                 if not request.user.is_superuser:
                     user.is_superuser = False
+                user.primary_clinic = getattr(new_user_form, 'primary_clinic', None)
                 user.save()
                 new_user_form.save_m2m()
                 return redirect('core:manage_roles')
         elif 'update_role' in request.POST:
             user_id = request.POST.get('user_id')
-            user = get_object_or_404(CustomUser, id=user_id)
+            user = get_object_or_404(scoped_user_queryset_for_admin(request), id=user_id)
             role_form = UserEditForm(request.POST, instance=user, request=request)
             if role_form.is_valid():
                 if not request.user.is_superuser:
                     role_form.instance.is_superuser = False
-                role_form.save()
+                user = role_form.save(commit=False)
+                user.primary_clinic = getattr(role_form, 'primary_clinic', None) or user.primary_clinic
+                user.save()
+                role_form.save_m2m()
                 return redirect('core:manage_roles')
 
     return render(request, 'administration/manage_roles.html', {
@@ -408,8 +631,9 @@ def manage_user_roles(request):
 
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def edit_user_role(request, user_id):
-    user = get_object_or_404(CustomUser, id=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), id=user_id)
     editing_self = (request.user.id == user.id)
 
     # Permission checks
@@ -429,7 +653,10 @@ def edit_user_role(request, user_id):
                 messages.error(request, "You cannot deactivate yourself.")
                 return redirect('core:manage_roles')
 
-            form.save()
+            user = form.save(commit=False)
+            user.primary_clinic = getattr(form, 'primary_clinic', None) or user.primary_clinic
+            user.save()
+            form.save_m2m()
             from .utils import log_action
             log_action(
                 request,
@@ -470,7 +697,7 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_by = 10
 
     def test_func(self):
-        return self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']
+        return can_view_patient(self.request.user)
 
     def get_queryset(self):
         clinic_id = self.request.session.get('clinic_id')
@@ -538,7 +765,7 @@ class PatientCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 #     template_name = 'patients/edit_patient.html'
 #     success_url = reverse_lazy('core:patient_list')
 
-class PatientUpdateView(UpdateView):
+class PatientUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Patient
     form_class = PatientForm
     template_name = 'patients/edit_patient.html'
@@ -546,6 +773,14 @@ class PatientUpdateView(UpdateView):
 
     def get_success_url(self):
         return reverse('core:patient_detail', kwargs={'pk': self.object.patient_id})
+
+    def test_func(self):
+        return can_manage_patient_demographics(self.request.user)
+
+    def get_queryset(self):
+        clinic_id = self.request.session.get('clinic_id')
+        queryset = super().get_queryset()
+        return queryset.filter(clinic_id=clinic_id) if clinic_id else queryset.none()
     
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -613,7 +848,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     context_object_name = 'patient'
 
     def test_func(self):
-        return self.request.user.is_authenticated and self.request.user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'RECEPTIONIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'LAB_TECHNICIAN']
+        return can_view_patient(self.request.user)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -627,7 +862,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         # Define items per page once and reuse everywhere
         items_per_page = 1
 
-        # Get the latest vitals if available (from today's active appointment)
+        # Get the latest vitals if available across General, Eye, and Dental appointments.
         today = timezone.localdate()
         appointment = patient.appointments.filter(
             status__in=['SCHEDULED', 'COMPLETED'],
@@ -635,6 +870,19 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         ).order_by('-start_time').first()
         if appointment:
             context['vitals'] = getattr(appointment, 'vitals', None)
+        if not context.get('vitals'):
+            try:
+                from DurielMedicApp.models import Vitals
+                context['vitals'] = Vitals.objects.filter(
+                    appointment_content_type__isnull=False,
+                    appointment_object_id__isnull=False,
+                ).filter(
+                    Q(appointment__patient=patient) |
+                    Q(appointment_content_type__model='eyeappointment', appointment_object_id__in=patient.eye_appointments.values('pk')) |
+                    Q(appointment_content_type__model='dentalappointment', appointment_object_id__in=patient.dental_appointments.values('pk'))
+                ).order_by('-id').first()
+            except Exception:
+                context['vitals'] = None
 
         context['active_admission'] = Admission.objects.filter(
             patient=patient,
@@ -642,6 +890,12 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         ).select_related(
             'admitted_by', 'discharged_by', 'clinic'
         ).order_by('-date_admitted').first()
+        context['admission_history'] = Admission.objects.filter(
+            patient=patient,
+            clinic=patient.clinic,
+        ).select_related(
+            'admitted_by', 'discharged_by', 'clinic'
+        ).order_by('-date_admitted')[:5]
 
         # Medical Records Pagination (show for both GENERAL and EYE clinics)
         can_view_general_notes = self.request.user.role == 'DOCTOR'
@@ -798,6 +1052,10 @@ class PatientDeleteView(DeleteView):
     model = Patient
     template_name = 'patients/confirm_delete.html'
     success_url = reverse_lazy('core:patient_list')
+
+    def get_queryset(self):
+        clinic_id = self.request.session.get('clinic_id')
+        return super().get_queryset().filter(clinic_id=clinic_id) if clinic_id else Patient.objects.none()
     
     def delete(self, request, *args, **kwargs):
         patient = self.get_object()
@@ -818,7 +1076,7 @@ class PatientDeleteView(DeleteView):
 @login_required
 @user_passes_test(admin_check)
 def staff_list(request):
-    staff = CustomUser.objects.filter(is_staff=True).exclude(role='ADMIN').order_by('last_name', 'first_name')
+    staff = scoped_user_queryset_for_admin(request).filter(is_staff=True).exclude(role='ADMIN').order_by('last_name', 'first_name')
     return render(request, 'staff/staff_list.html', {'staff': staff})
 
 
@@ -845,6 +1103,7 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def form_valid(self, form):
         user = form.save(commit=False)
         user.is_staff = True
+        user.primary_clinic = getattr(form, 'primary_clinic', None)
         user.save()
         form.save_m2m()
         messages.success(self.request, f'User {user.username} created successfully!')
@@ -893,9 +1152,76 @@ def billing_list(request):
         output_field=models.DecimalField(max_digits=10, decimal_places=2),
     )
     bills = bills.annotate(effective_amount=effective_amount_expr)
+    pending_items = BillingLineItem.objects.filter(
+        clinic_id=clinic_id,
+        status__in=['DRAFT', 'APPROVED'],
+    ).select_related(
+        'patient',
+        'encounter',
+        'encounter__admission',
+        'appointment_content_type',
+    ).order_by('patient__last_name', 'patient__first_name', 'created_at')
+
+    due_map = {}
+    for item in pending_items:
+        appointment = item.appointment
+        encounter = item.encounter
+        flow_appointment_ct_id = item.appointment_content_type_id
+        flow_appointment_object_id = item.appointment_object_id
+        if not appointment and encounter and encounter.appointment_content_type_id and encounter.appointment_object_id:
+            appointment = encounter.appointment
+            flow_appointment_ct_id = encounter.appointment_content_type_id
+            flow_appointment_object_id = encounter.appointment_object_id
+
+        if flow_appointment_ct_id and flow_appointment_object_id:
+            flow_context = 'appointment'
+            flow_id = f"{flow_appointment_ct_id}:{flow_appointment_object_id}"
+        elif encounter and encounter.admission_id:
+            flow_context = 'admission'
+            flow_id = str(encounter.admission_id)
+        elif encounter:
+            flow_context = 'encounter'
+            flow_id = str(encounter.pk)
+        else:
+            flow_context = 'patient'
+            flow_id = str(item.patient_id)
+
+        group_key = (
+            item.patient_id,
+            flow_context,
+            flow_id,
+        )
+        if group_key not in due_map:
+            appointment_type = billing_appointment_type(appointment)
+            create_bill_url = f"{reverse_lazy('core:create_bill')}?patient={item.patient.patient_id}"
+            if appointment:
+                create_bill_url += f"&appointment_id={appointment.pk}&appointment_type={appointment_type}"
+            elif encounter and encounter.admission_id:
+                create_bill_url += f"&admission_id={encounter.admission_id}"
+            due_map[group_key] = {
+                'patient': item.patient,
+                'encounter': encounter,
+                'appointment': appointment,
+                'appointment_type': appointment_type,
+                'items': [],
+                'item_ids': [],
+                'total': Decimal('0.00'),
+                'create_bill_url': create_bill_url,
+                'deactivate_item_ids': '',
+            }
+        due_map[group_key]['items'].append(item)
+        due_map[group_key]['item_ids'].append(str(item.pk))
+        due_map[group_key]['total'] += item.total_amount
+    for group in due_map.values():
+        if group['item_ids']:
+            line_item_ids = ','.join(group['item_ids'])
+            group['create_bill_url'] += f"&line_items={line_item_ids}"
+            group['deactivate_item_ids'] = line_item_ids
+    due_billing_groups = list(due_map.values())[:20]
 
     context = {
         'bills': bills,
+        'due_billing_groups': due_billing_groups,
         'total_amount': bills.aggregate(total=Sum('effective_amount'))['total'] or 0,
         'total_paid': bills.aggregate(total=Sum('paid_amount'))['total'] or 0,
         'status_filter': status_filter,
@@ -904,6 +1230,47 @@ def billing_list(request):
         'date_to': date_to,
     }
     return render(request, 'billing/billing_list.html', context)
+
+
+@login_required
+@clinic_selected_required
+@require_POST
+@role_required('ADMIN')
+def deactivate_billing_queue(request):
+    clinic_id = request.session.get('clinic_id')
+    item_ids = [
+        value for value in (request.POST.get('line_items') or '').replace(',', ' ').split()
+        if value.isdigit()
+    ]
+    if not item_ids:
+        messages.error(request, "No billing queue items were selected.")
+        return redirect('core:billing_list')
+
+    items = BillingLineItem.objects.filter(
+        clinic_id=clinic_id,
+        pk__in=item_ids,
+        status__in=['DRAFT', 'APPROVED'],
+        bill__isnull=True,
+    ).select_related('patient')
+    item_count = items.count()
+    patient_names = sorted({item.patient.full_name for item in items})
+    if not item_count:
+        messages.warning(request, "This billing queue entry is no longer active.")
+        return redirect('core:billing_list')
+
+    descriptions = ", ".join(items.values_list('description', flat=True)[:8])
+    items.update(status='VOIDED', updated_at=timezone.now())
+    log_action(
+        request,
+        'UPDATE',
+        None,
+        details=(
+            f"Voided {item_count} billing queue item(s) for {', '.join(patient_names)}. "
+            f"Items: {descriptions}"
+        )
+    )
+    messages.success(request, "Billing queue entry deactivated.")
+    return redirect('core:billing_list')
 
 
 
@@ -997,12 +1364,13 @@ def get_latest_patient_appointment(patient, clinic_id):
     recent_date = date.today() - timedelta(days=30)
 
     from DurielEyeApp.models import EyeAppointment
+    from DurielDentalApp.models import DentalAppointment
     # from DurielPhysioApp.models import PhysioAppointment
     from DurielMedicApp.models import Appointment as GeneralAppointment
 
     appointments = []
 
-    for model in [EyeAppointment, GeneralAppointment]:
+    for model in [EyeAppointment, DentalAppointment, GeneralAppointment]:
         qs = model.objects.filter(patient=patient, clinic_id=clinic_id)
         today_appointments = qs.filter(date=date.today()).order_by('-start_time')
         recent_appointments = qs.filter(date__gte=recent_date).order_by('-date', '-start_time')
@@ -1026,8 +1394,340 @@ def get_latest_patient_appointment(patient, clinic_id):
 def billing_appointment_type(appointment):
     if appointment is None:
         return ''
-    return 'eye' if appointment.__class__.__name__.lower() == 'eyeappointment' else 'general'
+    model_name = appointment.__class__.__name__.lower()
+    if model_name == 'eyeappointment':
+        return 'eye'
+    if model_name == 'dentalappointment':
+        return 'dental'
+    return 'general'
 
+
+def get_appointment_from_type(appointment_id, appointment_type, clinic_id):
+    if not appointment_id or not appointment_type:
+        return None
+    try:
+        if appointment_type == 'eye':
+            return EyeAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+        if appointment_type == 'dental':
+            from DurielDentalApp.models import DentalAppointment
+            return DentalAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+        return Appointment.objects.get(id=appointment_id, clinic_id=clinic_id)
+    except Exception:
+        return None
+
+
+def build_billing_clinical_summary(patient, clinic_id, appointment=None, encounter=None):
+    summary = {
+        'vitals': None,
+        'general_records': [],
+        'eye_exams': [],
+        'eye_records': [],
+        'dental_exams': [],
+        'dental_plans': [],
+        'dental_procedures': [],
+        'dental_records': [],
+        'lab_orders': [],
+        'prescriptions': [],
+        'billing_line_items': [],
+        'appointment_scoped': bool(appointment or encounter),
+    }
+
+    appointment_type = None
+    appointment_ids = {}
+    if not encounter and appointment:
+        encounter = get_or_create_encounter_for_appointment(appointment)
+        appointment_type = ContentType.objects.get_for_model(appointment)
+        appointment_ids[appointment.__class__.__name__.lower()] = appointment.pk
+        try:
+            from DurielMedicApp.models import Vitals
+            vitals = Vitals.objects.filter(
+                appointment_content_type=appointment_type,
+                appointment_object_id=appointment.pk,
+            )
+            if encounter:
+                vitals = vitals | Vitals.objects.filter(encounter=encounter)
+            summary['vitals'] = vitals.first()
+        except Exception:
+            summary['vitals'] = None
+
+    if encounter and getattr(encounter, 'admission_id', None):
+        summary['prescriptions'] = Prescription.objects.filter(
+            patient=patient,
+            clinic_id=clinic_id,
+            admission=encounter.admission,
+        ).order_by('-date_prescribed', '-id')[:8]
+    elif encounter:
+        summary['prescriptions'] = Prescription.objects.filter(
+            patient=patient,
+            clinic_id=clinic_id,
+            admission__isnull=True,
+            encounter=encounter,
+        ).order_by('-date_prescribed', '-id')[:8]
+    elif not appointment:
+        summary['prescriptions'] = Prescription.objects.filter(
+            patient=patient,
+            clinic_id=clinic_id,
+            admission__isnull=True,
+        ).order_by('-date_prescribed', '-id')[:8]
+
+    try:
+        from core.models import LabTestOrder
+        lab_orders = LabTestOrder.objects.filter(patient=patient, clinic_id=clinic_id).prefetch_related('ordered_tests')
+        if encounter:
+            lab_orders = lab_orders.filter(encounter=encounter)
+        elif appointment and appointment_type:
+            lab_orders = lab_orders.filter(
+                appointment_content_type=appointment_type,
+                appointment_object_id=appointment.pk,
+            )
+        summary['lab_orders'] = lab_orders.order_by('-ordered_at')[:8]
+    except Exception:
+        summary['lab_orders'] = []
+
+    if not appointment:
+        summary['general_records'] = MedicalRecord.objects.filter(patient=patient).order_by('-created_at')[:5]
+
+    try:
+        from DurielEyeApp.models import EyeExam, EyeMedicalRecord
+        eye_exams = EyeExam.objects.filter(patient=patient)
+        if encounter and appointment and appointment.__class__.__name__.lower() == 'eyeappointment':
+            eye_exams = eye_exams.filter(Q(encounter=encounter) | Q(appointment=appointment))
+        elif appointment and appointment.__class__.__name__.lower() == 'eyeappointment':
+            eye_exams = eye_exams.filter(appointment=appointment)
+        summary['eye_exams'] = eye_exams.order_by('-created_at')[:5]
+        if not appointment:
+            summary['eye_records'] = EyeMedicalRecord.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-created_at')[:5]
+    except Exception:
+        pass
+
+    try:
+        from DurielDentalApp.models import DentalExam, DentalProcedure, DentalTreatmentPlan, DentalMedicalRecord
+        dental_exams = DentalExam.objects.filter(patient=patient, clinic_id=clinic_id)
+        dental_procedures = DentalProcedure.objects.filter(patient=patient, clinic_id=clinic_id)
+        dental_plans = DentalTreatmentPlan.objects.filter(patient=patient, clinic_id=clinic_id)
+        if encounter and appointment and appointment.__class__.__name__.lower() == 'dentalappointment':
+            dental_exams = dental_exams.filter(Q(encounter=encounter) | Q(appointment=appointment))
+            dental_procedures = dental_procedures.filter(Q(encounter=encounter) | Q(appointment=appointment))
+            dental_plans = dental_plans.filter(Q(encounter=encounter) | Q(exam__appointment=appointment))
+        elif appointment and appointment.__class__.__name__.lower() == 'dentalappointment':
+            dental_exams = dental_exams.filter(appointment=appointment)
+            dental_procedures = dental_procedures.filter(appointment=appointment)
+            dental_plans = dental_plans.filter(exam__appointment=appointment)
+        summary['dental_exams'] = dental_exams.order_by('-created_at')[:5]
+        summary['dental_procedures'] = dental_procedures.order_by('-performed_at')[:8]
+        summary['dental_plans'] = dental_plans.order_by('-created_at')[:5]
+        if not appointment:
+            summary['dental_records'] = DentalMedicalRecord.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-created_at')[:5]
+    except Exception:
+        pass
+
+    line_items = BillingLineItem.objects.filter(clinic_id=clinic_id, patient=patient)
+    if appointment:
+        line_items = line_items.filter(**_appointment_billing_filter(appointment))
+    elif encounter:
+        line_items = line_items.filter(encounter=encounter)
+    else:
+        line_items = line_items.filter(status__in=['DRAFT', 'APPROVED'])
+    summary['billing_line_items'] = line_items.order_by('created_at', 'id')[:12]
+
+    return summary
+
+
+
+def _appointment_billing_filter(appointment):
+    if not appointment:
+        return {}
+    return {
+        'appointment_content_type': ContentType.objects.get_for_model(appointment),
+        'appointment_object_id': appointment.pk,
+    }
+
+
+def _find_service(clinic_id, *terms):
+    queryset = ServicePriceList.objects.filter(clinic_id=clinic_id, is_active=True)
+    for term in terms:
+        service = queryset.filter(name__icontains=term).order_by('price', 'name').first()
+        if service:
+            return service
+    return None
+
+
+def _ensure_billing_line_item(*, clinic, patient, appointment=None, encounter=None, source_obj=None,
+                              source_type='MANUAL', service=None, description='', quantity=1,
+                              unit_price=None, created_by=None, auto_approve=False):
+    if unit_price is None:
+        unit_price = getattr(service, 'price', Decimal('0.00')) if service else Decimal('0.00')
+    unit_price = Decimal(unit_price or 0)
+
+    appointment_filter = _appointment_billing_filter(appointment)
+    source_ct = ContentType.objects.get_for_model(source_obj) if source_obj else None
+    source_id = str(source_obj.pk) if source_obj else None
+    lookup = {
+        'clinic': clinic,
+        'patient': patient,
+        'source_type': source_type,
+        'source_content_type': source_ct,
+        'source_object_id': source_id,
+        **appointment_filter,
+    }
+    item, created = BillingLineItem.objects.get_or_create(
+        **lookup,
+        defaults={
+            'encounter': encounter,
+            'service': service,
+            'description': description[:255],
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'created_by': created_by,
+        }
+    )
+    if created and auto_approve:
+        item.approve(created_by)
+    elif not created and item.status in ['DRAFT', 'APPROVED']:
+        changed_fields = []
+        if description and item.description != description[:255]:
+            item.description = description[:255]
+            changed_fields.append('description')
+        if service is None and item.service_id:
+            item.service = None
+            changed_fields.append('service')
+        if item.unit_price != unit_price:
+            item.unit_price = unit_price
+            changed_fields.extend(['unit_price', 'total_amount'])
+        if auto_approve and item.status == 'DRAFT':
+            item.status = 'APPROVED'
+            item.approved_by = created_by
+            item.approved_at = timezone.now()
+            changed_fields.extend(['status', 'approved_by', 'approved_at'])
+        if changed_fields:
+            item.save(update_fields=[*set(changed_fields), 'updated_at'])
+    return item
+
+
+def sync_appointment_charge_items(patient, clinic_id, appointment=None, encounter=None, user=None):
+    if not patient:
+        return BillingLineItem.objects.none()
+    clinic = Clinic.objects.get(pk=clinic_id)
+    if appointment and not encounter:
+        encounter = get_or_create_encounter_for_appointment(appointment, user)
+    appointment_type = billing_appointment_type(appointment)
+
+    if appointment:
+        provider_role = getattr(getattr(appointment, 'provider', None), 'role', '')
+        description = 'Consultation'
+        source_type = 'CONSULTATION'
+        if provider_role == 'PHYSIOTHERAPIST':
+            description = 'Physio Consultation'
+            source_type = 'PHYSIO_CONSULTATION'
+        elif appointment_type == 'eye':
+            description = 'Eye Consultation'
+        elif appointment_type == 'dental':
+            description = 'Dental Consultation'
+        _ensure_billing_line_item(
+            clinic=clinic,
+            patient=patient,
+            appointment=appointment,
+            encounter=encounter,
+            source_obj=appointment,
+            source_type=source_type,
+            service=None,
+            description=description,
+            unit_price=Decimal('0.00'),
+            created_by=user,
+            auto_approve=True,
+        )
+
+    if encounter:
+        prescriptions = Prescription.objects.filter(
+            patient=patient,
+            clinic_id=clinic_id,
+            encounter=encounter,
+            clinic_medication__isnull=False,
+        )
+    elif appointment:
+        prescriptions = Prescription.objects.none()
+    else:
+        prescriptions = Prescription.objects.filter(
+            patient=patient,
+            clinic_id=clinic_id,
+            admission__isnull=True,
+            clinic_medication__isnull=False,
+        )
+    for prescription in prescriptions:
+        unit_price = prescription.clinic_medication.selling_price or Decimal('0.00')
+        _ensure_billing_line_item(
+            clinic=clinic,
+            patient=patient,
+            appointment=appointment,
+            encounter=encounter,
+            source_obj=prescription,
+            source_type='PRESCRIPTION',
+            description=f"{prescription.medication_name} ({prescription.dosage})",
+            quantity=prescription.quantity_prescribed or 1,
+            unit_price=unit_price,
+            created_by=user,
+            auto_approve=prescription.stock_deducted,
+        )
+
+    try:
+        from core.models import LabTestOrder
+        lab_orders = LabTestOrder.objects.filter(patient=patient, clinic_id=clinic_id).prefetch_related('ordered_tests')
+        if encounter:
+            lab_orders = lab_orders.filter(encounter=encounter)
+        elif appointment:
+            lab_orders = lab_orders.filter(**_appointment_billing_filter(appointment))
+        else:
+            lab_orders = LabTestOrder.objects.none()
+        for order in lab_orders:
+            for test in order.ordered_tests.all():
+                _ensure_billing_line_item(
+                    clinic=clinic,
+                    patient=patient,
+                    appointment=appointment,
+                    encounter=encounter,
+                    source_obj=test,
+                    source_type='LAB',
+                    service=None,
+                    description=f"Lab: {test.name}",
+                    quantity=1,
+                    unit_price=test.price or Decimal('0.00'),
+                    created_by=user,
+                )
+    except Exception:
+        pass
+
+    try:
+        from DurielDentalApp.models import DentalProcedure
+        procedures = DentalProcedure.objects.filter(patient=patient, clinic_id=clinic_id)
+        if encounter:
+            procedures = procedures.filter(encounter=encounter)
+        elif appointment and appointment_type == 'dental':
+            procedures = procedures.filter(appointment=appointment)
+        else:
+            procedures = DentalProcedure.objects.none()
+        for procedure in procedures:
+            _ensure_billing_line_item(
+                clinic=clinic,
+                patient=patient,
+                appointment=appointment,
+                encounter=encounter,
+                source_obj=procedure,
+                source_type='PROCEDURE',
+                service=None,
+                description=f"Dental procedure: {getattr(procedure, 'procedure_name', 'Procedure')}",
+                unit_price=Decimal('0.00'),
+                created_by=user,
+                auto_approve=True,
+            )
+    except Exception:
+        pass
+
+    qs = BillingLineItem.objects.filter(clinic_id=clinic_id, patient=patient, status__in=['DRAFT', 'APPROVED'])
+    if appointment:
+        qs = qs.filter(**_appointment_billing_filter(appointment))
+    elif encounter:
+        qs = qs.filter(encounter=encounter)
+    return qs.order_by('created_at', 'id')
 
 
 
@@ -1044,6 +1744,7 @@ def create_bill(request, patient_id=None):
     patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
     selected_patient_id = request.GET.get('patient')
     patient = None
+    selected_admission = None
 
     # --- Get patient ---
     if selected_patient_id:
@@ -1057,22 +1758,27 @@ def create_bill(request, patient_id=None):
         except Patient.DoesNotExist:
             patient = None
 
+    admission_id = request.GET.get('admission_id') or request.POST.get('admission_id')
+    if admission_id:
+        selected_admission = Admission.objects.filter(pk=admission_id, clinic_id=clinic_id).select_related('patient').first()
+        if selected_admission:
+            patient = selected_admission.patient
+
     # --- Get appointment if specified ---
     appointment = None
     appointment_id = request.GET.get('appointment_id')
-    appointment_type = request.GET.get('appointment_type')  # "general" or "eye"
+    appointment_type = request.GET.get('appointment_type')  # "general", "eye", or "dental"
+    requested_line_item_ids = [
+        value
+        for value in (request.GET.get('line_items') or request.POST.get('line_items') or '').replace(',', ' ').split()
+        if value.isdigit()
+    ]
 
     if appointment_id and appointment_type:
-        try:
-            if appointment_type == "eye":
-                appointment = EyeAppointment.objects.get(id=appointment_id, clinic_id=clinic_id)
-            else:
-                appointment = Appointment.objects.get(id=appointment_id, clinic_id=clinic_id)
-        except (Appointment.DoesNotExist, EyeAppointment.DoesNotExist):
-            appointment = None
-
+        appointment = get_appointment_from_type(appointment_id, appointment_type, clinic_id)
+	
     # --- If no specific appointment but we have a patient, pick latest ---
-    if patient and not appointment:
+    if patient and not appointment and not requested_line_item_ids:
         appointment = get_latest_patient_appointment(patient, clinic_id)
         appointment_type = billing_appointment_type(appointment)
 
@@ -1094,8 +1800,26 @@ def create_bill(request, patient_id=None):
             'appointments': Appointment.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date', '-start_time')[:5],
             'admissions': Admission.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_admitted')[:5],
             'prescriptions': Prescription.objects.filter(patient=patient, clinic_id=clinic_id).order_by('-date_prescribed', '-id')[:8],
+            'medical_records': MedicalRecord.objects.filter(patient=patient).order_by('-created_at')[:5],
             'dental': dental_activity,
         }
+    selected_encounter = get_or_create_encounter_for_admission(selected_admission, request.user) if selected_admission else None
+    if patient and appointment and not selected_encounter:
+        selected_encounter = get_or_create_encounter_for_appointment(appointment, request.user)
+    billing_clinical_summary = build_billing_clinical_summary(patient, clinic_id, appointment, selected_encounter) if patient else {}
+    billing_line_items = sync_appointment_charge_items(patient, clinic_id, appointment, selected_encounter, request.user) if patient else BillingLineItem.objects.none()
+    if requested_line_item_ids and patient:
+        requested_line_items = BillingLineItem.objects.filter(
+            id__in=requested_line_item_ids,
+            clinic_id=clinic_id,
+            patient=patient,
+            status__in=['DRAFT', 'APPROVED'],
+        )
+        if appointment:
+            requested_line_items = requested_line_items.filter(**_appointment_billing_filter(appointment))
+        elif selected_encounter:
+            requested_line_items = requested_line_items.filter(encounter=selected_encounter)
+        billing_line_items = requested_line_items.order_by('created_at', 'id')
 
     # --- Handle AJAX (used for patient selection updates) ---
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1114,6 +1838,8 @@ def create_bill(request, patient_id=None):
             bill.created_by = request.user
             bill.clinic = get_object_or_404(Clinic, id=clinic_id)
             bill.patient = form.cleaned_data['patient']
+            if selected_encounter:
+                bill.encounter = selected_encounter
 
             # Handle appointment (from hidden fields)
             appointment_id_from_form = request.POST.get('appointment_id')
@@ -1121,21 +1847,33 @@ def create_bill(request, patient_id=None):
 
             if appointment_id_from_form and appointment_type_from_form:
                 try:
-                    if appointment_type_from_form == "eye":
-                        appointment = EyeAppointment.objects.get(id=appointment_id_from_form, clinic_id=clinic_id)
-                    else:
-                        appointment = Appointment.objects.get(id=appointment_id_from_form, clinic_id=clinic_id)
+                    appointment = get_appointment_from_type(appointment_id_from_form, appointment_type_from_form, clinic_id)
+                    if not appointment:
+                        raise ValueError("Appointment not found")
 
                     # Link using GenericForeignKey
                     bill.appointment_object_id = appointment.id
                     bill.appointment_content_type = ContentType.objects.get_for_model(appointment)
+                    bill.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
 
-                except (Appointment.DoesNotExist, EyeAppointment.DoesNotExist):
+                except Exception:
                     appointment = None
 
             # --- Calculate billing amount ---
             selected_services = form.cleaned_data.get('services')
             service_total = sum(service.price for service in selected_services) if selected_services else 0
+            selected_line_item_ids = request.POST.getlist('billing_line_items') or requested_line_item_ids
+            selected_line_items = BillingLineItem.objects.filter(
+                id__in=selected_line_item_ids,
+                clinic_id=clinic_id,
+                patient=bill.patient,
+                status__in=['DRAFT', 'APPROVED'],
+            )
+            if appointment:
+                selected_line_items = selected_line_items.filter(**_appointment_billing_filter(appointment))
+            elif selected_encounter:
+                selected_line_items = selected_line_items.filter(encounter=selected_encounter)
+            line_item_total = selected_line_items.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
             manual_service_name = request.POST.get('manual_service_name', '').strip()
             manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
             if manual_service_cost < 0:
@@ -1147,11 +1885,19 @@ def create_bill(request, patient_id=None):
                     'appointment': appointment,
                     'appointment_type': billing_appointment_type(appointment),
                     'patient_billing_activity': patient_billing_activity,
+                    'billing_clinical_summary': billing_clinical_summary,
+                    'billing_line_items': billing_line_items,
+                    'requested_line_item_ids': requested_line_item_ids,
                     'selected_patient_id': selected_patient_id,
                     'title': 'Create New Bill'
                 })
-            bill.amount = service_total + manual_service_cost
+            bill.amount = service_total + line_item_total + manual_service_cost
             description_lines = []
+            if selected_line_items.exists():
+                description_lines.extend([
+                    f"{item.description} x{item.quantity} - ₦{item.total_amount}"
+                    for item in selected_line_items
+                ])
             if selected_services:
                 description_lines.extend([f"{service.name} - ₦{service.price}" for service in selected_services])
             if manual_service_name or manual_service_cost:
@@ -1181,6 +1927,10 @@ def create_bill(request, patient_id=None):
 
             bill.save()
             form.save_m2m()
+            for item in selected_line_items:
+                if item.status == 'DRAFT':
+                    item.approve(request.user)
+                item.mark_billed(bill)
 
             log_action(
                 request,
@@ -1205,6 +1955,10 @@ def create_bill(request, patient_id=None):
         'appointment': appointment,
         'appointment_type': billing_appointment_type(appointment),
         'patient_billing_activity': patient_billing_activity,
+        'billing_clinical_summary': billing_clinical_summary,
+        'billing_line_items': billing_line_items,
+        'selected_admission': selected_admission,
+        'requested_line_item_ids': requested_line_item_ids,
         'selected_patient_id': selected_patient_id,
         'title': 'Create New Bill'
     }
@@ -1369,8 +2123,8 @@ def create_bill(request, patient_id=None):
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def edit_bill(request, pk):
-    bill = get_object_or_404(Billing, pk=pk)
     clinic_id = request.session.get('clinic_id')
+    bill = get_object_or_404(Billing, pk=pk, clinic_id=clinic_id)
     
     if request.method == 'POST':
         form = BillingForm(request.POST, instance=bill, clinic_id=clinic_id)
@@ -1500,17 +2254,26 @@ def record_payment(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE')
+@role_required('ADMIN', 'RECEPTIONIST')
 def view_bill(request, pk):
-    bill = get_object_or_404(Billing, pk=pk)
-    return render(request, 'billing/bill_detail.html', {'bill': bill})
+    bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
+    billing_clinical_summary = build_billing_clinical_summary(
+        bill.patient,
+        request.clinic.id,
+        bill.appointment,
+        bill.encounter,
+    )
+    return render(request, 'billing/bill_detail.html', {
+        'bill': bill,
+        'billing_clinical_summary': billing_clinical_summary,
+    })
 
 
 @login_required
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def delete_bill(request, pk):
-    bill = get_object_or_404(Billing, pk=pk)
+    bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     if request.method == 'POST':
         
         # ✅ Manual logging
@@ -1537,8 +2300,12 @@ def delete_bill(request, pk):
 
 def patient_search_api(request):
     query = request.GET.get('q', '')
-    results = Patient.objects.filter(full_name__icontains=query)
-    data = [{'id': p.id, 'name': p.full_name} for p in results]
+    results = Patient.objects.filter(clinic_id=request.session.get('clinic_id')).filter(
+        Q(first_name__icontains=query) |
+        Q(last_name__icontains=query) |
+        Q(patient_id__icontains=query)
+    )
+    data = [{'id': p.patient_id, 'name': p.full_name} for p in results]
     return JsonResponse({'results': data})
 
 
@@ -1574,7 +2341,7 @@ def patient_search_api(request):
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST')
 def generate_receipt(request, pk):
-    bill = get_object_or_404(Billing, pk=pk)
+    bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     payments = bill.payments.all().order_by('-payment_date')
     payment = payments.first() if payments.exists() else None
 
@@ -1596,6 +2363,74 @@ def generate_receipt(request, pk):
     }
 
     return render(request, 'billing/receipt.html', context)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST')
+def email_receipt(request, pk):
+    bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
+    payment = bill.payments.order_by('-payment_date').first()
+    patient = bill.patient
+
+    if not payment:
+        messages.error(request, "No payment has been recorded for this bill yet.")
+        return redirect('core:generate_receipt', pk=bill.pk)
+
+    if not patient.email:
+        messages.error(request, "This patient does not have an email address on file.")
+        return redirect('core:generate_receipt', pk=bill.pk)
+
+    clinic = bill.clinic
+    clinic_name = clinic.name if clinic else request.session.get('clinic_name', 'Your Clinic')
+    clinic_lines = [clinic_name]
+    if clinic and clinic.address:
+        clinic_lines.append(clinic.address)
+    if clinic and clinic.phone:
+        clinic_lines.append(f"Phone: {clinic.phone}")
+    if clinic and clinic.email:
+        clinic_lines.append(f"Email: {clinic.email}")
+    clinic_header = "\n".join(clinic_lines)
+    subject = f"Payment receipt #{payment.id} from {clinic_name}"
+    body = (
+        f"{clinic_header}\n"
+        f"{'-' * 32}\n\n"
+        f"Dear {patient.full_name},\n\n"
+        f"Thank you for your payment.\n\n"
+        f"Receipt No: #{payment.id}\n"
+        f"Bill No: #{bill.id}\n"
+        f"Payment Date: {payment.payment_date:%B %d, %Y %I:%M %p}\n"
+        f"Payment Method: {payment.get_payment_method_display()}\n"
+        f"Amount Paid: NGN {payment.amount:,.2f}\n"
+        f"Bill Total: NGN {bill.get_effective_amount():,.2f}\n"
+        f"Outstanding Balance: NGN {bill.get_balance():,.2f}\n\n"
+        f"Services:\n{bill.description or 'Payment for clinic services'}\n\n"
+        f"Regards,\n{clinic_name}"
+    )
+
+    try:
+        send_mail(
+            subject,
+            body,
+            getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            [patient.email],
+            fail_silently=False,
+        )
+    except BadHeaderError:
+        messages.error(request, "Receipt email could not be sent because the email header was invalid.")
+    except Exception as exc:
+        messages.error(request, f"Receipt email could not be sent: {exc}")
+    else:
+        log_action(
+            request,
+            'UPDATE',
+            bill,
+            details=f"Sent receipt #{payment.id} for bill #{bill.id} to {patient.email}"
+        )
+        messages.success(request, f"Receipt sent to patient email: {patient.email}.")
+
+    return redirect('core:generate_receipt', pk=bill.pk)
 
 
 import os
@@ -1735,7 +2570,7 @@ def admin_dashboard(request):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def activate_user(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_active = True
     user.save()
     messages.success(request, f"{user.username} activated.")
@@ -1744,14 +2579,14 @@ def activate_user(request, user_id):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def set_staff(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_staff = True
     user.save()
     messages.success(request, f"{user.username} set as staff.")
     return redirect('admin_dashboard')
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
+@user_passes_test(lambda u: u.is_superuser)
 def set_superuser(request, user_id):
     user = get_object_or_404(CustomUser, pk=user_id)
     user.is_superuser = True
@@ -1762,7 +2597,7 @@ def set_superuser(request, user_id):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def verify_user(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.verified = True  # Add this field to your CustomUser model
     user.save()
     messages.success(request, f"{user.username} verified.")
@@ -1832,7 +2667,7 @@ class ClinicUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def activate_user(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_active = not user.is_active
     user.save()
     messages.success(request, f"{user.username} has been {'activated' if user.is_active else 'deactivated'}.")
@@ -1841,7 +2676,7 @@ def activate_user(request, user_id):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def set_staff(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_staff = not user.is_staff
     user.save()
     messages.success(request, f"{user.username} has been {'granted staff privileges' if user.is_staff else 'removed from staff'}.")
@@ -1850,7 +2685,7 @@ def set_staff(request, user_id):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def verify_user(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.verified = not user.verified
     user.save()
     messages.success(request, f"{user.username} has been {'verified' if user.verified else 'unverified'}.")
@@ -1878,7 +2713,7 @@ def toggle_staff(request, user_id):
         messages.error(request, "You cannot change your own staff status.")
         return redirect('core:admin_dashboard')
     
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_staff = not user.is_staff
     user.save()
     status = "added to staff" if user.is_staff else "removed from staff"
@@ -1888,7 +2723,7 @@ def toggle_staff(request, user_id):
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def toggle_verify(request, user_id):
-    user = get_object_or_404(CustomUser, pk=user_id)
+    user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.verified = not user.verified
     user.save()
     status = "verified" if user.verified else "unverified"
@@ -2140,18 +2975,28 @@ def bulk_delete_logs(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'OPTOMETRIST')
+@role_required('ADMIN', *PRESCRIBER_ROLES)
 def add_prescription(request, patient_id):
     """Add prescription with inventory integration and logging."""
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
     patient = get_object_or_404(Patient, patient_id=patient_id, clinic=clinic)
+    appointment = get_appointment_from_type(
+        request.POST.get('appointment_id') or request.GET.get('appointment_id'),
+        request.POST.get('appointment_type') or request.GET.get('appointment_type'),
+        clinic_id,
+    )
 
     # Get active medications for this clinic
     medications = ClinicMedication.objects.filter(
         clinic=clinic,
         status='ACTIVE'
     ).order_by('name')
+    appointment = get_appointment_from_type(
+        request.POST.get('appointment_id') or request.GET.get('appointment_id'),
+        request.POST.get('appointment_type') or request.GET.get('appointment_type'),
+        clinic_id,
+    )
 
     if request.method == 'POST':
         # Use PrescriptionForm to handle validation
@@ -2162,6 +3007,8 @@ def add_prescription(request, patient_id):
             prescription.clinic = clinic
             prescription.prescribed_by = request.user
             prescription.custom_medication = None
+            if appointment:
+                prescription.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
             prescription.save()
 
             log_action(
@@ -2170,6 +3017,15 @@ def add_prescription(request, patient_id):
                 prescription,
                 details=f"Added prescription for {patient.full_name}: "
                         f"{prescription.clinic_medication.name if prescription.clinic_medication else prescription.custom_medication}"
+            )
+            notify_roles(
+                clinic,
+                ['PHARMACIST'],
+                f"New prescription for {patient.full_name}. Review for dispensing.",
+                link=reverse('core:prescription_list'),
+                app_name='pharmacy',
+                object_id=prescription.pk,
+                exclude_user=request.user,
             )
 
             messages.success(request, "Prescription saved successfully!")
@@ -2192,13 +3048,15 @@ def add_prescription(request, patient_id):
         'form': form,
         'patient': patient,
         'clinic': clinic,
-        'medications': medications
+        'medications': medications,
+        'appointment': appointment,
+        'appointment_type': billing_appointment_type(appointment),
     })
 
 
 @login_required
 @clinic_selected_required
-@role_required('DOCTOR', 'OPTOMETRIST')
+@role_required(*PRESCRIBER_ROLES)
 def edit_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     messages.warning(request, 'Prescriptions are permanent clinical orders and cannot be edited. Deactivate it and create a new prescription instead.')
@@ -2349,7 +3207,7 @@ from django.utils import timezone
 @require_POST
 @login_required
 @clinic_selected_required
-@role_required('DOCTOR', 'OPTOMETRIST')
+@role_required(*PRESCRIBER_ROLES)
 def deactivate_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     patient = prescription.patient
@@ -2377,7 +3235,7 @@ def deactivate_prescription(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('DOCTOR', 'OPTOMETRIST')
+@role_required(*PRESCRIBER_ROLES)
 def delete_prescription(request, pk):
     prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     messages.warning(request, 'Prescriptions cannot be deleted. Deactivate the prescription to preserve the clinical audit trail.')
@@ -2993,23 +3851,41 @@ def dispense_prescription(request, pk):
 @role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'PHARMACIST')
 def dispense_prescription(request, pk):
     """Dispense prescription, deduct stock, and add to billing."""
-    prescription = get_object_or_404(Prescription, pk=pk)
+    prescription = get_object_or_404(Prescription, pk=pk, clinic=request.clinic)
     patient = prescription.patient
+
+    if prescription.admission_id:
+        messages.error(request, 'Admission prescriptions are administered and billed by nurses from the admission chart.')
+        return redirect('DurielMedicApp:admission_detail', admission_id=prescription.admission_id)
 
     if not prescription.clinic_medication:
         messages.error(request, "This prescription is not from clinic inventory and cannot be dispensed.")
-        return redirect('core:patient_detail', pk=patient.patient_id)
+        return redirect('core:prescription_list')
     
     if prescription.stock_deducted:
         messages.info(request, "This prescription has already been dispensed.")
-        return redirect('core:patient_list')
+        return redirect('core:prescription_list')
 
 
     if request.method == 'POST':
         # Deduct stock
-        if prescription.deduct_stock():
+        if prescription.deduct_stock(bulk=True):
             # Add billing
             price = (prescription.clinic_medication.selling_price or 0) * prescription.quantity_prescribed
+            appointment = prescription.encounter.appointment if prescription.encounter_id and prescription.encounter else None
+            _ensure_billing_line_item(
+                clinic=prescription.clinic,
+                patient=patient,
+                appointment=appointment,
+                encounter=prescription.encounter,
+                source_obj=prescription,
+                source_type='PRESCRIPTION',
+                description=f"{prescription.medication_name} ({prescription.dosage})",
+                quantity=prescription.quantity_prescribed or 1,
+                unit_price=prescription.clinic_medication.selling_price or Decimal('0.00'),
+                created_by=request.user,
+                auto_approve=True,
+            )
             # patient.billing_total += price
             patient.save()
 
@@ -3019,6 +3895,15 @@ def dispense_prescription(request, pk):
                 prescription,
                 details=f"Dispensed prescription for {patient.full_name}: "
                         f"{prescription.clinic_medication.name} x{prescription.quantity_prescribed} (₦{price})"
+            )
+            notify_role_handoff(
+                prescription.clinic,
+                ['ADMIN', 'RECEPTIONIST'],
+                f"Medication dispensed for {patient.full_name}. Billing updated.",
+                link=reverse('core:billing_list'),
+                app_name='pharmacy',
+                object_id=prescription.pk,
+                actor=request.user,
             )
 
             messages.success(request, f"Prescription dispensed! Stock deducted, ₦{price} added to billing.")
@@ -3032,6 +3917,101 @@ def dispense_prescription(request, pk):
     'prescription': prescription,
     'total_price': prescription.clinic_medication.selling_price * prescription.quantity_prescribed
 })
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'PHARMACIST')
+def reconcile_prescription(request, pk):
+    """Reverse a dispensed prescription when medicine is returned or changed."""
+    prescription = get_object_or_404(
+        Prescription.objects.select_related('patient', 'clinic_medication', 'clinic'),
+        pk=pk,
+        clinic=request.clinic,
+        admission__isnull=True,
+    )
+    patient = prescription.patient
+
+    if not prescription.stock_deducted:
+        messages.info(request, "This prescription has not been dispensed, so there is nothing to reconcile.")
+        return redirect('core:prescription_list')
+
+    if not prescription.clinic_medication:
+        messages.error(request, "Only inventory prescriptions can be reconciled from this screen.")
+        return redirect('core:prescription_list')
+
+    if request.method == 'POST':
+        reason = (request.POST.get('reason') or '').strip()
+        reconcile_type = request.POST.get('reconcile_type')
+
+        if reconcile_type not in {'RETURNED', 'CHANGED'}:
+            messages.error(request, "Choose whether the medication was returned or changed.")
+        elif not reason:
+            messages.error(request, "Add a reason for the reconciliation.")
+        else:
+            with transaction.atomic():
+                medication = prescription.clinic_medication
+                old_stock = medication.quantity_in_stock
+                medication.quantity_in_stock += prescription.quantity_prescribed
+                medication.save(update_fields=['quantity_in_stock', 'updated_at'])
+
+                StockMovement.objects.create(
+                    medication=medication,
+                    movement_type='IN',
+                    quantity=prescription.quantity_prescribed,
+                    previous_stock=old_stock,
+                    new_stock=medication.quantity_in_stock,
+                    reference=f"Prescription #{prescription.id} reconciliation",
+                    created_by=request.user,
+                    notes=(
+                        f"{reconcile_type.title()} medicine for {patient.full_name}. "
+                        f"Reason: {reason}"
+                    ),
+                )
+
+                prescription.stock_deducted = False
+                update_fields = ['stock_deducted']
+                if reconcile_type == 'CHANGED':
+                    prescription.is_active = False
+                    prescription.deactivated_at = timezone.now()
+                    update_fields.extend(['is_active', 'deactivated_at'])
+                prescription.save(update_fields=update_fields)
+
+                unit_price = prescription.clinic_medication.selling_price or Decimal('0.00')
+                credit_amount = unit_price * prescription.quantity_prescribed
+                if credit_amount:
+                    Billing.objects.create(
+                        patient=patient,
+                        clinic=prescription.clinic,
+                        amount=-credit_amount,
+                        service_date=timezone.now().date(),
+                        due_date=timezone.now().date(),
+                        description=(
+                            f"Medication reconciliation credit: {prescription.medication_name} "
+                            f"x{prescription.quantity_prescribed} ({reconcile_type.title()})"
+                        ),
+                        created_by=request.user,
+                    )
+
+                log_action(
+                    request,
+                    'UPDATE',
+                    prescription,
+                    details=(
+                        f"Reconciled dispensed prescription for {patient.full_name}: "
+                        f"{prescription.medication_name} x{prescription.quantity_prescribed}; "
+                        f"type={reconcile_type}; reason={reason}"
+                    ),
+                )
+
+            messages.success(request, "Prescription reconciled. Stock and billing were adjusted, and the action was logged.")
+            return redirect('core:prescription_list')
+
+    total_price = (prescription.clinic_medication.selling_price or Decimal('0.00')) * prescription.quantity_prescribed
+    return render(request, 'prescription/reconcile_prescription.html', {
+        'prescription': prescription,
+        'total_price': total_price,
+    })
 
 
 
@@ -3493,6 +4473,34 @@ def toggle_service_status(request, pk):
 
 
 @login_required
+def unread_notifications_api(request):
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        return JsonResponse({'count': 0, 'notifications': []})
+
+    read_global_ids = NotificationRead.objects.filter(
+        user=request.user
+    ).values_list('notification_id', flat=True)
+    notifications = Notification.objects.filter(
+        (Q(user=request.user, clinic_id=clinic_id) | Q(user__isnull=True, clinic_id=clinic_id)),
+        is_read=False,
+    ).exclude(id__in=read_global_ids).order_by('-created_at')[:10]
+
+    return JsonResponse({
+        'count': notifications.count(),
+        'notifications': [
+            {
+                'id': notification.id,
+                'message': notification.message,
+                'link': notification.link or '#',
+                'created_at': notification.created_at.strftime('%b %d, %H:%M'),
+            }
+            for notification in notifications
+        ],
+    })
+
+
+@login_required
 def mark_notification_read(request, pk):
     clinic_id = request.session.get('clinic_id')
     notification = get_object_or_404(Notification, pk=pk, clinic_id=clinic_id)
@@ -3506,7 +4514,7 @@ def mark_notification_read(request, pk):
             notification=notification
         )
     
-    return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
+    return redirect(request.GET.get('next') or notification.link or request.META.get('HTTP_REFERER', 'core:clinic_dashboard'))
 
 @login_required
 def clear_notifications(request):
@@ -3756,7 +4764,8 @@ def paystack_callback(request):
                     first_name=data.get('first_name', ''),
                     last_name=data.get('last_name', ''),
                     is_active=True,
-                    role='ADMIN'
+                    role='ADMIN',
+                    primary_clinic=clinic,
                 )
                 user.title = data.get('title', '')
                 user.phone = data.get('phone', '') or data.get('phone_number', '')
@@ -3869,7 +4878,8 @@ def paystack_callback(request):
                 first_name=data.get('first_name', ''),
                 last_name=data.get('last_name', ''),
                 is_active=True,
-                role='ADMIN'
+                role='ADMIN',
+                primary_clinic=clinic,
             )
             user.title = data.get('title', '')
             user.phone = data.get('phone', '') or data.get('phone_number', '')
@@ -4147,6 +5157,11 @@ def order_lab_tests(request, patient_id):
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
     patient = get_object_or_404(Patient, patient_id=patient_id, clinic=clinic)
+    appointment = None
+    appointment_id = request.GET.get('appointment_id') or request.POST.get('appointment_id')
+    appointment_type = request.GET.get('appointment_type') or request.POST.get('appointment_type') or 'general'
+    if appointment_id:
+        appointment = get_appointment_from_type(appointment_id, appointment_type, clinic_id)
 
     if request.method == 'POST':
         form = LabTestOrderForm(request.POST, clinic=clinic)
@@ -4156,11 +5171,24 @@ def order_lab_tests(request, patient_id):
             order.clinic = clinic
             order.ordered_by = request.user
             order.status = 'IN_QUEUE'
+            if appointment:
+                order.appointment_content_type = ContentType.objects.get_for_model(appointment)
+                order.appointment_object_id = appointment.pk
+                order.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
             order.save()
             form.save_m2m()  # Save the many-to-many ordered_tests
 
             log_action(request, 'CREATE', order,
                        details=f"Ordered lab tests for {patient.full_name}: {', '.join([t.name for t in order.ordered_tests.all()])}")
+            notify_roles(
+                clinic,
+                ['LAB_TECHNICIAN', 'NURSE'],
+                f"New lab order for {patient.full_name}. Sample collection/results pending.",
+                link=reverse('core:lab_queue'),
+                app_name='lab',
+                object_id=order.pk,
+                exclude_user=request.user,
+            )
 
             messages.success(request, f"Lab tests ordered successfully for {patient.full_name}!")
             return redirect('core:patient_detail', pk=patient.patient_id)
@@ -4177,7 +5205,9 @@ def order_lab_tests(request, patient_id):
     return render(request, 'lab/order_lab_tests.html', {
         'form': form,
         'patient': patient,
-        'categories': categories
+        'categories': categories,
+        'appointment': appointment,
+        'appointment_type': billing_appointment_type(appointment),
     })
 
 
@@ -4494,6 +5524,17 @@ def enter_lab_results(request, order_id):
 
             log_action(request, 'UPDATE', order,
                        details=f"Entered {results_saved} lab result(s) for order #{order.pk}")
+            if order.status == 'COMPLETED':
+                notify_role_handoff(
+                    order.clinic,
+                    ['DOCTOR', 'NURSE', 'ADMIN', 'RECEPTIONIST'],
+                    f"Lab results completed for {order.patient.full_name}. Review/billing pending.",
+                    link=reverse('core:view_lab_order', kwargs={'order_id': order.pk}),
+                    app_name='lab',
+                    object_id=order.pk,
+                    actor=request.user,
+                    provider=order.ordered_by,
+                )
 
             messages.success(request, f"{results_saved} result(s) saved successfully!")
             return redirect('core:view_lab_order', order_id=order_id)

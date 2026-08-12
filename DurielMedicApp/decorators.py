@@ -9,7 +9,7 @@ def role_required(*roles):
             if not request.user.is_authenticated:
                 return redirect('login')
             if request.user.role not in roles:
-                return redirect('DurielMedicApp:dashboard')  # or show permission denied page
+                return redirect('core:clinic_dashboard')  # or show permission denied page
             return view_func(request, *args, **kwargs)
         return _wrapped_view
     return decorator

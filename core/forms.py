@@ -8,6 +8,33 @@ from django.contrib.auth.forms import AuthenticationForm
 from datetime import date
 
 
+def _primary_clinic_for_user_form(request, clinics):
+    clinics = list(clinics)
+    if not clinics:
+        return None
+    session_clinic_id = getattr(request, 'session', {}).get('clinic_id') if request else None
+    if session_clinic_id:
+        for clinic in clinics:
+            if str(clinic.id) == str(session_clinic_id):
+                return clinic
+    return clinics[0]
+
+
+def _validate_unique_staff_identity(form, *, instance=None):
+    username = form.cleaned_data.get('username')
+    email = form.cleaned_data.get('email')
+    clinics = form.cleaned_data.get('clinic')
+    primary_clinic = _primary_clinic_for_user_form(form.request, clinics or [])
+    qs = CustomUser.objects.all()
+    if instance and instance.pk:
+        qs = qs.exclude(pk=instance.pk)
+    if email and qs.filter(email__iexact=email).exists():
+        form.add_error('email', 'A user with this email already exists.')
+    if username and primary_clinic and qs.filter(username__iexact=username, primary_clinic=primary_clinic).exists():
+        form.add_error('username', 'A user with this username already exists in this clinic.')
+    return primary_clinic
+
+
 
 
 
@@ -51,6 +78,12 @@ class CustomUserCreationForm(UserCreationForm):
             ),
             Submit('submit', 'Create Account')
         )
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('A user with this email already exists.')
+        return email
 
 
 
@@ -135,8 +168,20 @@ class UserCreationWithRoleForm(UserCreationForm):
                 self.fields['is_superuser'].widget = forms.HiddenInput()
                 self.fields['is_superuser'].disabled = True
                 self.fields['is_superuser'].initial = False
-                
-                
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('A user with this email already exists.')
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        self.primary_clinic = _validate_unique_staff_identity(self)
+        if not self.primary_clinic:
+            raise forms.ValidationError('Select at least one clinic for this user.')
+        return cleaned_data
+
 
 
 
@@ -289,13 +334,25 @@ class UserEditForm(forms.ModelForm):
             if not self.request.user.is_superuser:
                 self.fields['is_superuser'].widget = forms.HiddenInput()
                 self.fields['is_superuser'].disabled = True
-            
-            
-            
-            
-            
-            
-            
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        qs = CustomUser.objects.filter(email__iexact=email) if email else CustomUser.objects.none()
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if email and qs.exists():
+            raise forms.ValidationError('A user with this email already exists.')
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        clinics = cleaned_data.get('clinic')
+        self.primary_clinic = _primary_clinic_for_user_form(self.request, clinics or [])
+        if not self.primary_clinic and not getattr(self.instance, 'is_superuser', False):
+            raise forms.ValidationError('Select at least one clinic for this user.')
+        return cleaned_data
+
+
 from django.utils import timezone
 
 class PatientForm(forms.ModelForm):
@@ -788,6 +845,12 @@ class FacilityRegistrationForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     amount = forms.IntegerField(widget=forms.HiddenInput)
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('A user with this email already exists.')
+        return email
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

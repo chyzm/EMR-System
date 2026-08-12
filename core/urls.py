@@ -18,8 +18,11 @@ urlpatterns = [
     path('service-worker.js', service_worker, name='service_worker'),
     
     path('select-clinic/', select_clinic, name='select_clinic'),
+    path('clinic-dashboard/', views.clinic_dashboard, name='clinic_dashboard'),
     
     path('contact/', views.contact_form, name='contact_form'),
+    path('terms/', views.terms_view, name='terms'),
+    path('privacy/', views.privacy_view, name='privacy'),
     
     # Authentication
     # path('', lambda request: redirect('home'), name='home_redirect'),
@@ -46,12 +49,14 @@ urlpatterns = [
 
     # API endpoints
     path('api/patients/', views.patient_search_api, name='patient_search_api'),
+    path('api/health/logs/', views.logs_healthcheck, name='logs_healthcheck'),
     path('api/sync/queue/', sync_queue, name='sync_queue'),
     path('api/offline/bootstrap/', offline_bootstrap, name='offline_bootstrap'),
     path('api/server-sync/health/', server_sync_health, name='server_sync_health'),
     path('api/server-sync/activate/', server_sync_activate, name='server_sync_activate'),
     path('api/server-sync/push/', server_sync_push, name='server_sync_push'),
     path('api/server-sync/pull/', server_sync_pull, name='server_sync_pull'),
+    path('api/notifications/unread/', views.unread_notifications_api, name='unread_notifications_api'),
     
     
     # Password reset
@@ -64,6 +69,7 @@ urlpatterns = [
     
     # Billing
     path('billing/', views.billing_list, name='billing_list'),
+    path('billing/queue/deactivate/', views.deactivate_billing_queue, name='deactivate_billing_queue'),
     path('billing/create/', views.create_bill, name='create_bill'),
     # path('billing/create/patient/<int:patient_id>/', views.create_bill, name='create_bill_for_patient'),
     path('billing/create/patient/<str:patient_id>/', views.create_bill, name='create_bill_for_patient'),
@@ -72,6 +78,7 @@ urlpatterns = [
     path('billing/<int:pk>/edit/', views.edit_bill, name='edit_bill'),
     path('billing/<int:pk>/payment/', views.record_payment, name='record_payment'),
     path('billing/<int:pk>/receipt/', views.generate_receipt, name='generate_receipt'),
+    path('billing/<int:pk>/receipt/email/', views.email_receipt, name='email_receipt'),
     path('billing/<int:pk>/delete/', views.delete_bill, name='delete_bill'),
     
     # Prescriptions
@@ -143,6 +150,7 @@ urlpatterns = [
     # Enhanced Prescriptions
     # path('patients/<str:patient_id>/prescriptions/add-enhanced/', views.enhanced_add_prescription, name='enhanced_add_prescription'),
     path('prescriptions/<int:pk>/dispense/', views.dispense_prescription, name='dispense_prescription'),
+    path('prescriptions/<int:pk>/reconcile/', views.reconcile_prescription, name='reconcile_prescription'),
     path("prescriptions/bulk-dispense/", views.bulk_dispense, name="bulk_dispense"),
  
     

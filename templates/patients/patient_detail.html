@@ -56,7 +56,7 @@
                         </p>
                     </div>
                 {% endif %}
-                {% if request.session.clinic_type == "DENTAL" %}
+                {% if request.session.clinic_type == "DENTAL" and request.user.role == "DENTIST" %}
                     <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
                         <p class="font-medium text-blue-900">Dental clinic workflow</p>
                         <p class="text-sm text-blue-800">Open the patient’s odontogram, exams, treatment plans, procedures and follow-ups.</p>
@@ -69,12 +69,58 @@
                 {% endif %}
             </div>
         </div>
-    </div>
+	    </div>
 
-    {% if request.session.clinic_type == "GENERAL" %}
+	    {% if admission_history %}
+	    <div class="bg-white rounded-lg shadow-md overflow-hidden mb-8">
+	        <div class="bg-orange-800 text-white px-6 py-3">
+	            <h3 class="text-xl font-semibold">Admission History</h3>
+	        </div>
+	        <div class="divide-y">
+	            {% for admission in admission_history %}
+	            <div class="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+	                <div>
+	                    <div class="flex flex-wrap items-center gap-2">
+	                        <span class="font-medium text-gray-900">{{ admission.get_admission_type_display }}</span>
+	                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold {% if admission.discharged %}bg-green-100 text-green-800{% else %}bg-orange-100 text-orange-800{% endif %}">
+	                            {% if admission.discharged %}Discharged{% else %}Active{% endif %}
+	                        </span>
+	                    </div>
+	                    <p class="text-sm text-gray-600">
+	                        {{ admission.ward }}{% if admission.bed %}, {{ admission.bed }}{% endif %} •
+	                        Admitted {{ admission.date_admitted|date:"M j, Y H:i" }}
+	                        {% if admission.discharged_at %} • Discharged {{ admission.discharged_at|date:"M j, Y H:i" }}{% endif %}
+	                    </p>
+	                    {% if admission.discharged %}
+	                    <div class="mt-2 space-y-1 text-sm text-gray-700">
+	                        {% if admission.discharge_diagnosis %}
+	                        <p><span class="font-medium">Discharge diagnosis:</span> {{ admission.discharge_diagnosis|truncatechars:140 }}</p>
+	                        {% endif %}
+	                        {% if admission.discharge_summary %}
+	                        <p><span class="font-medium">Summary:</span> {{ admission.discharge_summary|truncatechars:180 }}</p>
+	                        {% endif %}
+	                        {% if admission.discharge_instructions %}
+	                        <p><span class="font-medium">Instructions:</span> {{ admission.discharge_instructions|truncatechars:180 }}</p>
+	                        {% endif %}
+	                        {% if admission.follow_up_plan %}
+	                        <p><span class="font-medium">Follow-up plan:</span> {{ admission.follow_up_plan|truncatechars:180 }}</p>
+	                        {% endif %}
+	                    </div>
+	                    {% endif %}
+	                </div>
+	                <a href="{% url 'DurielMedicApp:admission_detail' admission.id %}" class="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
+	                    Open Chart
+	                </a>
+	            </div>
+	            {% endfor %}
+	        </div>
+	    </div>
+	    {% endif %}
+	
+	    {% if request.session.clinic_type == "GENERAL" %}
     <!-- Status Section -->
-    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' %}        
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    {% if patient.pk and request.user.role == 'DOCTOR' or patient.pk and request.user.role == 'NURSE' %}
+	<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3">
             <h2 class="text-xl font-semibold"><i class="fas fa-tasks mr-2"></i>Clinical Actions</h2>
         </div>
@@ -116,6 +162,30 @@
                         <p class="text-sm text-gray-600">Weight</p>
                         <p class="font-medium">{{ vitals.weight }} kg</p>
                     </div>
+                    {% if vitals.respiratory_rate %}
+                    <div>
+                        <p class="text-sm text-gray-600">Respiratory Rate</p>
+                        <p class="font-medium">{{ vitals.respiratory_rate }} bpm</p>
+                    </div>
+                    {% endif %}
+                    {% if vitals.oxygen_saturation %}
+                    <div>
+                        <p class="text-sm text-gray-600">Oxygen Saturation</p>
+                        <p class="font-medium">{{ vitals.oxygen_saturation }}%</p>
+                    </div>
+                    {% endif %}
+                    {% if vitals.height %}
+                    <div>
+                        <p class="text-sm text-gray-600">Height</p>
+                        <p class="font-medium">{{ vitals.height }} cm</p>
+                    </div>
+                    {% endif %}
+                    {% if vitals.bmi %}
+                    <div>
+                        <p class="text-sm text-gray-600">BMI</p>
+                        <p class="font-medium">{{ vitals.bmi }}</p>
+                    </div>
+                    {% endif %}
                     {% if vitals.notes %}
                     <div class="md:col-span-3">
                         <p class="text-sm text-gray-600">Notes</p>
@@ -177,6 +247,10 @@
                             {% endfor %}
                         {% endif %}
                     {% endif %}
+                    {% if request.session.clinic_type == "GENERAL" and request.user.role == 'DOCTOR' %}
+                        <a href="{% url 'DurielMedicApp:refer_to_physiotherapy' patient_id=patient.patient_id %}"
+                           class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded">Refer to Physio</a>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -187,7 +261,7 @@
   
  <!-- Medical Records Section -->
 {% if can_view_case_notes %}
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		<div id="medical-records-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-file-medical mr-2"></i>Medical Records</h2>
         {% if request.session.clinic_type == "GENERAL" %}
@@ -480,10 +554,10 @@ document.addEventListener('keydown', function(e) {
 <!-- Physiotherapy Records Section -->
 {% if request.session.clinic_type == "GENERAL" %}
 {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		<div id="physiotherapy-records-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-green-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-walking mr-2"></i>Physiotherapy Records</h2>
-        {% if request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+        {% if request.user.role == 'PHYSIOTHERAPIST' %}
         <a href="{% url 'DurielMedicApp:add_physiotherapy_record' patient.pk %}" class="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded">
             <i class="fas fa-plus mr-1"></i>Add Record
         </a>
@@ -536,7 +610,7 @@ document.addEventListener('keydown', function(e) {
                         <i class="fas fa-file-pdf mr-1"></i>PDF
                     </a>
 
-                    {% if request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+                    {% if request.user.role == 'PHYSIOTHERAPIST' %}
                     <!-- Edit Button -->
                     <a href="{% url 'DurielMedicApp:edit_physiotherapy_record' record.id %}"
                        class="bg-green-100 hover:bg-green-200 text-green-700 text-sm px-3 py-1.5 rounded transition">
@@ -697,7 +771,7 @@ document.addEventListener('keydown', function(e) {
 <!-- Lab Orders Section -->
 {% if request.session.clinic_type == "GENERAL" %}
 {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'LAB_TECHNICIAN' %}
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		    <div id="lab-orders-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-purple-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-flask mr-2"></i>Lab Orders</h2>
         <div class="flex gap-2">
@@ -837,7 +911,7 @@ document.addEventListener('keydown', function(e) {
 
     <!-- Eye Exams Section (only for EYE clinic) -->
     {% if request.session.clinic_type == "EYE" and eye_exams %}
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		    <div id="eye-exams-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-eye mr-2"></i>Eye Exams</h2>
             {% if request.user.role in 'OPTOMETRIST' %}
@@ -879,21 +953,51 @@ document.addEventListener('keydown', function(e) {
                         </div>
                         
                         <!-- Special Findings -->
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {% if exam.slit_lamp_findings %}
-                            <div>
-                                <p class="text-sm font-medium text-gray-700">Slit Lamp Findings:</p>
-                                <p class="text-sm text-gray-600">{{ exam.slit_lamp_findings }}</p>
+	                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+	                            {% if exam.chief_complaint %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Chief Complaint:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.chief_complaint }}</p>
+	                            </div>
+	                            {% endif %}
+	                            {% if exam.diagnosis %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Diagnosis:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.diagnosis }}</p>
+	                            </div>
+	                            {% endif %}
+	                            {% if exam.slit_lamp_findings %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Slit Lamp Findings:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.slit_lamp_findings }}</p>
                             </div>
                             {% endif %}
                             
                             {% if exam.fundus_exam_findings %}
                             <div>
                                 <p class="text-sm font-medium text-gray-700">Fundus Exam Findings:</p>
-                                <p class="text-sm text-gray-600">{{ exam.fundus_exam_findings }}</p>
-                            </div>
-                            {% endif %}
-                        </div>
+	                                <p class="text-sm text-gray-600">{{ exam.fundus_exam_findings }}</p>
+	                            </div>
+	                            {% endif %}
+	                            {% if exam.treatment_plan %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Treatment Plan:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.treatment_plan }}</p>
+	                            </div>
+	                            {% endif %}
+	                            {% if exam.imaging_results %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Imaging/Investigation Results:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.imaging_results }}</p>
+	                            </div>
+	                            {% endif %}
+	                            {% if exam.follow_up_plan %}
+	                            <div>
+	                                <p class="text-sm font-medium text-gray-700">Follow-up Plan:</p>
+	                                <p class="text-sm text-gray-600">{{ exam.follow_up_plan }}</p>
+	                            </div>
+	                            {% endif %}
+	                        </div>
                         
                         <!-- General Notes -->
                         {% if exam.notes %}
@@ -907,15 +1011,16 @@ document.addEventListener('keydown', function(e) {
                         <p class="text-xs text-gray-500">
                             {{ exam.created_at|date:"M j, Y" }}
                         </p>
-                        {% if request.user.role in 'OPTOMETRIST' %}
                         <div class="mt-2">
+                            <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="text-gray-700 hover:text-gray-900 text-sm mr-2">View</a>
+                            {% if request.user.role in 'OPTOMETRIST' %}
                             <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
                             <form action="{% url 'DurielEyeApp:delete_eye_exam' exam.id %}" method="post" class="inline">
                                 {% csrf_token %}
                                 <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
                             </form>
+                            {% endif %}
                         </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -962,11 +1067,11 @@ document.addEventListener('keydown', function(e) {
     {% endif %}
 
     <!-- Prescriptions Section -->
-    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+    {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'DENTIST' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
+		    <div id="prescriptions-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Prescriptions</h2>
-            {% if request.user.role in 'DOCTOR,OPTOMETRIST' %}
+            {% if request.user.role in 'DOCTOR,OPTOMETRIST,DENTIST' %}
             <a href="{% url 'core:add_prescription' patient.pk %}" class="text-sm hover:underline">
                 Add Prescription
             </a>
@@ -994,7 +1099,7 @@ document.addEventListener('keydown', function(e) {
                         <p class="text-xs text-gray-500">
                             {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
                         </p>
-                        {% if request.user.role == 'DOCTOR' %}
+                        {% if request.user.role == 'DOCTOR' or request.user.role == 'DENTIST' %}
                         <div class="mt-2">
                             {% if prescription.is_active %}
                             <form method="post" action="{% url 'core:deactivate_prescription' prescription.id %}" class="inline">
@@ -1054,7 +1159,7 @@ document.addEventListener('keydown', function(e) {
 
     <!-- Billing Section -->
     {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
-    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		<div id="billing-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-money-bill-wave mr-2"></i>Billing</h2>
             {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST" %}
@@ -1155,7 +1260,7 @@ document.addEventListener('keydown', function(e) {
     {% endif %}
 
     <!-- Appointments Section with Pagination -->
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+		<div id="appointments-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Appointments</h2>
         {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
@@ -1273,8 +1378,8 @@ document.addEventListener('keydown', function(e) {
 </div>
 
 <!-- Prescriptions Section -->
-{% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
-<div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+{% if patient.pk and request.user.role == 'ADMIN'  or request.user.role == 'DOCTOR' or request.user.role == 'DENTIST' or request.user.role == 'NURSE' or request.user.role == 'OPTOMETRIST' %}
+<div id="active-prescriptions-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
     <div class="bg-red-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-prescription mr-2"></i>Active Prescriptions</h2>
         {% if patient and request.user.role in 'ADMIN,DOCTOR' %}
@@ -1302,7 +1407,7 @@ document.addEventListener('keydown', function(e) {
                         <p class="text-xs text-gray-500">
                             {{ prescription.date_prescribed|date:"M j, Y" }} by {{ prescription.prescribed_by.get_full_name }}
                         </p>
-                         {% if request.user.role in 'DOCTOR, OPTOMETRIST' %}
+                         {% if request.user.role in 'DOCTOR, OPTOMETRIST, DENTIST' %}
                         <div class="mt-2">
                             {% if prescription.is_active %}
                             <form method="post" action="{% url 'core:deactivate_prescription' prescription.pk %}" class="inline" onsubmit="return confirm('Deactivate this prescription?');">
@@ -1361,7 +1466,7 @@ document.addEventListener('keydown', function(e) {
 </div>
 
 <h2 class="text-lg font-semibold mt-6">Deactivated Prescriptions</h2>
-<div class="bg-white rounded-lg shadow overflow-hidden mt-2">
+	<div id="deactivated-prescriptions-section" class="bg-white rounded-lg shadow overflow-hidden mt-2">
     <div class="divide-y">
         {% for prescription in deactivated_prescriptions %}
         <div class="p-4 hover:bg-gray-50">
@@ -1540,6 +1645,35 @@ function getCookie(name) {
 sendBtn.addEventListener("click", sendMessage);
 input.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const sectionByPageParam = {
+    medical_page: 'medical-records-section',
+    eye_medical_page: 'medical-records-section',
+    physio_page: 'physiotherapy-records-section',
+    lab_page: 'lab-orders-section',
+    exams_page: 'eye-exams-section',
+    prescriptions_page: 'prescriptions-section',
+    active_prescriptions_page: 'active-prescriptions-section',
+    deactivated_prescriptions_page: 'deactivated-prescriptions-section',
+    bills_page: 'billing-section',
+    appointments_page: 'appointments-section',
+    eye_appointments_page: 'appointments-section'
+  };
+
+  const params = new URLSearchParams(window.location.search);
+  for (const [param, sectionId] of Object.entries(sectionByPageParam)) {
+    if (!params.has(param)) continue;
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+    window.requestAnimationFrame(function () {
+      section.scrollIntoView({ behavior: 'auto', block: 'start' });
+    });
+    return;
+  }
 });
 </script>
 

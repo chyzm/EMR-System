@@ -30,6 +30,7 @@ class EyeAppointmentForm(forms.ModelForm):
         
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
+        self.clinic_id = clinic_id
         instance = kwargs.get('instance')
         self._original_date = instance.date if instance and instance.pk else None
         super().__init__(*args, **kwargs)
@@ -40,7 +41,7 @@ class EyeAppointmentForm(forms.ModelForm):
             self.fields['provider'].queryset = CustomUser.objects.filter(
                 clinic__id=clinic_id,
                 is_active=True,
-                role__in=['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE'],
+                role__in=['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE'],
             ).distinct().order_by('first_name', 'last_name', 'username')
         else:
             self.fields['patient'].queryset = Patient.objects.none()
@@ -78,6 +79,7 @@ class EyeAppointmentForm(forms.ModelForm):
         
         if provider and date and start_time and end_time:
             overlapping = EyeAppointment.objects.filter(
+                clinic_id=self.clinic_id,
                 provider=provider,
                 date=date,
                 start_time__lt=end_time,
@@ -86,6 +88,12 @@ class EyeAppointmentForm(forms.ModelForm):
             
             if overlapping.exists():
                 raise ValidationError("This provider already has an appointment scheduled during this time.")
+
+        patient = cleaned_data.get('patient')
+        if self.clinic_id and patient and patient.clinic_id != int(self.clinic_id):
+            raise ValidationError("Selected patient does not belong to the active clinic.")
+        if self.clinic_id and provider and not provider.clinic.filter(id=self.clinic_id).exists():
+            raise ValidationError("Selected provider does not belong to the active clinic.")
 
         return cleaned_data
        
@@ -120,28 +128,82 @@ class EyeExamForm(forms.ModelForm):
         model = EyeExam
         fields = [
             'appointment',
+            'chief_complaint',
+            'ocular_history',
+            'systemic_risk_factors',
+            'ocular_medications',
+            'eye_allergies',
             'visual_acuity_right',
             'visual_acuity_left',
+            'visual_acuity_right_corrected',
+            'visual_acuity_left_corrected',
+            'pinhole_right',
+            'pinhole_left',
+            'near_vision_right',
+            'near_vision_left',
             'intraocular_pressure_right',
             'intraocular_pressure_left',
+            'anterior_segment_findings',
             'slit_lamp_findings',
+            'lens_findings',
+            'posterior_segment_findings',
             'fundus_exam_findings',
+            'retina_findings',
+            'optic_disc_findings',
             'refraction_right',
             'refraction_left',
+            'objective_refraction_right',
+            'objective_refraction_left',
+            'final_prescription_right',
+            'final_prescription_left',
+            'pupillary_distance',
+            'diagnosis',
+            'treatment_plan',
+            'procedure_notes',
+            'imaging_results',
+            'spectacle_or_contact_lens_plan',
+            'follow_up_plan',
             'notes',
             'sphere_right', 'cylinder_right', 'axis_right', 'add_right', 'pupil_size_right',
             'sphere_left', 'cylinder_left', 'axis_left', 'add_left', 'pupil_size_left',
         ]
         widgets = {
             'appointment': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'chief_complaint': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'ocular_history': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'systemic_risk_factors': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'ocular_medications': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'eye_allergies': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'visual_acuity_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'visual_acuity_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'visual_acuity_right_corrected': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'visual_acuity_left_corrected': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pinhole_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pinhole_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'near_vision_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'near_vision_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'intraocular_pressure_right': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'intraocular_pressure_left': forms.NumberInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'anterior_segment_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'slit_lamp_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'lens_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'posterior_segment_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'fundus_exam_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'retina_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'optic_disc_findings': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'refraction_right': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'refraction_left': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'objective_refraction_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'objective_refraction_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'final_prescription_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'final_prescription_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pupillary_distance': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'diagnosis': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'treatment_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'procedure_notes': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'imaging_results': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'spectacle_or_contact_lens_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'follow_up_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'sphere_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'cylinder_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),

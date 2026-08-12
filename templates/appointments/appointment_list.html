@@ -88,7 +88,7 @@
                         </td>
 
                        <td class="py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <div x-data="{ open: false }" class="inline-block">
+                    <div x-data="{ open: false, vitalsOpen: false }" class="inline-block">
         <!-- Three Dots Button -->
         <button @click="open = true"
                 type="button"
@@ -106,12 +106,7 @@
                   class="bg-white rounded-lg shadow-lg w-96 p-6 flex flex-col items-center text-center">
                  <h2 class="text-lg font-semibold mb-4">Actions</h2>
                  <div class="space-y-2 w-full">
-                     {% if request.user.role == 'NURSE' and appointment.status in 'SCHEDULED,COMPLETED' and appointment.date|date:"Y-m-d" == today_str and appointment.patient.status != 'IN_CONSULTATION' and not appointment.has_vitals %}
-                     <a href="{% url 'DurielMedicApp:record_vitals' patient_id=appointment.patient_id %}"
-                        class="block px-4 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded text-center">
-                         🩺 Check Vitals
-                     </a>
-                     {% endif %}
+                     {% include "appointments/partials/vitals_modal_action.html" %}
                      {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                      <a href="{% url 'DurielMedicApp:appointment_update' appointment.pk %}"
                         class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded text-center">
@@ -133,6 +128,12 @@
                          <a href="{% url 'core:patient_detail' appointment.patient_id %}"
                             class="block px-4 py-2 text-sm text-green-700 hover:bg-green-100 rounded text-center">
                              📋 Consultation
+                         </a>
+                     {% endif %}
+                     {% if request.user.role == 'DOCTOR' and appointment.status != 'CANCELLED' %}
+                         <a href="{% url 'DurielMedicApp:refer_to_physiotherapy' patient_id=appointment.patient.patient_id %}?appointment_id={{ appointment.pk }}"
+                            class="block px-4 py-2 text-sm text-teal-700 hover:bg-teal-100 rounded text-center">
+                             Refer to Physio
                          </a>
                      {% endif %}
 

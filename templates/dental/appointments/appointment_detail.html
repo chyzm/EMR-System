@@ -8,7 +8,12 @@
       <p class="text-gray-600">{{ appointment.date|date:"M j, Y" }} {{ appointment.start_time|time:"H:i" }}–{{ appointment.end_time|time:"H:i" }} • {{ appointment.get_visit_type_display }}</p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <a href="{% url 'DurielDentalApp:patient_chart' appointment.patient.patient_id %}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Dental Chart</a>
+      <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Patient Detail</a>
+      <a href="{% url 'core:add_prescription' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=dental" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Prescribe</a>
+      <a href="{% url 'core:create_bill' %}?patient={{ appointment.patient.patient_id }}&appointment_id={{ appointment.id }}&appointment_type=dental" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Create Bill</a>
+      {% if can_view_dental_chart %}
+        <a href="{% url 'DurielDentalApp:patient_chart' appointment.patient.patient_id %}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Dental Chart</a>
+      {% endif %}
       <a href="{% url 'DurielDentalApp:appointment_update' appointment.id %}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edit</a>
       <form method="post" action="{% url 'DurielDentalApp:appointment_status' appointment.id 'CHECKED_IN' %}">{% csrf_token %}<button class="rounded-lg bg-purple-600 px-4 py-2 text-sm text-white">Check In</button></form>
       <form method="post" action="{% url 'DurielDentalApp:appointment_status' appointment.id 'COMPLETED' %}">{% csrf_token %}<button class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white">Complete</button></form>

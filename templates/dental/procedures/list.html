@@ -11,7 +11,7 @@
     {% for procedure in procedures %}
       <div class="border-b p-4 last:border-b-0">
         <div class="font-medium">{{ procedure.procedure_name }}{% if procedure.tooth_numbers %} — Tooth {{ procedure.tooth_numbers }}{% endif %}</div>
-        <div class="text-sm text-gray-600">{{ procedure.patient.full_name }} • {{ procedure.performed_at|date:"M j, Y H:i" }} • ₦{{ procedure.cost }}</div>
+        <div class="text-sm text-gray-600">{{ procedure.patient.full_name }} • {{ procedure.performed_at|date:"M j, Y H:i" }}</div>
       </div>
     {% empty %}
       <p class="p-6 text-sm text-gray-500">No procedures found.</p>

@@ -16,51 +16,10 @@
     </div>
   </div>
 
-  <div class="grid gap-6 lg:grid-cols-2">
-    <section class="rounded-xl border bg-white p-5 shadow-sm">
-      <h2 class="mb-3 font-semibold">Recent Exams</h2>
-      {% for exam in exams %}
-        <div class="mb-3 rounded-lg border p-3">
-          <div class="text-sm text-gray-500">{{ exam.created_at|date:"M j, Y H:i" }}</div>
-          <div class="font-medium">{{ exam.diagnosis|default:"No diagnosis recorded" }}</div>
-          <p class="whitespace-pre-line text-sm text-gray-700">{{ exam.treatment_recommendation|default:"" }}</p>
-        </div>
-      {% empty %}<p class="text-sm text-gray-500">No exams yet.</p>{% endfor %}
-    </section>
-
-    <section class="rounded-xl border bg-white p-5 shadow-sm">
-      <h2 class="mb-3 font-semibold">Treatment Plans</h2>
-      {% for plan in plans %}
-        <div class="mb-3 rounded-lg border p-3">
-          <div class="flex justify-between gap-3"><div class="font-medium">{{ plan.title }}</div><div class="text-sm text-gray-500">{{ plan.get_status_display }}</div></div>
-          <p class="whitespace-pre-line text-sm text-gray-700">{{ plan.proposed_treatment }}</p>
-          <div class="mt-1 text-sm text-gray-600">Priority: {{ plan.get_priority_display }} • Estimate: ₦{{ plan.estimated_cost }}</div>
-        </div>
-      {% empty %}<p class="text-sm text-gray-500">No treatment plans.</p>{% endfor %}
-    </section>
-
-    <section class="rounded-xl border bg-white p-5 shadow-sm">
-      <h2 class="mb-3 font-semibold">Procedures</h2>
-      {% for procedure in procedures %}
-        <div class="mb-3 rounded-lg border p-3">
-          <div class="font-medium">{{ procedure.procedure_name }}{% if procedure.tooth_numbers %} — {{ procedure.tooth_numbers }}{% endif %}</div>
-          <div class="text-sm text-gray-600">{{ procedure.performed_at|date:"M j, Y H:i" }} • ₦{{ procedure.cost }}</div>
-          <p class="whitespace-pre-line text-sm text-gray-700">{{ procedure.notes|default:"" }}</p>
-        </div>
-      {% empty %}<p class="text-sm text-gray-500">No procedures.</p>{% endfor %}
-    </section>
-
-    <section class="rounded-xl border bg-white p-5 shadow-sm">
-      <h2 class="mb-3 font-semibold">Follow-ups & Records</h2>
-      {% for followup in followups %}
-        <div class="mb-2 rounded-lg border p-3 text-sm">{{ followup.scheduled_date|date:"M j, Y" }} {{ followup.scheduled_time|time:"H:i" }} — {{ followup.reason }}</div>
-      {% empty %}<p class="text-sm text-gray-500">No follow-ups.</p>{% endfor %}
-      <div class="mt-4 border-t pt-4">
-        {% for record in records %}
-          <div class="mb-2 text-sm"><span class="font-medium">{{ record.title }}</span> — {{ record.get_record_type_display }}</div>
-        {% empty %}<p class="text-sm text-gray-500">No records.</p>{% endfor %}
-      </div>
-    </section>
-  </div>
+  {% include 'dental/partials/chart_section.html' with title='Recent Exams' items=exams file_type='exam' page_param='exams_page' empty_text='No exams yet.' primary_attr='diagnosis' secondary_attr='treatment_recommendation' date_attr='created_at' %}
+  {% include 'dental/partials/chart_section.html' with title='Treatment Plans' items=plans file_type='plan' page_param='plans_page' empty_text='No treatment plans.' primary_attr='title' secondary_attr='proposed_treatment' date_attr='created_at' %}
+  {% include 'dental/partials/chart_section.html' with title='Procedures' items=procedures file_type='procedure' page_param='procedures_page' empty_text='No procedures.' primary_attr='procedure_name' secondary_attr='notes' date_attr='performed_at' %}
+  {% include 'dental/partials/chart_section.html' with title='Follow-ups' items=followups file_type='followup' page_param='followups_page' empty_text='No follow-ups.' primary_attr='reason' secondary_attr='notes' date_attr='scheduled_date' %}
+  {% include 'dental/partials/chart_section.html' with title='Records' items=records file_type='record' page_param='records_page' empty_text='No records.' primary_attr='title' secondary_attr='description' date_attr='created_at' %}
 </div>
 {% endblock %}

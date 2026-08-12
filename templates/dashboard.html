@@ -228,7 +228,7 @@
                     <h2 class="text-xl font-semibold text-white flex items-center">
                         <i class="fas fa-calendar-day mr-2"></i>Today's Appointments
                     </h2>
-                    <a href="{% url 'DurielMedicApp:appointment_list' %}" class="text-gray-300 hover:text-white text-sm flex items-center">
+                    <a href="{% url appointment_list_url %}" class="text-gray-300 hover:text-white text-sm flex items-center">
                         View All <i class="fas fa-arrow-right ml-1"></i>
                     </a>
                 </div>
@@ -240,7 +240,7 @@
                         </div>
                         <div class="flex-1">
                             <h3 class="font-semibold text-gray-900">{{ appointment.patient.full_name }}</h3>
-                            <p class="text-sm text-gray-600">{{ appointment.reason|truncatechars:30 }}</p>
+                            <p class="text-sm text-gray-600">{{ appointment.dashboard_reason|truncatechars:30 }}</p>
                         </div>
                         <div class="text-right">
                             <p class="font-semibold text-gray-900">{{ appointment.start_time|time:"h:i A" }}</p>
@@ -289,14 +289,14 @@
                     </h2>
                 </div>
                 <div class="p-6 space-y-4">
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_patient %}
                     <a href="{% url 'core:add_patient' %}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-user-plus mr-2"></i>Add New Patient
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
-                    <a href="{% url 'DurielMedicApp:add_appointment' %}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                    {% if can_schedule_appointment %}
+                    <a href="{% url appointment_create_url %}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-calendar-plus mr-2"></i>Schedule Appointment
                     </a>
                     {% endif %}
@@ -309,23 +309,30 @@
                         {% endfor %}
                     {% endif %}
 
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_bill %}
                     <a href="{% url 'core:create_bill' %}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-file-invoice-dollar mr-2"></i>Create New Bill
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role == 'ADMIN' %}
-                    <a href="{% url 'DurielMedicApp:generate_report' %}" class="block w-full bg-yellow-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                    {% if can_generate_report %}
+                    <a href="{% url report_url %}" class="block w-full bg-yellow-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-chart-pie mr-2"></i>Generate Report
                     </a>
                     {% endif %}
+
+                    {% for metric in specialty_metrics %}
+                    <div class="block w-full bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-xl text-center">
+                        <span class="text-sm text-gray-500">{{ metric.label }}</span>
+                        <span class="block text-2xl">{{ metric.value }}</span>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
 
         <!-- Recent Patients -->
-         {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
+         {% if show_recent_patients %}
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
             <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-white flex items-center">
@@ -361,10 +368,10 @@
                                     </div>
                                 </td>
                                 <td class="py-4 px-4">
-                                    {% with last_appointment=patient.appointments.first %}
+                                    {% with last_appointment=patient.dashboard_last_appointment %}
                                     {% if last_appointment %}
                                     <div class="text-sm text-gray-900">{{ last_appointment.date|date:"M j, Y" }}</div>
-                                    <div class="text-sm text-gray-600">{{ last_appointment.reason|truncatechars:20 }}</div>
+                                    <div class="text-sm text-gray-600">{{ patient.dashboard_last_reason|truncatechars:20 }}</div>
                                     {% else %}
                                     <div class="text-sm text-gray-600">No visits yet</div>
                                     {% endif %}

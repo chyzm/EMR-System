@@ -3,7 +3,7 @@
 {% block title %}Payment Receipt{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
+<div class="receipt-print-area receipt-shell max-w-3xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
     <!-- Header with clinic branding -->
     <div class="bg-gradient-to-r from-blue-600 to-blue-800 px-8 py-6 text-white print:bg-blue-800">
         <div class="flex justify-between items-center">
@@ -12,6 +12,9 @@
                 <p class="text-blue-100">Official Payment Confirmation</p>
             </div>
             <div class="flex items-center space-x-4">
+                <a href="?format=thermal" class="hidden md:flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition duration-200 text-sm print:hidden">
+                    Thermal 80mm
+                </a>
                 <button onclick="window.print()" class="hidden md:flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition duration-200 text-sm print:hidden">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -51,9 +54,8 @@
                     </div>
                     <div>
                         <p class="font-medium text-gray-800">{{ payment.billing.patient.full_name }}</p>
-                        <p class="text-sm text-gray-500">ID: {{ payment.billing.patient.patient_id }}</p>
-                    </div>
-                </div>
+            </div>
+        </div>
             </div>
             <div>
                 <h3 class="text-sm font-medium text-gray-500 mb-2">BILL DETAILS</h3>
@@ -113,7 +115,6 @@
                 <p class="font-medium text-gray-800">
                     {{ payment.received_by.get_full_name|default:payment.received_by.username }}
                 </p>
-                <p class="text-sm text-gray-500">User ID: {{ payment.received_by.id }}</p>
             </div>
         </div>
     {% else %}
@@ -127,6 +128,13 @@
                 Thank you for your payment
             </div>
             <div class="flex space-x-3">
+                <form method="post" action="{% url 'core:email_receipt' bill.pk %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="inline-flex items-center px-4 py-3 border border-blue-200 text-sm font-medium rounded-md shadow-sm text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Email Patient
+                    </button>
+                </form>
                 {% if bill.pk %}
                 <a href="{% url 'core:view_bill' bill.pk %}" 
                    class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150">
@@ -135,6 +143,10 @@
                 {% else %}
                 <p class="text-red-600">Bill reference not available.</p>
                 {% endif %}
+                <a href="?format=thermal"
+                   class="inline-flex items-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    80mm Print
+                </a>
                 <button onclick="window.print()" class="md:hidden inline-flex items-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -174,8 +186,21 @@
 <style>
 @media print {
     @page {
-        size: auto;
+        size: {% if request.GET.format == "thermal" %}80mm auto{% else %}auto{% endif %};
         margin: 10mm;
+    }
+    body * {
+        visibility: hidden !important;
+    }
+    .receipt-print-area,
+    .receipt-print-area * {
+        visibility: visible !important;
+    }
+    .receipt-print-area {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
     }
     body {
         background: white;
@@ -187,6 +212,53 @@
     .print\:border {
         border-width: 1px !important;
     }
+    {% if request.GET.format == "thermal" %}
+    @page {
+        margin: 3mm;
+    }
+    body {
+        width: 80mm;
+        font-size: 11px;
+    }
+    .receipt-shell {
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+    .receipt-shell > div {
+        padding-left: 4mm !important;
+        padding-right: 4mm !important;
+    }
+    .grid {
+        display: block !important;
+    }
+    .grid > div {
+        margin-bottom: 8px !important;
+    }
+    .text-2xl {
+        font-size: 16px !important;
+        line-height: 20px !important;
+    }
+    .text-lg {
+        font-size: 13px !important;
+    }
+    .text-sm {
+        font-size: 11px !important;
+    }
+    .rounded-full,
+    .bg-white\/20.p-3 {
+        display: none !important;
+    }
+    {% endif %}
 }
 </style>
+{% if request.GET.format == "thermal" %}
+<script>
+window.addEventListener('load', function() {
+    window.print();
+});
+</script>
+{% endif %}
 {% endblock %}

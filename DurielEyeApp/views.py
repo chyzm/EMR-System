@@ -5,7 +5,8 @@ from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.db.models import Q, Count, Sum, Value, DecimalField
+from django.db.models import Q, Count, Sum, Value, DecimalField, Exists, OuterRef
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.urls import reverse, reverse_lazy
@@ -15,11 +16,12 @@ from django.utils.timezone import make_aware
 from django.utils.dateparse import parse_date, parse_time
 from django.views.decorators.http import require_POST
 from django.conf import settings  # ADD THIS IMPORT
+from core.utils import ensure_appointment_consultation_charge, get_or_create_encounter_for_appointment, notify_role_handoff
 
 from core.models import Patient, Billing, CustomUser, Notification, NotificationRead, Prescription
+from DurielMedicApp.models import Vitals
 from .models import EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam
 from .forms import EyeAppointmentForm, EyeMedicalRecordForm, EyeFollowUpForm, EyeExamForm
-from core.utils import log_action
 from django.utils import timezone
 from core.models import Patient
 from django.db.models import Count 
@@ -31,7 +33,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
 from .models import EyeAppointment
 from .forms import EyeAppointmentForm
-from core.utils import log_action
+from core.utils import log_action, notify_roles, notify_user_db
 from core.decorators import clinic_selected_required
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -151,6 +153,7 @@ from django.shortcuts import render
 @login_required
 @clinic_selected_required
 def eye_dashboard(request):
+    return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     today = timezone.now().date()
     
@@ -316,15 +319,26 @@ def eye_dashboard(request):
 # --------------------
 # Appointments
 # --------------------
-class EyeAppointmentListView(ListView):
+class EyeAppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = EyeAppointment
     template_name = 'eye/appointments/appointment_list.html'
     context_object_name = 'appointments'
     paginate_by = 10
 
+    def test_func(self):
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE']
+
     def get_queryset(self):
         clinic_id = self.request.session.get('clinic_id')
-        qs = EyeAppointment.objects.filter(clinic_id=clinic_id)
+        appointment_type = ContentType.objects.get_for_model(EyeAppointment)
+        qs = EyeAppointment.objects.filter(clinic_id=clinic_id).annotate(
+            has_vitals=Exists(
+                Vitals.objects.filter(
+                    appointment_content_type=appointment_type,
+                    appointment_object_id=OuterRef('pk'),
+                )
+            )
+        )
         date_filter = self.request.GET.get('date', '')
         if date_filter:
             qs = qs.filter(date=date_filter)
@@ -451,22 +465,16 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
     def test_func(self):
         return self.request.user.role in ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'OPTOMETRIST']
 
+    def dispatch(self, request, *args, **kwargs):
+        if not request.session.get('clinic_id'):
+            messages.error(request, "No clinic selected")
+            return redirect('core:select_clinic')
+        return super().dispatch(request, *args, **kwargs)
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['clinic_id'] = self.request.session.get('clinic_id')
         return kwargs
-
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        # Limit provider choices to staff in the same clinic
-        clinic_id = self.request.session.get('clinic_id')
-        if clinic_id:
-            form.fields['provider'].queryset = CustomUser.objects.filter(
-                clinic__id=clinic_id,
-                is_active=True,
-                role__in=['DOCTOR', 'OPTOMETRIST', 'ADMIN']
-            ).order_by('first_name', 'last_name')
-        return form
 
     def form_valid(self, form):
         clinic_id = self.request.session.get('clinic_id')
@@ -484,32 +492,16 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
             patient.status = "REGISTERED"
             patient.save(update_fields=["status"])
 
-        # Create notification for staff in the same clinic
-        staff_users = CustomUser.objects.filter(
-            clinic__id=clinic_id,
-            is_active=True
+        notify_role_handoff(
+            appointment.clinic,
+            ['DOCTOR', 'OPTOMETRIST'],
+            f"New eye appointment for {appointment.patient.full_name} on {appointment.date}",
+            link=reverse('DurielEyeApp:appointment_detail', kwargs={'pk': appointment.pk}),
+            app_name='eye',
+            object_id=appointment.pk,
+            actor=self.request.user,
+            provider=appointment.provider,
         )
-
-        for user in staff_users:
-            Notification.objects.create(
-                user=user,
-                message=f"New eye appointment with {appointment.patient.full_name} on {appointment.date}",
-                link=reverse('DurielEyeApp:appointment_list'),
-                clinic_id=clinic_id,
-                object_id=str(appointment.id),
-                app_name='eye'
-            )
-
-        # Also notify the provider if they're not the one creating the appointment
-        if appointment.provider != self.request.user:
-            Notification.objects.create(
-                user=appointment.provider,
-                message=f"You have a new appointment with {appointment.patient.full_name} on {appointment.date}",
-                link=reverse('DurielEyeApp:appointment_list'),
-                clinic_id=clinic_id,
-                object_id=str(appointment.id),
-                app_name='eye'
-            )
 
         log_action(
             self.request,
@@ -524,8 +516,9 @@ class EyeAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateVi
 
 
 @login_required
+@clinic_selected_required
 def eye_appointment_detail(request, pk):
-    appointment = get_object_or_404(EyeAppointment, pk=pk)
+    appointment = get_object_or_404(EyeAppointment, pk=pk, clinic_id=request.session.get('clinic_id'))
     return render(request, 'eye/appointments/appointment_detail.html', {'appointment': appointment})
 
 
@@ -557,7 +550,7 @@ def eye_appointment_detail(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE')
+@role_required('ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE')
 def eye_appointment_update(request, appointment_id):
     clinic_id = request.session.get('clinic_id')
     appointment = get_object_or_404(EyeAppointment, id=appointment_id, clinic_id=clinic_id)
@@ -585,8 +578,11 @@ def eye_appointment_update(request, appointment_id):
 
 
 
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST', 'NURSE')
 def eye_appointment_delete(request, pk):
-    appointment = get_object_or_404(EyeAppointment, id=pk)
+    appointment = get_object_or_404(EyeAppointment, id=pk, clinic_id=request.session.get('clinic_id'))
 
     if request.method == "POST":
         # ✅ Add logging before deletion
@@ -603,23 +599,43 @@ def eye_appointment_delete(request, pk):
     return render(request, 'eye/appointments/appointment_delete.html', {'appointment': appointment})
 
 
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST', 'NURSE')
 def mark_eye_appointment_completed(request, pk):
-    appointment = get_object_or_404(EyeAppointment, pk=pk)
-    appointment.status = 'COMPLETED'
-    appointment.save()
-    # ✅ Add logging
-    log_action(
-        request,
-        'UPDATE',
-        appointment,
-        details=f"Marked eye appointment as completed for {appointment.patient} on {appointment.date}"
-    )
-    messages.success(request, f"Appointment for {appointment.patient} marked as completed.")
-    return redirect('DurielEyeApp:appointment_list')
+    appointment = get_object_or_404(EyeAppointment, pk=pk, clinic_id=request.session.get('clinic_id'))
+    if appointment.status != 'COMPLETED':
+        appointment.status = 'COMPLETED'
+        appointment.save(update_fields=['status'])
+        ensure_appointment_consultation_charge(appointment, request.user, description='Eye consultation')
+        log_action(
+            request,
+            'UPDATE',
+            appointment,
+            details=f"Marked eye appointment as completed for {appointment.patient} on {appointment.date}"
+        )
+        notify_role_handoff(
+            appointment.clinic,
+            ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST'],
+            f"Eye consultation completed for {appointment.patient.full_name}. Billing/review pending.",
+            link=f"{reverse('core:create_bill')}?patient={appointment.patient.patient_id}&appointment_id={appointment.pk}&appointment_type=eye",
+            app_name='eye',
+            object_id=appointment.pk,
+            actor=request.user,
+            provider=appointment.provider,
+        )
+        messages.success(request, f"Consultation for {appointment.patient.full_name} completed.")
+    else:
+        messages.info(request, "Consultation is already completed.")
+    return redirect('DurielEyeApp:appointment_detail', pk=appointment.pk)
 
 
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST', 'NURSE')
+@require_POST
 def mark_eye_appointment_cancelled(request, pk):
-    appointment = get_object_or_404(EyeAppointment, id=pk)
+    appointment = get_object_or_404(EyeAppointment, id=pk, clinic_id=request.session.get('clinic_id'))
     appointment.status = 'CANCELLED'
     appointment.save()
     # ✅ Add logging
@@ -660,6 +676,8 @@ def check_eye_appointment_availability(request):
 # Eye Exams
 # --------------------
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def record_eye_exam(request, appointment_id):
     clinic_id = request.session.get('clinic_id')
     appointment = get_object_or_404(EyeAppointment, pk=appointment_id, clinic_id=clinic_id)
@@ -670,6 +688,7 @@ def record_eye_exam(request, appointment_id):
             exam = form.save(commit=False)
             exam.patient = appointment.patient  # assign the patient
             exam.appointment = appointment      # ✅ assign appointment
+            exam.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
             exam.created_by = request.user      # assign who created it
             exam.save()
             messages.success(request, f"Eye exam for {exam.patient.full_name} recorded successfully.")
@@ -691,6 +710,20 @@ def record_eye_exam(request, appointment_id):
 
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+def view_eye_exam(request, exam_id):
+    exam = get_object_or_404(
+        EyeExam.objects.select_related('patient', 'appointment', 'created_by'),
+        pk=exam_id,
+        patient__clinic=request.clinic,
+    )
+    return render(request, 'eye/exams/view_eye_exam.html', {'exam': exam})
+
+
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def edit_eye_exam(request, exam_id):
     clinic_id = request.session.get('clinic_id')
     exam = get_object_or_404(EyeExam, pk=exam_id, patient__clinic_id=clinic_id)
@@ -715,8 +748,11 @@ def edit_eye_exam(request, exam_id):
 
 
 
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def delete_eye_exam(request, exam_id):
-    record = get_object_or_404(EyeExam, pk=exam_id)
+    record = get_object_or_404(EyeExam, pk=exam_id, patient__clinic_id=request.session.get('clinic_id'))
 
     if request.method == "POST":
         record.delete()
@@ -818,8 +854,10 @@ def delete_eye_medical_record(request, record_id):
 #-------------------------
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def begin_eye_consultation(request, patient_id):
-    patient = get_object_or_404(Patient, patient_id=patient_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=request.clinic)
 
     if patient.status != 'IN_CONSULTATION':
         patient.status = 'IN_CONSULTATION'
@@ -863,8 +901,11 @@ def begin_eye_consultation(request, patient_id):
 
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+@require_POST
 def complete_eye_consultation(request, patient_id):
-    patient = get_object_or_404(Patient, patient_id=patient_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=request.clinic)
     
     appointment = EyeAppointment.objects.filter(patient=patient).order_by('-date').first()
     if appointment:
@@ -877,6 +918,15 @@ def complete_eye_consultation(request, patient_id):
             appointment,
             details=f"Completed consultation for {patient.full_name}"
         )
+        notify_roles(
+            patient.clinic,
+            ['ADMIN', 'RECEPTIONIST', 'PHARMACIST'],
+            f"Eye consultation completed for {patient.full_name}. Review billing and prescriptions.",
+            link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+            app_name='eye',
+            object_id=patient.patient_id,
+            exclude_user=request.user,
+        )
         messages.success(request, f"Consultation for {patient.full_name} marked as completed.")
     else:
         messages.warning(request, f"No active appointment found for {patient.full_name}.")
@@ -887,21 +937,32 @@ def complete_eye_consultation(request, patient_id):
 # --------------------
 # Follow-ups
 # --------------------
-class EyeFollowUpListView(ListView):
+class EyeFollowUpListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = EyeFollowUp
     template_name = 'eye/follow_up/followup_list.html'
     context_object_name = 'followups'
     paginate_by = 10
 
+    def test_func(self):
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE']
+
     def get_queryset(self):
-        return EyeFollowUp.objects.filter(patient__clinic__clinic_type='EYE').order_by('scheduled_date', 'scheduled_time')
+        return EyeFollowUp.objects.filter(clinic_id=self.request.session.get('clinic_id')).order_by('scheduled_date', 'scheduled_time')
 
 
-class EyeFollowUpCreateView(CreateView):
+class EyeFollowUpCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = EyeFollowUp
     form_class = EyeFollowUpForm
     template_name = 'eye/follow_up/schedule_follow_up.html'
     success_url = reverse_lazy('DurielEyeApp:followup_list')
+
+    def test_func(self):
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE']
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['clinic_id'] = self.request.session.get('clinic_id')
+        return kwargs
 
     def form_valid(self, form):
         # Set clinic_id from session
@@ -921,24 +982,39 @@ class EyeFollowUpCreateView(CreateView):
 
 
 
-class EyeFollowUpUpdateView(UpdateView):
+class EyeFollowUpUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = EyeFollowUp
     form_class = EyeFollowUpForm
     template_name = 'eye/follow_up/schedule_follow_up.html'
+
+    def test_func(self):
+        return self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE']
+
+    def get_queryset(self):
+        return EyeFollowUp.objects.filter(clinic_id=self.request.session.get('clinic_id'))
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['clinic_id'] = self.request.session.get('clinic_id')
+        return kwargs
     
 
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
 def schedule_eye_follow_up(request, patient_id):
-    patient = get_object_or_404(Patient, patient_id=patient_id)
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=request.clinic, clinic__clinic_type='EYE')
 
     if request.method == "POST":
         form = EyeFollowUpForm(request.POST, clinic_id=patient.clinic_id)
         if form.is_valid():
             follow_up = form.save(commit=False)
             follow_up.patient = patient
+            follow_up.clinic = patient.clinic
+            follow_up.created_by = request.user
             follow_up.save()
             messages.success(request, f"Follow-up scheduled for {patient.full_name}.")
-            return redirect('core:patient_detail', patient_id=patient.patient_id)
+            return redirect('core:patient_detail', pk=patient.patient_id)
     else:
         form = EyeFollowUpForm(clinic_id=patient.clinic_id)
 
@@ -948,10 +1024,12 @@ def schedule_eye_follow_up(request, patient_id):
     })
 
 
+@require_POST
 @login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST', 'NURSE')
 def complete_eye_follow_up(request, pk):
-    clinic_id = request.session.get('clinic_id')
-    followup = get_object_or_404(EyeFollowUp, pk=pk, clinic_id=clinic_id)
+    followup = get_object_or_404(EyeFollowUp, pk=pk, clinic=request.clinic)
 
     if not followup.completed:
         followup.completed = True

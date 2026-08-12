@@ -36,6 +36,12 @@
         
         <form method="post" id="billingForm"{% if patient %} data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}"{% endif %}{% if appointment %} data-appointment-sync-id="{{ appointment.sync_id }}"{% endif %}>
             {% csrf_token %}
+	            {% if selected_admission %}
+	              <input type="hidden" name="admission_id" value="{{ selected_admission.id }}">
+	            {% endif %}
+	            {% if requested_line_item_ids %}
+	              <input type="hidden" name="line_items" value="{{ requested_line_item_ids|join:',' }}">
+	            {% endif %}
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <!-- Patient Information -->
@@ -84,18 +90,36 @@
                 <!-- Appointment Information -->
                 <div class="border-b pb-4 appointment-info">
                     <h2 class="text-lg font-medium text-gray-900 mb-4">Appointment Information</h2>
-                    {% if appointment %}
+                    {% if selected_admission %}
+                        <div class="text-sm text-gray-900">
+                            Admission #{{ selected_admission.id }} - {{ selected_admission.get_admission_type_display }}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            {{ selected_admission.ward }}{% if selected_admission.bed %}, {{ selected_admission.bed }}{% endif %}
+                        </div>
+                    {% elif appointment %}
                         <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
                         <input type="hidden" name="appointment_type" value="{{ appointment_type|default:'general' }}">
                         <div class="text-sm text-gray-900">
                             {{ appointment.date }} at {{ appointment.start_time|time:"h:i A" }}
                         </div>
                         <div class="text-sm text-gray-500">
-                            Reason: {{ appointment.reason|truncatechars:30 }}
+                            Reason:
+                            {% if appointment.reason %}
+                                {{ appointment.reason|truncatechars:30 }}
+                            {% elif appointment.chief_complaint %}
+                                {{ appointment.chief_complaint|truncatechars:30 }}
+                            {% else %}
+                                Consultation
+                            {% endif %}
                         </div>
                         {% if appointment.doctor %}
                         <div class="text-sm text-gray-500">
                             Doctor: {{ appointment.doctor.get_full_name }}
+                        </div>
+                        {% elif appointment.provider %}
+                        <div class="text-sm text-gray-500">
+                            Provider: {{ appointment.provider.get_full_name }}
                         </div>
                         {% endif %}
                     {% else %}
@@ -104,57 +128,35 @@
                 </div>
             </div>
 
-            {% if patient_billing_activity %}
+            {% if billing_clinical_summary %}
+            {% include "billing/partials/clinical_summary.html" with summary=billing_clinical_summary %}
+            {% endif %}
+
+            {% if billing_line_items %}
             <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                <h2 class="text-lg font-medium text-blue-900 mb-3">Recent Patient Activity for Billing</h2>
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div class="mb-3 flex items-center justify-between">
                     <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Appointments</div>
-                        {% for item in patient_billing_activity.appointments %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.date }} {{ item.start_time }}<br><span class="text-blue-700">{{ item.reason|truncatechars:45 }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
+                        <h2 class="text-lg font-medium text-blue-900">Appointment Charge Capture</h2>
+                        <p class="text-sm text-blue-700">Select chargeable items to roll into this final bill.</p>
                     </div>
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Admissions</div>
-                        {% for item in patient_billing_activity.admissions %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.ward }}{% if item.bed %}, {{ item.bed }}{% endif %}<br><span class="text-blue-700">{{ item.reason|truncatechars:45 }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Prescriptions</div>
-                        {% for item in patient_billing_activity.prescriptions %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.medication_name }}<br><span class="text-blue-700">{{ item.quantity_prescribed }} × {{ item.dosage }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Clinical Records</div>
-                        {% for item in patient_billing_activity.medical_records %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:45 }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-blue-700">Draft/Approved</span>
                 </div>
-                {% if request.session.clinic_type == "DENTAL" %}
-                <div class="mt-4 grid gap-4 md:grid-cols-3">
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Dental Procedures</div>
-                        {% for item in patient_billing_activity.dental.procedures %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.procedure_name }}{% if item.tooth_numbers %} — {{ item.tooth_numbers }}{% endif %}<br><span class="text-blue-700">₦{{ item.cost }} • {{ item.performed_at|date:"M j, Y" }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Treatment Plans</div>
-                        {% for item in patient_billing_activity.dental.plans %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.title }}<br><span class="text-blue-700">{{ item.get_status_display }} • ₦{{ item.estimated_cost }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
-                    <div>
-                        <div class="text-sm font-semibold text-blue-800 mb-2">Dental Exams</div>
-                        {% for item in patient_billing_activity.dental.exams %}
-                            <div class="mb-2 text-sm text-blue-900">{{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:45 }}</span></div>
-                        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-                    </div>
+                <div class="divide-y divide-blue-100 rounded-md bg-white">
+                    {% for item in billing_line_items %}
+                    <label class="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-blue-50">
+                        <input type="checkbox" name="billing_line_items" value="{{ item.id }}"
+                               class="billing-line-item mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+	                               data-description="{{ item.description }}"
+	                               data-amount="{{ item.total_amount }}"
+	                               {% if item.status == 'APPROVED' %}checked{% endif %}>
+                        <span class="flex-1">
+                            <span class="block text-sm font-medium text-gray-900">{{ item.description }}</span>
+                            <span class="block text-xs text-gray-500">{{ item.get_source_type_display }} • {{ item.get_status_display }} • Qty {{ item.quantity }}</span>
+                        </span>
+                        <span class="text-sm font-semibold text-gray-900">₦{{ item.total_amount|floatformat:2 }}</span>
+                    </label>
+                    {% endfor %}
                 </div>
-                {% endif %}
             </div>
             {% endif %}
             
@@ -364,6 +366,19 @@ $(document).ready(function() {
         return parseFloat($('#manual_service_cost').val()) || 0;
     }
 
+    function selectedLineItems() {
+        return $('.billing-line-item:checked').map(function() {
+            return {
+                description: $(this).data('description'),
+                amount: parseFloat($(this).data('amount')) || 0
+            };
+        }).get();
+    }
+
+    function lineItemTotal() {
+        return selectedLineItems().reduce((sum, item) => sum + item.amount, 0);
+    }
+
     // When services are selected
     $('#id_services').on('change', function() {
         const selectedOptions = $(this).find('option:selected');
@@ -437,12 +452,15 @@ $(document).ready(function() {
         // Update amount and description when services change
     function updateFormFields() {
         // Update amount
-        const nextAmount = totalAmount + manualCost();
+        const nextAmount = totalAmount + lineItemTotal() + manualCost();
         $('#id_amount').val(nextAmount.toFixed(2));
 
         // Update description
-        const lines = Object.values(selectedServices)
+        const lines = selectedLineItems()
+            .map(item => `${item.description} - ₦${item.amount.toFixed(2)}`);
+        lines.push(...Object.values(selectedServices)
             .map(service => `${service.name} - ₦${service.price.toFixed(2)}`)
+        );
         const manualName = $('#manual_service_name').val();
         const manualAmount = manualCost();
         if (manualName || manualAmount) {
@@ -483,8 +501,12 @@ $(document).ready(function() {
         updateFormFields();
     });
 
+    $('.billing-line-item').on('change', function() {
+        updateFormFields();
+    });
+
     // Initialize displays on page load
-    updateAllDisplays();
+    updateFormFields();
 
     // Remove service function
     window.removeService = function(serviceId, price) {

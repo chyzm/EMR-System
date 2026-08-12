@@ -1,19 +1,91 @@
 {% extends 'base.html' %}
 
+{% block title %}{% if object %}Edit{% else %}Add New{% endif %} Dental Appointment - DurielMedic+ EMR{% endblock %}
+
 {% block content %}
-<div class="mx-auto max-w-3xl rounded-xl border bg-white p-6 shadow-sm">
-  <h1 class="mb-5 text-2xl font-bold text-gray-900">{% if object %}Edit{% else %}New{% endif %} Dental Appointment</h1>
-  <form method="post" class="space-y-4">
-    {% csrf_token %}
-    {% for field in form %}
-      <div>
-        <label class="mb-1 block text-sm font-medium text-gray-700">{{ field.label }}</label>
-        {{ field }}
-        {% if field.help_text %}<p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>{% endif %}
-        {% if field.errors %}<p class="mt-1 text-sm text-red-600">{{ field.errors|join:", " }}</p>{% endif %}
-      </div>
-    {% endfor %}
-    <button class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Save</button>
-  </form>
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+    <div class="px-6 py-4 bg-blue-900 text-white">
+      <h2 class="text-2xl font-bold">{% if object %}Edit{% else %}Add New{% endif %} Dental Appointment</h2>
+      <p class="text-blue-200 mt-1">Schedule dental care with visit type and chair notes</p>
+    </div>
+
+    <div class="p-6 space-y-6">
+      <form method="post" class="space-y-6">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label for="{{ form.patient.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.patient.label }}</label>
+            {{ form.patient }}
+            {% if form.patient.errors %}<p class="mt-1 text-sm text-red-600">{{ form.patient.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2">
+            <label for="{{ form.provider.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.provider.label }}</label>
+            {{ form.provider }}
+            {% if form.provider.errors %}<p class="mt-1 text-sm text-red-600">{{ form.provider.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2">
+            <label for="{{ form.visit_type.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.visit_type.label }}</label>
+            {{ form.visit_type }}
+            {% if form.visit_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.visit_type.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2">
+            <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.date.label }}</label>
+            {{ form.date }}
+            {% if form.date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.date.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2">
+            <label for="{{ form.start_time.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.start_time.label }}</label>
+            {{ form.start_time }}
+            {% if form.start_time.errors %}<p class="mt-1 text-sm text-red-600">{{ form.start_time.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2">
+            <label for="{{ form.end_time.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.end_time.label }}</label>
+            {{ form.end_time }}
+            {% if form.end_time.errors %}<p class="mt-1 text-sm text-red-600">{{ form.end_time.errors|join:", " }}</p>{% endif %}
+          </div>
+
+          <div class="space-y-2 md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-2">{{ form.payment_type.label }}</label>
+            <div class="flex flex-wrap gap-6">
+              {% for choice in form.payment_type %}
+                <div class="flex items-center">
+                  {{ choice.tag }}
+                  <label for="{{ choice.id_for_label }}" class="ml-2 text-sm text-gray-700">{{ choice.choice_label }}</label>
+                </div>
+              {% endfor %}
+            </div>
+            {% if form.payment_type.errors %}<p class="mt-1 text-sm text-red-600">{{ form.payment_type.errors|join:", " }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label for="{{ form.chief_complaint.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.chief_complaint.label }}</label>
+          {{ form.chief_complaint }}
+          {% if form.chief_complaint.errors %}<p class="mt-1 text-sm text-red-600">{{ form.chief_complaint.errors|join:", " }}</p>{% endif %}
+        </div>
+
+        <div class="space-y-2">
+          <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700">{{ form.notes.label }}</label>
+          {{ form.notes }}
+          {% if form.notes.errors %}<p class="mt-1 text-sm text-red-600">{{ form.notes.errors|join:", " }}</p>{% endif %}
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+          <a href="{% url 'DurielDentalApp:appointment_list' %}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+          <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+            {% if object %}Update{% else %}Schedule{% endif %} Appointment
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}

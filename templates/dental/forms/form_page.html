@@ -10,8 +10,58 @@
     {% csrf_token %}
     {% for field in form %}
       <div>
-        <label class="mb-1 block text-sm font-medium text-gray-700">{{ field.label }}</label>
-        {{ field }}
+        {% if field.name == "tooth_chart_json" %}
+          <label class="mb-2 block text-sm font-medium text-gray-700">Tooth Chart</label>
+          {{ field.as_hidden }}
+          <div x-data="toothChart('{{ field.value|default:'{}'|escapejs }}')" class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div class="grid grid-cols-8 gap-2">
+              <template x-for="tooth in teeth" :key="tooth">
+                <button type="button"
+                        @click="selectTooth(tooth)"
+                        :class="selected === tooth ? 'border-blue-600 bg-blue-50 text-blue-800' : chart[tooth] ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-300 bg-white text-gray-700'"
+                        class="aspect-square rounded border text-sm font-semibold hover:border-blue-500">
+                  <span x-text="tooth"></span>
+                </button>
+              </template>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3">
+              <label class="block text-sm font-medium text-gray-700">
+                Selected Tooth
+                <input type="text" readonly x-model="selected" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2">
+              </label>
+              <label class="block text-sm font-medium text-gray-700">
+                Condition
+                <select x-model="condition" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2">
+                  <option value="">Select condition</option>
+                  <option value="sound">Sound</option>
+                  <option value="caries">Caries</option>
+                  <option value="missing">Missing</option>
+                  <option value="filled">Filled</option>
+                  <option value="crown">Crown</option>
+                  <option value="extraction_indicated">Extraction indicated</option>
+                  <option value="root_canal">Root canal</option>
+                  <option value="impacted">Impacted</option>
+                  <option value="mobility">Mobility</option>
+                  <option value="fracture">Fracture</option>
+                </select>
+              </label>
+              <div class="flex items-end gap-2">
+                <button type="button" @click="applyCondition()" class="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Apply</button>
+                <button type="button" @click="clearTooth()" class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-white">Clear</button>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <template x-for="[tooth, value] in entries" :key="tooth">
+                <span class="rounded-full bg-white px-3 py-1 text-xs text-gray-700 shadow-sm">
+                  <strong x-text="tooth"></strong>: <span x-text="value.replaceAll('_', ' ')"></span>
+                </span>
+              </template>
+            </div>
+          </div>
+        {% else %}
+          <label class="mb-1 block text-sm font-medium text-gray-700">{{ field.label }}</label>
+          {{ field }}
+        {% endif %}
         {% if field.help_text %}<p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>{% endif %}
         {% if field.errors %}<p class="mt-1 text-sm text-red-600">{{ field.errors|join:", " }}</p>{% endif %}
       </div>
@@ -19,4 +69,44 @@
     <button class="rounded-lg bg-blue-600 px-5 py-2 text-white hover:bg-blue-700">Save</button>
   </form>
 </div>
+<script>
+  function toothChart(initialValue) {
+    return {
+      teeth: ['18','17','16','15','14','13','12','11','21','22','23','24','25','26','27','28','48','47','46','45','44','43','42','41','31','32','33','34','35','36','37','38'],
+      chart: {},
+      selected: '',
+      condition: '',
+      init() {
+        try {
+          this.chart = initialValue ? JSON.parse(initialValue) : {};
+        } catch (e) {
+          this.chart = {};
+        }
+        this.sync();
+      },
+      get entries() {
+        return Object.entries(this.chart).sort(([a], [b]) => this.teeth.indexOf(a) - this.teeth.indexOf(b));
+      },
+      selectTooth(tooth) {
+        this.selected = tooth;
+        this.condition = this.chart[tooth] || '';
+      },
+      applyCondition() {
+        if (!this.selected || !this.condition) return;
+        this.chart[this.selected] = this.condition;
+        this.sync();
+      },
+      clearTooth() {
+        if (!this.selected) return;
+        delete this.chart[this.selected];
+        this.condition = '';
+        this.sync();
+      },
+      sync() {
+        const input = document.querySelector('[name="tooth_chart_json"]');
+        if (input) input.value = JSON.stringify(this.chart);
+      }
+    }
+  }
+</script>
 {% endblock %}

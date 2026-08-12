@@ -78,18 +78,58 @@
         
         <!-- Actions -->
         <div class="flex flex-wrap gap-3">
-          <a href="{% url 'DurielEyeApp:appointment_update' appointment.pk %}" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-edit mr-2"></i> Edit
-          </a>
-          {% if appointment.status != 'COMPLETED' %}
-          <a href="{% url 'DurielEyeApp:mark_completed' appointment.pk %}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-check mr-2"></i> Mark Completed
-          </a>
-          {% endif %}
-          {% if appointment.status != 'CANCELLED' %}
-          <a href="{% url 'DurielEyeApp:mark_cancelled' appointment.pk %}" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-times mr-2"></i> Cancel Appointment
-          </a>
+          {% if request.user.role == 'OPTOMETRIST' %}
+            <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-user mr-2"></i> View Patient
+            </a>
+            {% if appointment.status != 'COMPLETED' and request.user.role != 'ADMIN' %}
+            <form method="post" action="{% url 'DurielEyeApp:mark_completed' appointment.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                <i class="fas fa-check mr-2"></i> Complete Consultation
+              </button>
+            </form>
+            {% else %}
+            <span class="bg-green-100 text-green-800 px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-check-circle mr-2"></i> Consultation Completed
+            </span>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-user mr-2"></i> Patient Detail
+            </a>
+            <a href="{% url 'core:add_prescription' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
+              Prescription
+            </a>
+            <a href="{% url 'core:order_lab_tests' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
+              Order Lab
+            </a>
+            {% if can_manage_billing %}
+            <a href="{% url 'core:create_bill' %}?patient={{ appointment.patient.patient_id }}&appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
+              Create Bill
+            </a>
+            {% endif %}
+            {% if can_manage_eye_appointments %}
+            <a href="{% url 'DurielEyeApp:appointment_update' appointment.pk %}" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-edit mr-2"></i> Edit
+            </a>
+            {% endif %}
+            {% if appointment.status != 'COMPLETED' %}
+            <form method="post" action="{% url 'DurielEyeApp:mark_completed' appointment.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                <i class="fas fa-check mr-2"></i> Mark Completed
+              </button>
+            </form>
+            {% endif %}
+            {% if appointment.status != 'CANCELLED' and can_delete_eye_appointments %}
+            <form method="post" action="{% url 'DurielEyeApp:mark_cancelled' appointment.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center">
+                <i class="fas fa-times mr-2"></i> Cancel Appointment
+              </button>
+            </form>
+            {% endif %}
           {% endif %}
           <a href="{% url 'DurielEyeApp:appointment_list' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg flex items-center">
             <i class="fas fa-arrow-left mr-2"></i> Back to List

@@ -1,5 +1,7 @@
 from django.db import models
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from core.models import Patient, Clinic, Prescription
 from django.utils import timezone
 import uuid
@@ -7,6 +9,7 @@ import uuid
 class MedicalRecord(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='medical_records')
+    encounter = models.ForeignKey('core.PatientEncounter', on_delete=models.SET_NULL, null=True, blank=True, related_name='general_records')
 
     # All sections as separate fields - fill what's relevant
     chief_complaint = models.TextField(blank=True, verbose_name="Chief Complaint")
@@ -65,13 +68,32 @@ class Appointment(models.Model):
 
 class Vitals(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE)
+    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE, null=True, blank=True)
+    appointment_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment')},
+    )
+    appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
+    appointment_object = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+    encounter = models.ForeignKey('core.PatientEncounter', on_delete=models.SET_NULL, null=True, blank=True, related_name='vitals')
     blood_pressure = models.CharField(max_length=10)
     pulse = models.IntegerField()
     temperature = models.FloatField()
     weight = models.FloatField()
+    respiratory_rate = models.PositiveIntegerField(null=True, blank=True)
+    oxygen_saturation = models.PositiveIntegerField(null=True, blank=True)
+    height = models.FloatField(null=True, blank=True)
+    bmi = models.FloatField(null=True, blank=True)
     notes = models.TextField(blank=True)
     category = models.CharField(choices=[("CONSULT", "Consultation"), ("FOLLOWUP", "Follow-Up")], max_length=20)
+
+    def set_appointment_object(self, appointment):
+        self.appointment_object = appointment
+        if isinstance(appointment, Appointment):
+            self.appointment = appointment
 
 
 class Admission(models.Model):
@@ -110,6 +132,7 @@ class Admission(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='admissions')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='admissions', null=True, blank=True)
+    encounter = models.ForeignKey('core.PatientEncounter', on_delete=models.SET_NULL, null=True, blank=True, related_name='admission_records')
     ward = models.CharField(max_length=50)
     bed = models.CharField(max_length=50, blank=True)
     admission_type = models.CharField(max_length=20, choices=ADMISSION_TYPES, default='EMERGENCY')
@@ -283,6 +306,8 @@ class PhysiotherapyRecord(models.Model):
     exercises_prescribed = models.TextField(blank=True, verbose_name="Exercises Prescribed")
     modalities_used = models.TextField(blank=True, verbose_name="Modalities Used")
     progress_notes = models.TextField(blank=True, verbose_name="Progress Notes")
+    session_count = models.PositiveIntegerField(default=0, blank=True)
+    session_dates = models.TextField(blank=True, help_text="One physiotherapy session date per line.")
     additional_notes = models.TextField(blank=True, verbose_name="Additional Notes")
 
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
@@ -294,6 +319,44 @@ class PhysiotherapyRecord(models.Model):
 
     def __str__(self):
         return f"Physiotherapy Record for {self.patient.full_name} - {self.created_at.strftime('%Y-%m-%d')}"
+
+
+class PhysiotherapyReferral(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('ACCEPTED', 'Accepted'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('COMPLETED', 'Completed'),
+        ('CANCELLED', 'Cancelled'),
+    )
+    PRIORITY_CHOICES = (
+        ('ROUTINE', 'Routine'),
+        ('URGENT', 'Urgent'),
+    )
+
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='physiotherapy_referrals')
+    clinic = models.ForeignKey('core.Clinic', on_delete=models.CASCADE, related_name='physiotherapy_referrals')
+    appointment = models.ForeignKey(Appointment, on_delete=models.SET_NULL, null=True, blank=True, related_name='physiotherapy_referrals')
+    referred_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='physiotherapy_referrals_made')
+    assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='physiotherapy_referrals_assigned')
+    reason = models.TextField()
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='ROUTINE')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PENDING')
+    notes = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['clinic', 'status', '-created_at'], name='DurielMedic_phys_ref_q_idx'),
+            models.Index(fields=['patient', '-created_at'], name='DurielMedic_phys_ref_pat_idx'),
+        ]
+
+    def __str__(self):
+        return f"Physiotherapy referral for {self.patient.full_name} - {self.get_status_display()}"
 
 
 

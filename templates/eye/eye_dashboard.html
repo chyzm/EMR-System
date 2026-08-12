@@ -196,7 +196,7 @@
                     </div>
                 </div>
                 <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Invoice</h3>
-                {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                {% if can_view_billing_status %}
                 <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_bills }}</p>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-yellow-600">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
@@ -275,33 +275,25 @@
                     </h2>
                 </div>
                 <div class="p-6 space-y-4">
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_patient %}
                     <a href="{% url 'core:add_patient' %}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-user-plus mr-2"></i>Add New Patient
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_appointment %}
                     <a href="{% url 'DurielEyeApp:appointment_create' %}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-calendar-plus mr-2"></i>Schedule Eye Appointment
                     </a>
                     {% endif %}
                     
-                    {% comment %} {% if request.user.role == "ADMIN" or request.user.role == "DOCTOR" %}
-                        {% for patient in patients %}
-                            <a href="{% url 'core:add_prescription' patient_id=patient.id %}" class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
-                                <i class="fas fa-glasses mr-2"></i>Issue Glasses Prescription
-                            </a>
-                        {% endfor %}
-                    {% endif %} {% endcomment %}
-                    
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_manage_billing %}
                     <a href="{% url 'core:create_bill' %}" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-file-invoice-dollar mr-2"></i>Create New Bill
                     </a>
                     {% endif %}
                     
-                    {% if request.user.role == 'ADMIN' %}
+                    {% if can_view_reports %}
                     <a href="{% url 'DurielEyeApp:generate_report' %}" class="block w-full bg-yellow-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
                         <i class="fas fa-chart-pie mr-2"></i>Generate Report
                     </a>
@@ -310,7 +302,7 @@
             </div>
         </div>
 
-        {% if request.user.role in 'ADMIN,NURSE,RECEPTIONIST' %}
+        {% if can_create_appointment %}
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in border">
             <div class="bg-gray-800 px-6 py-4 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-white flex items-center">

@@ -85,6 +85,14 @@ class Clinic(models.Model):
         ])
 
 class CustomUser(AbstractUser):
+    username = models.CharField(
+        max_length=150,
+        help_text='Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.',
+        validators=[AbstractUser.username_validator],
+        error_messages={'unique': 'A user with that username already exists in this clinic.'},
+    )
+    email = models.EmailField(unique=True, blank=True, null=True)
+
     TITLE_CHOICES = (
         ('Dr.', 'Dr.'),
         ('PT.', 'PT.'),
@@ -100,6 +108,7 @@ class CustomUser(AbstractUser):
         ('NURSE', 'Nurse'),
         ('PHARMACIST', 'Pharmacist'),
         ('OPTOMETRIST', 'Optometrist'),
+        ('DENTIST', 'Dentist'),
         ('PHYSIOTHERAPIST', 'Physiotherapist'),
         ('RECEPTIONIST', 'Receptionist'),
         ('LAB_TECHNICIAN', 'Lab Technician'),
@@ -116,6 +125,15 @@ class CustomUser(AbstractUser):
     profile_picture = models.ImageField(upload_to='staff_profiles/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     last_activity = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['primary_clinic', 'username'],
+                name='core_unique_username_primary_clinic',
+                condition=models.Q(primary_clinic__isnull=False),
+            ),
+        ]
 
 class Patient(models.Model):
     BLOOD_GROUPS = (
@@ -249,10 +267,17 @@ class Billing(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment')}
     )
     appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
     appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+    encounter = models.ForeignKey(
+        'PatientEncounter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bills',
+    )
     services = models.ManyToManyField('ServicePriceList', blank=True, related_name='bills')
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -344,6 +369,147 @@ class Billing(models.Model):
         elif self.final_amount == 0:
             self.final_amount = self.amount
         super().save(*args, **kwargs)
+
+
+class BillingLineItem(models.Model):
+    STATUS_CHOICES = (
+        ('DRAFT', 'Draft'),
+        ('APPROVED', 'Approved'),
+        ('BILLED', 'Billed'),
+        ('VOIDED', 'Voided'),
+    )
+    SOURCE_CHOICES = (
+        ('APPOINTMENT', 'Appointment'),
+        ('CONSULTATION', 'Consultation'),
+        ('LAB', 'Lab'),
+        ('PRESCRIPTION', 'Prescription'),
+        ('PROCEDURE', 'Procedure'),
+        ('ADMISSION', 'Admission'),
+        ('PHYSIO_CONSULTATION', 'Physiotherapy Consultation'),
+        ('PHYSIO_SESSION', 'Physiotherapy Session'),
+        ('TREATMENT', 'Treatment'),
+        ('MANUAL', 'Manual'),
+    )
+
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='billing_line_items')
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='billing_line_items')
+    bill = models.ForeignKey(Billing, on_delete=models.SET_NULL, null=True, blank=True, related_name='line_items')
+    appointment_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='billing_line_items_for_appointment',
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment')},
+    )
+    appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
+    appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+    encounter = models.ForeignKey('PatientEncounter', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing_line_items')
+    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='MANUAL')
+    source_content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True, related_name='billing_line_items_for_source')
+    source_object_id = models.CharField(max_length=255, null=True, blank=True)
+    source_object = GenericForeignKey('source_content_type', 'source_object_id')
+    service = models.ForeignKey('ServicePriceList', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing_line_items')
+    description = models.CharField(max_length=255)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='DRAFT')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_billing_line_items')
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_billing_line_items')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    billed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+        indexes = [
+            models.Index(fields=['clinic', 'status'], name='core_bi_clinic_status_idx'),
+            models.Index(fields=['patient', 'status'], name='core_bi_patient_status_idx'),
+            models.Index(fields=['appointment_content_type', 'appointment_object_id'], name='core_billitem_appt_idx'),
+            models.Index(fields=['source_content_type', 'source_object_id'], name='core_billitem_source_idx'),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.quantity = Decimal(self.quantity or 0)
+        self.unit_price = Decimal(self.unit_price or 0)
+        self.total_amount = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+
+    def approve(self, user):
+        self.status = 'APPROVED'
+        self.approved_by = user
+        self.approved_at = tz.now()
+        self.save(update_fields=['status', 'approved_by', 'approved_at', 'total_amount', 'updated_at'])
+
+    def mark_billed(self, bill):
+        self.bill = bill
+        self.status = 'BILLED'
+        self.billed_at = tz.now()
+        self.save(update_fields=['bill', 'status', 'billed_at', 'total_amount', 'updated_at'])
+
+    def __str__(self):
+        return f"{self.description} - {self.patient.full_name} ({self.get_status_display()})"
+
+
+class PatientEncounter(models.Model):
+    ENCOUNTER_TYPES = (
+        ('GENERAL_CONSULTATION', 'General Consultation'),
+        ('EYE_CONSULTATION', 'Eye Consultation'),
+        ('DENTAL_CONSULTATION', 'Dental Consultation'),
+        ('EMERGENCY', 'Emergency'),
+        ('ADMISSION', 'Admission'),
+        ('FOLLOW_UP', 'Follow-Up'),
+        ('PROCEDURE', 'Procedure'),
+    )
+    STATUS_CHOICES = (
+        ('OPEN', 'Open'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('COMPLETED', 'Completed'),
+        ('DISCHARGED', 'Discharged'),
+        ('CANCELLED', 'Cancelled'),
+    )
+
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='encounters')
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='encounters')
+    provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='encounters')
+    encounter_type = models.CharField(max_length=25, choices=ENCOUNTER_TYPES)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='OPEN')
+    appointment_content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True)
+    appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
+    appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+    admission = models.ForeignKey('DurielMedicApp.Admission', on_delete=models.SET_NULL, null=True, blank=True, related_name='encounters')
+    started_at = models.DateTimeField(default=tz.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_encounters')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['clinic', 'patient', '-started_at'], name='core_enc_clinic_patient_idx'),
+            models.Index(fields=['clinic', 'status'], name='core_enc_clinic_status_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['appointment_content_type', 'appointment_object_id'],
+                name='core_unique_appointment_encounter',
+                condition=models.Q(appointment_content_type__isnull=False, appointment_object_id__isnull=False),
+            ),
+            models.UniqueConstraint(
+                fields=['admission'],
+                name='core_unique_admission_encounter',
+                condition=models.Q(admission__isnull=False),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_encounter_type_display()} - {self.patient.full_name}"
 
 
 class Payment(models.Model):
@@ -616,6 +782,13 @@ class Prescription(models.Model):
     )
     admission = models.ForeignKey(
         'DurielMedicApp.Admission',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='prescriptions',
+    )
+    encounter = models.ForeignKey(
+        PatientEncounter,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -900,10 +1073,17 @@ class LabTestOrder(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        limit_choices_to={'model__in': ('appointment', 'eyeappointment')}
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment')}
     )
     appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
     appointment = GenericForeignKey('appointment_content_type', 'appointment_object_id')
+    encounter = models.ForeignKey(
+        PatientEncounter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lab_orders',
+    )
 
     # Ordered tests
     ordered_tests = models.ManyToManyField(LabTest, related_name='orders')

@@ -4,7 +4,9 @@
 <div class="space-y-5">
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold text-gray-900">Dental Appointments</h1>
-    <a href="{% url 'DurielDentalApp:appointment_create' %}" class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">New Appointment</a>
+    {% if can_create_appointment %}
+      <a href="{% url 'DurielDentalApp:appointment_create' %}" class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">New Appointment</a>
+    {% endif %}
   </div>
   <div class="overflow-x-auto rounded-xl border bg-white shadow-sm">
     <table class="min-w-full divide-y divide-gray-200">
@@ -26,7 +28,24 @@
             <td class="px-4 py-3 text-sm">{{ appointment.provider.get_full_name|default:appointment.provider.username }}</td>
             <td class="px-4 py-3 text-sm">{{ appointment.get_visit_type_display }}</td>
             <td class="px-4 py-3 text-sm">{{ appointment.get_status_display }}</td>
-            <td class="px-4 py-3 text-right text-sm"><a class="text-blue-600 hover:underline" href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}">Open</a></td>
+            <td class="px-4 py-3 text-center text-sm">
+              <div x-data="{ open: false, vitalsOpen: false }" class="inline-block">
+                <button @click="open = true" type="button" class="text-2xl text-gray-600 hover:text-gray-900 focus:outline-none">⋮</button>
+                <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                  <div @click.away="open = false" class="w-96 rounded-lg bg-white p-6 text-center shadow-lg">
+                    <h2 class="mb-4 text-lg font-semibold">Actions</h2>
+                    <div class="space-y-2">
+                      {% include "appointments/partials/vitals_modal_action.html" %}
+                      <a class="block rounded px-4 py-2 text-sm text-blue-700 hover:bg-blue-100" href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}">Open</a>
+                      {% if can_view_dental_chart %}
+                        <a class="block rounded px-4 py-2 text-sm text-green-700 hover:bg-green-100" href="{% url 'DurielDentalApp:patient_chart' appointment.patient.patient_id %}">Dental Chart</a>
+                      {% endif %}
+                    </div>
+                    <button @click="open = false" class="mt-4 rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">Close</button>
+                  </div>
+                </div>
+              </div>
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">No dental appointments.</td></tr>

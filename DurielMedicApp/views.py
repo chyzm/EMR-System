@@ -7,19 +7,28 @@ from django.db import models
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 
 from core.models import Patient, Clinic, Billing, ClinicMedication, StockMovement
 from .models import (
     Appointment, Vitals, Admission, AdmissionHandover, MedicationAdministration, FollowUp,
-    Prescription, MedicalRecord, PhysiotherapyRecord
+    Prescription, MedicalRecord, PhysiotherapyRecord, PhysiotherapyReferral
 )
 from core.views import PatientDetailView
 from .forms import (
     VitalsForm, AppointmentForm, FollowUpForm,
-    MedicalRecordForm, PhysiotherapyRecordForm
+    MedicalRecordForm, PhysiotherapyRecordForm, PhysiotherapyReferralForm
 )
 from core.forms import PrescriptionForm
 from core.decorators import clinic_selected_required, role_required
+from core.utils import (
+    ensure_admission_charge,
+    ensure_appointment_consultation_charge,
+    ensure_billing_line_item,
+    get_or_create_encounter_for_appointment,
+    get_or_create_encounter_for_admission,
+    notify_role_handoff,
+)
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.contrib import messages
@@ -45,7 +54,7 @@ from decimal import Decimal
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.mail import send_mail
-from core.utils import log_action
+from core.utils import log_action, notify_roles, notify_user_db
 from core.models import Clinic
 from core.models import Notification, NotificationRead
 from django.utils import timezone
@@ -57,7 +66,7 @@ User = get_user_model()
 
 
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST']
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN']
 
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
@@ -68,6 +77,7 @@ def admin_check(user):
 @login_required
 @user_passes_test(staff_check, login_url='login')
 def dashboard(request):
+    return redirect('core:clinic_dashboard')
     today = date.today()
     start_week = today - timedelta(days=today.weekday())
     end_week = start_week + timedelta(days=6)
@@ -173,9 +183,13 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     
     def get_queryset(self):
         clinic_id = self.request.session.get('clinic_id')
+        appointment_type = ContentType.objects.get_for_model(Appointment)
         queryset = Appointment.objects.all().select_related('patient', 'provider', 'clinic').annotate(
             has_vitals=models.Exists(
-                Vitals.objects.filter(appointment_id=models.OuterRef('pk'))
+                Vitals.objects.filter(
+                    models.Q(appointment_id=models.OuterRef('pk')) |
+                    models.Q(appointment_content_type=appointment_type, appointment_object_id=models.OuterRef('pk'))
+                )
             )
         )
 
@@ -229,7 +243,6 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return kwargs
     
     def form_valid(self, form):
-        form.instance.provider = self.request.user
         form.instance.clinic_id = self.request.session.get('clinic_id')
         form.instance.payment_type = form.cleaned_data.get('payment_type', 'SELF')  # Add this line
         
@@ -247,6 +260,20 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
             'CREATE',
             appointment,
             details=f"Created appointment for {appointment.patient.full_name} on {appointment.date}"
+        )
+        target_roles = ['DOCTOR', 'NURSE']
+        if appointment.provider and appointment.provider.role == 'PHYSIOTHERAPIST':
+            target_roles = ['PHYSIOTHERAPIST', 'NURSE']
+
+        notify_role_handoff(
+            appointment.clinic,
+            target_roles,
+            f"New general appointment for {appointment.patient.full_name} on {appointment.date}",
+            link=reverse('DurielMedicApp:appointment_detail', kwargs={'pk': appointment.pk}),
+            app_name='medic',
+            object_id=appointment.pk,
+            actor=self.request.user,
+            provider=appointment.provider,
         )
 
         messages.success(self.request, 'Appointment scheduled successfully!')
@@ -288,8 +315,9 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
     
 
 @login_required
+@clinic_selected_required
 def appointment_detail(request, pk):
-    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment = get_object_or_404(Appointment, pk=pk, clinic=request.clinic)
     return render(request, 'DurielMedicApp/appointment_detail.html', {'appointment': appointment})
 
 
@@ -298,7 +326,7 @@ def appointment_detail(request, pk):
 # --------------------
 @login_required 
 @clinic_selected_required
-@role_required('NURSE', 'DOCTOR')
+@role_required('NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST')
 def record_vitals(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     today = timezone.localdate()
@@ -319,7 +347,7 @@ def record_vitals(request, patient_id):
         form = VitalsForm(request.POST)
         if form.is_valid():
             vitals = form.save(commit=False)
-            vitals.appointment = appointment
+            vitals.set_appointment_object(appointment)
             vitals.save()
             
             # ✅ Fixed manual logging
@@ -334,17 +362,392 @@ def record_vitals(request, patient_id):
             if patient.status == 'REGISTERED':
                 patient.status = 'VITALS_TAKEN'
                 patient.save(update_fields=['status'])
+            notify_roles(
+                patient.clinic,
+                ['DOCTOR'],
+                f"Vitals recorded for {patient.full_name}. Ready for consultation.",
+                link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+                app_name='medic',
+                object_id=patient.patient_id,
+                exclude_user=request.user,
+            )
 
             messages.success(request, "Vitals recorded successfully!")
             return redirect('core:patient_detail', pk=patient_id)
     else:
-        form = VitalsForm(initial={'appointment': appointment})
+        form = VitalsForm()
 
     return render(request, 'vitals/record_vitals.html', {
         'form': form,
         'patient': patient,
         'appointment': appointment
     })
+
+
+def _appointment_for_vitals(clinic_type, appointment_id, clinic):
+    if clinic_type == 'EYE':
+        from DurielEyeApp.models import EyeAppointment
+        return get_object_or_404(EyeAppointment, pk=appointment_id, clinic=clinic)
+    if clinic_type == 'DENTAL':
+        from DurielDentalApp.models import DentalAppointment
+        return get_object_or_404(DentalAppointment, pk=appointment_id, clinic=clinic)
+    return get_object_or_404(Appointment, pk=appointment_id, clinic=clinic)
+
+
+def _vitals_redirect(request, patient):
+    next_url = request.POST.get('next')
+    if next_url:
+        return redirect(next_url)
+    return redirect('core:patient_detail', pk=patient.patient_id)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST')
+def record_appointment_vitals(request, clinic_type, appointment_id):
+    clinic_type = clinic_type.upper()
+    appointment = _appointment_for_vitals(clinic_type, appointment_id, request.clinic)
+    patient = appointment.patient
+    appointment_type = ContentType.objects.get_for_model(appointment.__class__)
+    existing = Vitals.objects.filter(
+        appointment_content_type=appointment_type,
+        appointment_object_id=appointment.pk,
+    )
+    if isinstance(appointment, Appointment):
+        existing = existing | Vitals.objects.filter(appointment=appointment)
+    if existing.exists():
+        messages.info(request, "Vitals have already been recorded for this appointment.")
+        return _vitals_redirect(request, patient)
+
+    form = VitalsForm(request.POST)
+    if form.is_valid():
+        vitals = form.save(commit=False)
+        vitals.set_appointment_object(appointment)
+        vitals.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
+        vitals.save()
+        log_action(request, 'CREATE', vitals, details=f"Recorded vitals for {patient.full_name}")
+        if patient.status == 'REGISTERED':
+            patient.status = 'VITALS_TAKEN'
+            patient.save(update_fields=['status'])
+        next_roles = {
+            'GENERAL': ['DOCTOR'],
+            'EYE': ['DOCTOR', 'OPTOMETRIST'],
+            'DENTAL': ['DENTIST'],
+        }.get(clinic_type, ['DOCTOR'])
+        detail_links = {
+            'GENERAL': reverse('DurielMedicApp:appointment_detail', kwargs={'pk': appointment.pk}),
+            'EYE': reverse('DurielEyeApp:appointment_detail', kwargs={'pk': appointment.pk}),
+            'DENTAL': reverse('DurielDentalApp:appointment_detail', kwargs={'pk': appointment.pk}),
+        }
+        notify_role_handoff(
+            patient.clinic,
+            next_roles,
+            f"Vitals recorded for {patient.full_name}. Ready for consultation.",
+            link=detail_links.get(clinic_type, reverse('core:patient_detail', kwargs={'pk': patient.patient_id})),
+            app_name=clinic_type.lower(),
+            object_id=patient.patient_id,
+            actor=request.user,
+            provider=getattr(appointment, 'provider', None),
+        )
+        messages.success(request, "Vitals recorded successfully!")
+    else:
+        messages.error(request, "Vitals were not saved. Please check the required fields.")
+    return _vitals_redirect(request, patient)
+
+
+def _pending_vitals_items(clinic):
+    today = timezone.localdate()
+    items = []
+
+    def extend_for(model, clinic_type, detail_name):
+        appointment_type = ContentType.objects.get_for_model(model)
+        queryset = model.objects.filter(
+            clinic=clinic,
+            date__gte=today,
+            status='SCHEDULED',
+        ).select_related('patient', 'provider').annotate(
+            has_vitals=models.Exists(
+                Vitals.objects.filter(
+                    appointment_content_type=appointment_type,
+                    appointment_object_id=models.OuterRef('pk'),
+                )
+            )
+        ).filter(has_vitals=False).order_by('date', 'start_time')
+        if model is Appointment:
+            queryset = queryset.annotate(
+                has_general_vitals=models.Exists(Vitals.objects.filter(appointment_id=models.OuterRef('pk')))
+            ).filter(has_general_vitals=False)
+        for appointment in queryset:
+            items.append({
+                'appointment': appointment,
+                'clinic_type': clinic_type,
+                'detail_url': reverse(detail_name, kwargs={'pk': appointment.pk}),
+            })
+
+    if clinic.clinic_type == 'EYE':
+        from DurielEyeApp.models import EyeAppointment
+        extend_for(EyeAppointment, 'EYE', 'DurielEyeApp:appointment_detail')
+    elif clinic.clinic_type == 'DENTAL':
+        from DurielDentalApp.models import DentalAppointment
+        extend_for(DentalAppointment, 'DENTAL', 'DurielDentalApp:appointment_detail')
+    else:
+        extend_for(Appointment, 'GENERAL', 'DurielMedicApp:appointment_detail')
+
+    return items
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST')
+def vitals_queue(request):
+    items = _pending_vitals_items(request.clinic)
+    paginator = Paginator(items, 10)
+    page = request.GET.get('page', 1)
+    try:
+        vitals_page = paginator.page(page)
+    except PageNotAnInteger:
+        vitals_page = paginator.page(1)
+    except EmptyPage:
+        vitals_page = paginator.page(paginator.num_pages)
+
+    return render(request, 'vitals/vitals_queue.html', {
+        'vitals_items': vitals_page,
+        'today': timezone.localdate(),
+    })
+
+
+@login_required
+@clinic_selected_required
+def vitals_queue_count(request):
+    allowed_roles = {'ADMIN', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST'}
+    if request.user.role not in allowed_roles:
+        return JsonResponse({'count': 0})
+    return JsonResponse({'count': len(_pending_vitals_items(request.clinic))})
+
+
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR')
+def refer_to_physiotherapy(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
+    appointment_id = request.GET.get('appointment_id') or request.POST.get('appointment_id')
+    appointment = None
+    if appointment_id:
+        appointment = get_object_or_404(Appointment, pk=appointment_id, clinic=request.clinic, patient=patient)
+
+    if request.method == 'POST':
+        form = PhysiotherapyReferralForm(request.POST, clinic=request.clinic)
+        if form.is_valid():
+            referral = form.save(commit=False)
+            referral.patient = patient
+            referral.clinic = request.clinic
+            referral.appointment = appointment
+            referral.referred_by = request.user
+            referral.save()
+            log_action(request, 'CREATE', referral, details=f"Referred {patient.full_name} to physiotherapy")
+            notify_role_handoff(
+                request.clinic,
+                ['PHYSIOTHERAPIST'],
+                f"Physiotherapy referral for {patient.full_name}. Assessment pending.",
+                link=reverse('DurielMedicApp:physiotherapy_queue'),
+                app_name='physiotherapy',
+                object_id=referral.pk,
+                actor=request.user,
+                provider=referral.assigned_to,
+            )
+            messages.success(request, 'Physiotherapy referral created.')
+            return redirect('core:patient_detail', pk=patient.patient_id)
+    else:
+        form = PhysiotherapyReferralForm(clinic=request.clinic)
+
+    return render(request, 'physiotherapy/referral_form.html', {
+        'form': form,
+        'patient': patient,
+        'appointment': appointment,
+    })
+
+
+def _physiotherapy_referral_queryset(request):
+    queryset = PhysiotherapyReferral.objects.filter(
+        clinic=request.clinic,
+        status__in=['PENDING', 'ACCEPTED', 'IN_PROGRESS'],
+    ).select_related('patient', 'referred_by', 'assigned_to', 'appointment')
+    if request.user.role == 'PHYSIOTHERAPIST':
+        queryset = queryset.filter(Q(assigned_to=request.user) | Q(assigned_to__isnull=True))
+    return queryset.order_by('-created_at')
+
+
+def _physiotherapy_appointment_queryset(request):
+    queryset = Appointment.objects.filter(
+        clinic=request.clinic,
+        provider__role='PHYSIOTHERAPIST',
+        status__in=['SCHEDULED'],
+    ).select_related('patient', 'provider').order_by('date', 'start_time')
+    if request.user.role == 'PHYSIOTHERAPIST':
+        queryset = queryset.filter(provider=request.user)
+    return queryset
+
+
+def _complete_physiotherapy_work(request, patient, appointment=None):
+    completed_appointment = None
+    completed_referrals = []
+
+    if appointment is None and request.user.role == 'PHYSIOTHERAPIST':
+        appointment = Appointment.objects.filter(
+            clinic=request.clinic,
+            patient=patient,
+            provider=request.user,
+            provider__role='PHYSIOTHERAPIST',
+            status='SCHEDULED',
+        ).order_by('date', 'start_time').first()
+
+    if appointment and appointment.status != 'COMPLETED':
+        appointment.status = 'COMPLETED'
+        appointment.save(update_fields=['status'])
+        completed_appointment = appointment
+
+    referrals = PhysiotherapyReferral.objects.filter(
+        clinic=request.clinic,
+        patient=patient,
+        status__in=['PENDING', 'ACCEPTED', 'IN_PROGRESS'],
+    )
+    if appointment:
+        referrals = referrals.filter(Q(appointment=appointment) | Q(appointment__isnull=True))
+    if request.user.role == 'PHYSIOTHERAPIST':
+        referrals = referrals.filter(Q(assigned_to=request.user) | Q(assigned_to__isnull=True))
+
+    for referral in referrals:
+        referral.status = 'COMPLETED'
+        referral.completed_at = timezone.now()
+        if not referral.assigned_to_id and request.user.role == 'PHYSIOTHERAPIST':
+            referral.assigned_to = request.user
+        referral.save(update_fields=['status', 'completed_at', 'assigned_to', 'updated_at'])
+        completed_referrals.append(referral)
+
+    return completed_appointment, completed_referrals
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def physiotherapy_queue(request):
+    referrals = [{'kind': 'referral', 'item': referral} for referral in _physiotherapy_referral_queryset(request)]
+    appointments = [{'kind': 'appointment', 'item': appointment} for appointment in _physiotherapy_appointment_queryset(request)]
+    queue_items = sorted(
+        appointments + referrals,
+        key=lambda entry: (
+            getattr(entry['item'], 'date', None) or getattr(entry['item'], 'created_at', timezone.now()).date(),
+            getattr(entry['item'], 'start_time', None) or timezone.now().time(),
+        )
+    )
+    paginator = Paginator(queue_items, 10)
+    page = request.GET.get('page', 1)
+    try:
+        queue_page = paginator.page(page)
+    except PageNotAnInteger:
+        queue_page = paginator.page(1)
+    except EmptyPage:
+        queue_page = paginator.page(paginator.num_pages)
+    return render(request, 'physiotherapy/queue.html', {'queue_items': queue_page})
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+def update_physiotherapy_referral_status(request, referral_id, status):
+    normalized_status = status.upper()
+    valid_statuses = dict(PhysiotherapyReferral.STATUS_CHOICES)
+    if normalized_status not in valid_statuses:
+        messages.error(request, 'Invalid physiotherapy referral status.')
+        return redirect('DurielMedicApp:physiotherapy_queue')
+
+    referral = get_object_or_404(PhysiotherapyReferral, pk=referral_id, clinic=request.clinic)
+    if request.user.role == 'PHYSIOTHERAPIST' and referral.assigned_to_id not in [None, request.user.id]:
+        messages.error(request, 'This referral is assigned to another physiotherapist.')
+        return redirect('DurielMedicApp:physiotherapy_queue')
+
+    referral.status = normalized_status
+    if normalized_status in ['ACCEPTED', 'IN_PROGRESS'] and not referral.assigned_to_id and request.user.role == 'PHYSIOTHERAPIST':
+        referral.assigned_to = request.user
+    if normalized_status == 'COMPLETED':
+        referral.completed_at = timezone.now()
+    referral.save()
+    log_action(request, 'UPDATE', referral, details=f"Physiotherapy referral marked {valid_statuses[normalized_status]} for {referral.patient.full_name}")
+
+    if normalized_status == 'COMPLETED':
+        notify_role_handoff(
+            referral.clinic,
+            ['ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'],
+            f"Physiotherapy completed for {referral.patient.full_name}. Billing/review pending.",
+            link=reverse('core:patient_detail', kwargs={'pk': referral.patient.patient_id}),
+            app_name='physiotherapy',
+            object_id=referral.pk,
+            actor=request.user,
+            provider=referral.referred_by,
+        )
+
+    messages.success(request, f"Referral marked {valid_statuses[normalized_status].lower()}.")
+    return redirect('DurielMedicApp:physiotherapy_queue')
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'PHYSIOTHERAPIST')
+def complete_physiotherapy_consultation(request, appointment_id):
+    appointment = get_object_or_404(
+        Appointment.objects.select_related('patient', 'provider'),
+        pk=appointment_id,
+        clinic=request.clinic,
+        provider__role='PHYSIOTHERAPIST',
+    )
+    if request.user.role == 'PHYSIOTHERAPIST' and appointment.provider_id != request.user.id:
+        messages.error(request, 'This physiotherapy appointment is assigned to another provider.')
+        return redirect('DurielMedicApp:physiotherapy_queue')
+
+    completed_appointment, completed_referrals = _complete_physiotherapy_work(
+        request,
+        appointment.patient,
+        appointment=appointment,
+    )
+    if completed_appointment or completed_referrals:
+        ensure_appointment_consultation_charge(
+            appointment,
+            request.user,
+            description='Physiotherapy consultation',
+            source_type='PHYSIO_CONSULTATION',
+        )
+        log_action(
+            request,
+            'UPDATE',
+            appointment,
+            details=f"Completed physiotherapy consultation for {appointment.patient.full_name}",
+        )
+        notify_role_handoff(
+            appointment.clinic,
+            ['ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'],
+            f"Physiotherapy consultation completed for {appointment.patient.full_name}. Billing/review pending.",
+            link=f"{reverse('core:create_bill')}?patient={appointment.patient.patient_id}&appointment_id={appointment.pk}&appointment_type=general",
+            app_name='physiotherapy',
+            object_id=appointment.pk,
+            actor=request.user,
+            provider=appointment.provider,
+        )
+        messages.success(request, 'Physiotherapy consultation completed.')
+    else:
+        messages.info(request, 'This physiotherapy consultation was already completed.')
+    return redirect('DurielMedicApp:physiotherapy_queue')
+
+
+@login_required
+@clinic_selected_required
+def physiotherapy_queue_count(request):
+    if request.user.role not in {'ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST'}:
+        return JsonResponse({'count': 0})
+    count = _physiotherapy_referral_queryset(request).count() + _physiotherapy_appointment_queryset(request).count()
+    return JsonResponse({'count': count})
 
 
 # --------------------
@@ -447,6 +850,7 @@ def export_medical_record_pdf(request, record_id):
 
     record = get_object_or_404(MedicalRecord, pk=record_id, patient__clinic=request.clinic)
     patient = record.patient
+    log_action(request, 'UPDATE', record, details=f"Exported medical record PDF for {patient.full_name}")
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.75*inch, leftMargin=0.75*inch,
@@ -502,9 +906,23 @@ def export_medical_record_pdf(request, record_id):
 # Physiotherapy Records
 # --------------------
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+@clinic_selected_required
+@role_required('PHYSIOTHERAPIST')
 def add_physiotherapy_record(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
+    appointment = None
+    appointment_id = request.GET.get('appointment_id') or request.POST.get('appointment_id')
+    if appointment_id:
+        appointment = get_object_or_404(
+            Appointment,
+            pk=appointment_id,
+            clinic=request.clinic,
+            patient=patient,
+            provider__role='PHYSIOTHERAPIST',
+        )
+        if request.user.role == 'PHYSIOTHERAPIST' and appointment.provider_id != request.user.id:
+            messages.error(request, "This physiotherapy appointment is assigned to another provider.")
+            return redirect('DurielMedicApp:physiotherapy_queue')
     if request.method == 'POST':
         form = PhysiotherapyRecordForm(request.POST)
         if form.is_valid():
@@ -512,6 +930,36 @@ def add_physiotherapy_record(request, patient_id):
             record.patient = patient
             record.created_by = request.user
             record.save()
+            session_dates = [
+                value.strip()
+                for value in (record.session_dates or '').replace(',', '\n').splitlines()
+                if value.strip()
+            ]
+            session_count = record.session_count or len(session_dates)
+            if session_dates:
+                session_quantity = len(session_dates)
+                session_label = f"Physio Session ({', '.join(session_dates)})"
+            elif session_count:
+                session_quantity = session_count
+                session_label = f"Physio Session x{session_count}"
+            else:
+                session_quantity = 0
+                session_label = ''
+            if session_quantity:
+                ensure_billing_line_item(
+                    clinic=request.clinic,
+                    patient=patient,
+                    appointment=appointment,
+                    encounter=get_or_create_encounter_for_appointment(appointment, request.user) if appointment else None,
+                    source_obj=record,
+                    source_type='PHYSIO_SESSION',
+                    service=None,
+                    description=session_label,
+                    quantity=session_quantity,
+                    unit_price=0,
+                    created_by=request.user,
+                    auto_approve=True,
+                )
 
             log_action(
                 request,
@@ -519,22 +967,52 @@ def add_physiotherapy_record(request, patient_id):
                 record,
                 details=f"Added physiotherapy record for {patient.full_name}"
             )
+            completed_appointment, completed_referrals = _complete_physiotherapy_work(
+                request,
+                patient,
+                appointment=appointment,
+            )
+            if completed_appointment:
+                ensure_appointment_consultation_charge(
+                    completed_appointment,
+                    request.user,
+                    description='Physiotherapy consultation',
+                    source_type='PHYSIO_CONSULTATION',
+                )
+            if completed_appointment or completed_referrals:
+                notify_role_handoff(
+                    request.clinic,
+                    ['ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'],
+                    f"Physiotherapy consultation completed for {patient.full_name}. Billing/review pending.",
+                    link=(
+                        f"{reverse('core:create_bill')}?patient={patient.patient_id}"
+                        f"{f'&appointment_id={completed_appointment.pk}&appointment_type=general' if completed_appointment else ''}"
+                    ),
+                    app_name='physiotherapy',
+                    object_id=completed_appointment.pk if completed_appointment else patient.pk,
+                    actor=request.user,
+                    provider=completed_appointment.provider if completed_appointment else request.user,
+                )
 
             messages.success(request, 'Physiotherapy record added successfully!')
+            if appointment or completed_appointment or completed_referrals:
+                return redirect('DurielMedicApp:physiotherapy_queue')
             return redirect('core:patient_detail', pk=patient.pk)
     else:
         form = PhysiotherapyRecordForm()
 
     return render(request, 'physiotherapy_records/add_physiotherapy_record.html', {
         'form': form,
-        'patient': patient
+        'patient': patient,
+        'appointment': appointment,
     })
 
 
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+@clinic_selected_required
+@role_required('PHYSIOTHERAPIST')
 def edit_physiotherapy_record(request, record_id):
-    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id, patient__clinic=request.clinic)
     if request.method == 'POST':
         form = PhysiotherapyRecordForm(request.POST, instance=record)
         if form.is_valid():
@@ -559,9 +1037,10 @@ def edit_physiotherapy_record(request, record_id):
 
 
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+@clinic_selected_required
+@role_required('PHYSIOTHERAPIST')
 def delete_physiotherapy_record(request, record_id):
-    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id, patient__clinic=request.clinic)
     patient_id = record.patient.pk
 
     log_action(
@@ -577,7 +1056,8 @@ def delete_physiotherapy_record(request, record_id):
 
 
 @login_required
-@role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
+@clinic_selected_required
+@role_required('DOCTOR', 'PHYSIOTHERAPIST')
 def export_physiotherapy_record_pdf(request, record_id):
     """Export a physiotherapy record as PDF"""
     from io import BytesIO
@@ -587,8 +1067,9 @@ def export_physiotherapy_record_pdf(request, record_id):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
     from reportlab.lib import colors
 
-    record = get_object_or_404(PhysiotherapyRecord, pk=record_id)
+    record = get_object_or_404(PhysiotherapyRecord, pk=record_id, patient__clinic=request.clinic)
     patient = record.patient
+    log_action(request, 'UPDATE', record, details=f"Exported physiotherapy record PDF for {patient.full_name}")
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.75*inch, leftMargin=0.75*inch,
@@ -642,8 +1123,12 @@ def export_physiotherapy_record_pdf(request, record_id):
 
 def patient_search_api(request):
     query = request.GET.get('q', '')
-    results = Patient.objects.filter(full_name__icontains=query)
-    data = [{'id': p.id, 'name': p.full_name} for p in results]
+    results = Patient.objects.filter(clinic_id=request.session.get('clinic_id')).filter(
+        models.Q(first_name__icontains=query) |
+        models.Q(last_name__icontains=query) |
+        models.Q(patient_id__icontains=query)
+    )
+    data = [{'id': p.patient_id, 'name': p.full_name} for p in results]
     return JsonResponse({'results': data})
 
 
@@ -693,11 +1178,30 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return kwargs
     
     def form_valid(self, form):
-        form.instance.provider = self.request.user  # 👈 THIS is crucial
         form.instance.clinic_id = self.request.session.get('clinic_id')
 
         appointment = form.save(commit=False)
         appointment.save()
+        log_action(
+            self.request,
+            'CREATE',
+            appointment,
+            details=f"Created appointment for {appointment.patient.full_name} on {appointment.date}"
+        )
+        target_roles = ['DOCTOR', 'NURSE']
+        if appointment.provider and appointment.provider.role == 'PHYSIOTHERAPIST':
+            target_roles = ['PHYSIOTHERAPIST', 'NURSE']
+
+        notify_role_handoff(
+            appointment.clinic,
+            target_roles,
+            f"New general appointment for {appointment.patient.full_name} on {appointment.date}",
+            link=reverse('DurielMedicApp:appointment_detail', kwargs={'pk': appointment.pk}),
+            app_name='medic',
+            object_id=appointment.pk,
+            actor=self.request.user,
+            provider=appointment.provider,
+        )
 
         messages.success(self.request, 'Appointment scheduled successfully!')
         return redirect(self.success_url)
@@ -709,10 +1213,12 @@ class AppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
 
 @require_POST
 @login_required
+@clinic_selected_required
 def mark_appointment_completed(request, pk):
-    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment = get_object_or_404(Appointment, pk=pk, clinic=request.clinic)
     appointment.status = 'COMPLETED'
     appointment.save()
+    ensure_appointment_consultation_charge(appointment, request.user)
     
     # ✅ Fixed manual logging
     log_action(
@@ -734,8 +1240,9 @@ def mark_appointment_completed(request, pk):
 
 @require_POST
 @login_required
+@clinic_selected_required
 def mark_appointment_cancelled(request, pk):
-    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment = get_object_or_404(Appointment, pk=pk, clinic=request.clinic)
     appointment.status = 'CANCELLED'
     appointment.save()
     messages.warning(request, 'Appointment marked as cancelled.')
@@ -811,6 +1318,7 @@ def admit_patient(request, patient_id):
             if not admission.attending_doctor:
                 admission.attending_doctor = request.user
             admission.save()
+            get_or_create_encounter_for_admission(admission, request.user)
             ward = getattr(admission, 'ward', None)
 
             # If there is a scheduled appointment for today, mark it completed
@@ -849,9 +1357,10 @@ def admit_patient(request, patient_id):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def finish_consultation(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
 
     if patient.status not in ['CONSULTATION_COMPLETE', 'FOLLOW_UP_COMPLETE']:
         messages.error(request, "Patient is not ready to be finished.")
@@ -866,6 +1375,33 @@ def finish_consultation(request, patient_id):
         patient,
         details=f"Finished consultation for {patient.full_name}"
     )
+    appointment = Appointment.objects.filter(
+        clinic=request.clinic,
+        patient=patient,
+        status='COMPLETED',
+    ).order_by('-date', '-start_time', '-id').first()
+    if appointment:
+        link = (
+            f"{reverse('core:create_bill')}?patient={patient.patient_id}"
+            f"&appointment_id={appointment.pk}&appointment_type=general"
+        )
+        object_id = appointment.pk
+        provider = appointment.provider
+    else:
+        link = f"{reverse('core:create_bill')}?patient={patient.patient_id}"
+        object_id = patient.patient_id
+        provider = request.user
+
+    notify_role_handoff(
+        request.clinic,
+        ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],
+        f"Consultation completed for {patient.full_name}. Billing/review pending.",
+        link=link,
+        app_name='medic',
+        object_id=object_id,
+        actor=request.user,
+        provider=provider,
+    )
 
     messages.success(request, "Consultation finished.")
     return redirect('core:patient_detail', pk=patient_id)
@@ -874,9 +1410,10 @@ def finish_consultation(request, patient_id):
     
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def mark_ready_for_doctor(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     
     if patient.status != 'ADMITTED':
         messages.error(request, "Patient must be admitted before seeing doctor")
@@ -910,11 +1447,25 @@ def discharge_patient(request, patient_id):
             admission.discharged_at = timezone.now()
             admission.discharged_by = request.user
             admission.save()
+            encounter = get_or_create_encounter_for_admission(admission, request.user)
+            encounter.status = 'DISCHARGED'
+            encounter.ended_at = admission.discharged_at
+            encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
+            ensure_admission_charge(admission, request.user)
 
             log_action(request, 'UPDATE', admission, details=f"Discharged patient {admission.patient.full_name}")
 
             patient.status = 'DISCHARGED'
             patient.save(update_fields=['status'])
+            notify_roles(
+                patient.clinic,
+                ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],
+                f"Admission discharged for {patient.full_name}. Review discharge and next actions.",
+                link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+                app_name='medic',
+                object_id=patient.patient_id,
+                exclude_user=request.user,
+            )
 
             messages.success(request, "Patient discharged successfully")
             return redirect('core:patient_detail', pk=patient_id)
@@ -986,7 +1537,7 @@ def admission_list(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'DOCTOR', 'NURSE')
+@role_required('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST')
 def admission_detail(request, admission_id):
     admission = get_object_or_404(
         Admission.objects.select_related('patient', 'clinic', 'admitted_by', 'discharged_by', 'attending_doctor'),
@@ -1038,6 +1589,7 @@ def add_admission_prescription(request, admission_id):
         prescription.patient = admission.patient
         prescription.clinic = request.clinic
         prescription.admission = admission
+        prescription.encounter = get_or_create_encounter_for_admission(admission, request.user)
         prescription.prescribed_by = request.user
         prescription.custom_medication = None
         prescription.save()
@@ -1250,8 +1802,9 @@ def appointment_update(request, pk):
 
 # 4. Delete appointment
 @login_required
+@clinic_selected_required
 def appointment_delete(request, pk):
-    appointment = get_object_or_404(Appointment, pk=pk)
+    appointment = get_object_or_404(Appointment, pk=pk, clinic=request.clinic)
     
     if request.method == 'POST':
         appointment.delete()
@@ -1520,14 +2073,15 @@ def clear_notifications(request):
     ], ignore_conflicts=True)
 
     messages.success(request, "Notifications cleared")
-    return redirect(request.META.get('HTTP_REFERER', 'DurielMedicApp:dashboard'))
+    return redirect(request.META.get('HTTP_REFERER', 'core:clinic_dashboard'))
 
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def begin_consultation(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
     
     if patient.status != 'VITALS_TAKEN':
         messages.error(request, "Patient vitals must be taken before consultation")
@@ -1546,7 +2100,7 @@ def begin_consultation(request, patient_id):
 
     # ✅ Send notification to all active users
     User = get_user_model()
-    users = User.objects.filter(is_active=True)
+    users = User.objects.filter(clinic=request.clinic, is_active=True).distinct()
 
     for user in users:
         Notification.objects.create(
@@ -1565,9 +2119,10 @@ def begin_consultation(request, patient_id):
 from django.contrib.auth import get_user_model
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def complete_consultation(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id)
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
 
     if patient.status != 'IN_CONSULTATION':
         messages.error(request, "Patient must be in consultation first")
@@ -1605,6 +2160,15 @@ def complete_consultation(request, patient_id):
                 'UPDATE',
                 patient,
                 details=f"Completed consultation for {patient.full_name}"
+            )
+            notify_roles(
+                patient.clinic,
+                ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],
+                f"Consultation completed for {patient.full_name}. Review next action.",
+                link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+                app_name='medic',
+                object_id=patient.patient_id,
+                exclude_user=request.user,
             )
 
             messages.success(request, "Consultation completed. Add consultation billing manually if needed.")
@@ -1648,8 +2212,9 @@ def schedule_follow_up(request, patient_id):
     
     
 @login_required
+@clinic_selected_required
 def complete_follow_up(request, pk):
-    follow_up = get_object_or_404(FollowUp, pk=pk)
+    follow_up = get_object_or_404(FollowUp, pk=pk, patient__clinic=request.clinic)
     patient = follow_up.patient  # Get the patient from the follow-up
     
     if not follow_up.completed:

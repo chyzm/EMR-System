@@ -27,6 +27,10 @@
         <div class="bg-white rounded-lg shadow p-6">
             <form method="post">
                 {% csrf_token %}
+                {% if appointment %}
+                <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                <input type="hidden" name="appointment_type" value="{{ appointment_type }}">
+                {% endif %}
 
                 <!-- Priority Selection -->
                 <div class="mb-6">

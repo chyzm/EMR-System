@@ -584,6 +584,7 @@ imported by:
  &#8226;   <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
  &#8226;   <a href="#DurielDentalApp.migrations">DurielDentalApp.migrations</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielDentalApp.templatetags">DurielDentalApp.templatetags</a>
  &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.urls">DurielDentalApp.urls</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
@@ -667,6 +668,8 @@ imported by:
     <a href="#DurielDentalApp.migrations.0001_initial">DurielDentalApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more">DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -736,6 +739,44 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielDentalApp/migrations/0004_remove_dentalprocedure_cost_and_more.py" type="text/plain"><tt>DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielDentalApp.migrations">DurielDentalApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielDentalApp/migrations/0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more.py" type="text/plain"><tt>DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielDentalApp.migrations">DurielDentalApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="DurielDentalApp.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielDentalApp/models.py" type="text/plain"><tt>DurielDentalApp.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -754,9 +795,46 @@ imports:
 imported by:
     <a href="#DurielDentalApp.admin">DurielDentalApp.admin</a>
  &#8226;   <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
+ &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielDentalApp.templatetags"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielDentalApp/templatetags/__init__.py" type="text/plain"><tt>DurielDentalApp.templatetags</tt></a>
+<span class="moduletype">Package</span>  <div class="import">
+imports:
+    <a href="#DurielDentalApp">DurielDentalApp</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#DurielDentalApp.templatetags.dental_extras">DurielDentalApp.templatetags.dental_extras</a>
+ &#8226;   <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielDentalApp.templatetags.dental_extras"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielDentalApp/templatetags/dental_extras.py" type="text/plain"><tt>DurielDentalApp.templatetags.dental_extras</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielDentalApp.templatetags">DurielDentalApp.templatetags</a>
+ &#8226;   <a href="#django">django</a>
+ &#8226;   <a href="#django.template">django.template</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
 
   </div>
 
@@ -768,7 +846,14 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DurielDentalApp">DurielDentalApp</a>
+ &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#datetime">datetime</a>
+ &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.test">django.test</a>
+ &#8226;   <a href="#django.urls">django.urls</a>
+ &#8226;   <a href="#django.utils">django.utils</a>
+ &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
 
   </div>
   <div class="import">
@@ -805,14 +890,18 @@ imports:
     <a href="#DurielDentalApp">DurielDentalApp</a>
  &#8226;   <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core.decorators">core.decorators</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.permissions">core.permissions</a>
  &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#django.contrib">django.contrib</a>
  &#8226;   <a href="#django.contrib.auth.decorators">django.contrib.auth.decorators</a>
  &#8226;   <a href="#django.contrib.auth.mixins">django.contrib.auth.mixins</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.contrib.messages">django.contrib.messages</a>
+ &#8226;   <a href="#django.core.paginator">django.core.paginator</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
  &#8226;   <a href="#django.http">django.http</a>
  &#8226;   <a href="#django.shortcuts">django.shortcuts</a>
@@ -821,6 +910,15 @@ imports:
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
  &#8226;   <a href="#django.views.decorators.http">django.views.decorators.http</a>
  &#8226;   <a href="#django.views.generic">django.views.generic</a>
+ &#8226;   <a href="#html">html</a>
+ &#8226;   <a href="#io">io</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#reportlab.lib">reportlab.lib</a>
+ &#8226;   <a href="#reportlab.lib.colors">reportlab.lib.colors</a>
+ &#8226;   <a href="#reportlab.lib.pagesizes">reportlab.lib.pagesizes</a>
+ &#8226;   <a href="#reportlab.lib.styles">reportlab.lib.styles</a>
+ &#8226;   <a href="#reportlab.lib.units">reportlab.lib.units</a>
+ &#8226;   <a href="#reportlab.platypus">reportlab.platypus</a>
 
   </div>
   <div class="import">
@@ -933,6 +1031,8 @@ imported by:
     <a href="#DurielEyeApp.migrations.0001_initial">DurielEyeApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0003_eye_sync_ids">DurielEyeApp.migrations.0003_eye_sync_ids</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more">DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -1000,6 +1100,45 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielEyeApp/migrations/0004_eyeexam_anterior_segment_findings_and_more.py" type="text/plain"><tt>DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielEyeApp.migrations">DurielEyeApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielEyeApp.migrations.0005_eyeexam_encounter"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielEyeApp/migrations/0005_eyeexam_encounter.py" type="text/plain"><tt>DurielEyeApp.migrations.0005_eyeexam_encounter</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielEyeApp.migrations">DurielEyeApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="DurielEyeApp.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielEyeApp/models.py" type="text/plain"><tt>DurielEyeApp.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -1017,6 +1156,7 @@ imported by:
     <a href="#DurielEyeApp.admin">DurielEyeApp.admin</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
@@ -1068,6 +1208,7 @@ imports:
     <a href="#DurielEyeApp">DurielEyeApp</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core.decorators">core.decorators</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.utils">core.utils</a>
@@ -1079,6 +1220,7 @@ imports:
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.auth.decorators">django.contrib.auth.decorators</a>
  &#8226;   <a href="#django.contrib.auth.mixins">django.contrib.auth.mixins</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.contrib.messages">django.contrib.messages</a>
  &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.paginator">django.core.paginator</a>
@@ -1353,9 +1495,11 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#DurielMedicApp.management.commands">DurielMedicApp.management.commands</a>
- &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+ &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
  &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.management.base">django.core.management.base</a>
+ &#8226;   <a href="#django.urls">django.urls</a>
  &#8226;   <a href="#django.utils">django.utils</a>
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
 
@@ -1385,6 +1529,12 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more">DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more">DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count">DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -1537,6 +1687,125 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0008_vitals_appointment_content_type_and_more.py" type="text/plain"><tt>DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more.py" type="text/plain"><tt>DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0010_admission_encounter_medicalrecord_encounter_and_more.py" type="text/plain"><tt>DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0011_physiotherapyreferral"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0011_physiotherapyreferral.py" type="text/plain"><tt>DurielMedicApp.migrations.0011_physiotherapyreferral</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+ &#8226;   <a href="#uuid">uuid</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0012_physiotherapyrecord_session_count_and_more.py" type="text/plain"><tt>DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/migrations/0013_alter_physiotherapyrecord_session_count.py" type="text/plain"><tt>DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielMedicApp.migrations">DurielMedicApp.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="DurielMedicApp.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/models.py" type="text/plain"><tt>DurielMedicApp.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -1544,6 +1813,8 @@ imports:
     <a href="#DurielMedicApp">DurielMedicApp</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#django.conf">django.conf</a>
+ &#8226;   <a href="#django.contrib.contenttypes.fields">django.contrib.contenttypes.fields</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.db">django.db</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
  &#8226;   <a href="#django.utils">django.utils</a>
@@ -1553,13 +1824,13 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.admin">DurielMedicApp.admin</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.admin">DurielMedicApp.admin</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
- &#8226;   <a href="#DurielMedicApp.management.commands.send_birthday_notifications">DurielMedicApp.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
- &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
@@ -1692,7 +1963,9 @@ imported by:
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/DurielMedicApp/views.py" type="text/plain"><tt>DurielMedicApp.views</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#DurielMedicApp">DurielMedicApp</a>
+    <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
+ &#8226;   <a href="#DurielMedicApp">DurielMedicApp</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.utils">DurielMedicApp.utils</a>
@@ -1709,6 +1982,7 @@ imports:
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.auth.decorators">django.contrib.auth.decorators</a>
  &#8226;   <a href="#django.contrib.auth.mixins">django.contrib.auth.mixins</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.contrib.messages">django.contrib.messages</a>
  &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.paginator">django.core.paginator</a>
@@ -8724,6 +8998,7 @@ imported by:
 <span class="moduletype">Package</span>  <div class="import">
 imports:
     <a href="#core">core</a>
+ &#8226;   <a href="#core.views">core.views</a>
 
   </div>
   <div class="import">
@@ -8731,6 +9006,7 @@ imported by:
     <a href="#core">core</a>
  &#8226;   <a href="#core.admin">core.admin</a>
  &#8226;   <a href="#core.apps">core.apps</a>
+ &#8226;   <a href="#core.auth_backends">core.auth_backends</a>
  &#8226;   <a href="#core.consumers">core.consumers</a>
  &#8226;   <a href="#core.context_processors">core.context_processors</a>
  &#8226;   <a href="#core.decorators">core.decorators</a>
@@ -8739,6 +9015,7 @@ imported by:
  &#8226;   <a href="#core.middleware">core.middleware</a>
  &#8226;   <a href="#core.migrations">core.migrations</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.permissions">core.permissions</a>
  &#8226;   <a href="#core.routing">core.routing</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
@@ -8798,6 +9075,25 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="core.auth_backends"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/auth_backends.py" type="text/plain"><tt>core.auth_backends</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core">core</a>
+ &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
+ &#8226;   <a href="#django.contrib.auth.backends">django.contrib.auth.backends</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="core.consumers"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/consumers.py" type="text/plain"><tt>core.consumers</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -8823,6 +9119,7 @@ imported by:
 imports:
     <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.permissions">core.permissions</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
 
   </div>
@@ -9057,10 +9354,12 @@ imported by:
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/management/commands/send_birthday_notifications.py" type="text/plain"><tt>core.management.commands.send_birthday_notifications</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
- &#8226;   <a href="#core.management.commands">core.management.commands</a>
+    <a href="#core.management.commands">core.management.commands</a>
+ &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
  &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.management.base">django.core.management.base</a>
+ &#8226;   <a href="#django.urls">django.urls</a>
  &#8226;   <a href="#django.utils">django.utils</a>
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
 
@@ -9149,6 +9448,12 @@ imported by:
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0007_alter_customuser_role">core.migrations.0007_alter_customuser_role</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
+ &#8226;   <a href="#core.migrations.0012_alter_billinglineitem_source_type">core.migrations.0012_alter_billinglineitem_source_type</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -9286,6 +9591,129 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="core.migrations.0007_alter_customuser_role"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0007_alter_customuser_role.py" type="text/plain"><tt>core.migrations.0007_alter_customuser_role</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0008_alter_billing_appointment_content_type_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0008_alter_billing_appointment_content_type_and_more.py" type="text/plain"><tt>core.migrations.0008_alter_billing_appointment_content_type_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0009_patientencounter_billing_encounter_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0009_patientencounter_billing_encounter_and_more.py" type="text/plain"><tt>core.migrations.0009_patientencounter_billing_encounter_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+ &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
+ &#8226;   <a href="#uuid">uuid</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0010_billinglineitem"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0010_billinglineitem.py" type="text/plain"><tt>core.migrations.0010_billinglineitem</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+ &#8226;   <a href="#uuid">uuid</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0011_alter_customuser_options_alter_customuser_email_and_more.py" type="text/plain"><tt>core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.contrib.auth.validators">django.contrib.auth.validators</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0012_alter_billinglineitem_source_type"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0012_alter_billinglineitem_source_type.py" type="text/plain"><tt>core.migrations.0012_alter_billinglineitem_source_type</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="core.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/models.py" type="text/plain"><tt>core.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -9312,11 +9740,13 @@ imports:
 imported by:
     <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
+ &#8226;   <a href="#DurielMedicApp.management.commands.send_birthday_notifications">DurielMedicApp.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
@@ -9327,6 +9757,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
  &#8226;   <a href="#core.management.commands.backup_patients">core.management.commands.backup_patients</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
+ &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
@@ -9334,6 +9765,25 @@ imported by:
  &#8226;   <a href="#core.templatetags.notification_tags">core.templatetags.notification_tags</a>
  &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.utils">core.utils</a>
+ &#8226;   <a href="#core.views">core.views</a>
+ &#8226;   <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.permissions"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/permissions.py" type="text/plain"><tt>core.permissions</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core">core</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#core.context_processors">core.context_processors</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
 
@@ -9571,11 +10021,17 @@ imports:
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
+ &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#decimal">decimal</a>
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
+ &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
+ &#8226;   <a href="#django.core">django.core</a>
  &#8226;   <a href="#django.core.files.uploadedfile">django.core.files.uploadedfile</a>
+ &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.management">django.core.management</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.transaction">django.db.transaction</a>
  &#8226;   <a href="#django.test">django.test</a>
  &#8226;   <a href="#django.urls">django.urls</a>
  &#8226;   <a href="#django.utils">django.utils</a>
@@ -9625,6 +10081,8 @@ imports:
     <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#datetime">datetime</a>
+ &#8226;   <a href="#decimal">decimal</a>
+ &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.utils">django.utils</a>
  &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
@@ -9636,6 +10094,7 @@ imported by:
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
 
@@ -9658,6 +10117,7 @@ imports:
  &#8226;   <a href="#core.decorators">core.decorators</a>
  &#8226;   <a href="#core.forms">core.forms</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.permissions">core.permissions</a>
  &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#csv">csv</a>
  &#8226;   <a href="#datetime">datetime</a>
@@ -9680,6 +10140,7 @@ imports:
  &#8226;   <a href="#django.core.signing">django.core.signing</a>
  &#8226;   <a href="#django.db">django.db</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.DecimalField">django.db.models.DecimalField</a>
  &#8226;   <a href="#django.db.models.functions">django.db.models.functions</a>
  &#8226;   <a href="#django.db.transaction">django.db.transaction</a>
  &#8226;   <a href="#django.forms">django.forms</a>
@@ -9707,6 +10168,7 @@ imports:
 imported by:
     <a href="#DurielMedicApp.urls">DurielMedicApp.urls</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.urls">core.urls</a>
  &#8226;   <a href="#django">django</a>
 
@@ -11906,7 +12368,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+    <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
+ &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
@@ -12027,6 +12490,7 @@ imported by:
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.templatetags.custom_filters">core.templatetags.custom_filters</a>
  &#8226;   <a href="#core.tests">core.tests</a>
+ &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django.contrib.admin.utils">django.contrib.admin.utils</a>
  &#8226;   <a href="#django.contrib.gis.db.models.functions">django.contrib.gis.db.models.functions</a>
@@ -12155,7 +12619,11 @@ imports:
  &#8226;   <a href="#DurielDentalApp.migrations.0001_initial">DurielDentalApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more">DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielDentalApp.templatetags">DurielDentalApp.templatetags</a>
+ &#8226;   <a href="#DurielDentalApp.templatetags.dental_extras">DurielDentalApp.templatetags.dental_extras</a>
  &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.urls">DurielDentalApp.urls</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
@@ -12167,6 +12635,8 @@ imports:
  &#8226;   <a href="#DurielEyeApp.migrations.0001_initial">DurielEyeApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0003_eye_sync_ids">DurielEyeApp.migrations.0003_eye_sync_ids</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more">DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
  &#8226;   <a href="#DurielEyeApp.tests">DurielEyeApp.tests</a>
  &#8226;   <a href="#DurielEyeApp.urls">DurielEyeApp.urls</a>
@@ -12191,6 +12661,12 @@ imports:
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more">DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more">DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count">DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.templatetags">DurielMedicApp.templatetags</a>
  &#8226;   <a href="#DurielMedicApp.templatetags.financial_tags">DurielMedicApp.templatetags.financial_tags</a>
@@ -12202,6 +12678,7 @@ imports:
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.admin">core.admin</a>
  &#8226;   <a href="#core.apps">core.apps</a>
+ &#8226;   <a href="#core.auth_backends">core.auth_backends</a>
  &#8226;   <a href="#core.consumers">core.consumers</a>
  &#8226;   <a href="#core.context_processors">core.context_processors</a>
  &#8226;   <a href="#core.decorators">core.decorators</a>
@@ -12224,7 +12701,14 @@ imports:
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0007_alter_customuser_role">core.migrations.0007_alter_customuser_role</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
+ &#8226;   <a href="#core.migrations.0012_alter_billinglineitem_source_type">core.migrations.0012_alter_billinglineitem_source_type</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.permissions">core.permissions</a>
  &#8226;   <a href="#core.routing">core.routing</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
@@ -13078,6 +13562,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
+ &#8226;   <a href="#DurielDentalApp.templatetags.dental_extras">DurielDentalApp.templatetags.dental_extras</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
  &#8226;   <a href="#DurielMedicApp.templatetags.financial_tags">DurielMedicApp.templatetags.financial_tags</a>
@@ -13356,18 +13841,23 @@ imported by:
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedic.urls">DurielMedic.urls</a>
+ &#8226;   <a href="#DurielMedicApp.management.commands.send_birthday_notifications">DurielMedicApp.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0002_initial">DurielMedicApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#channels.layers">channels.layers</a>
  &#8226;   <a href="#core.management.commands.backup_patients">core.management.commands.backup_patients</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
+ &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.management.commands.sync_worker">core.management.commands.sync_worker</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
@@ -17579,14 +18069,17 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
+    <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
+ &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.auth_backends">core.auth_backends</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.urls">core.urls</a>
+ &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.options">django.contrib.admin.options</a>
@@ -17704,7 +18197,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#django">django</a>
+    <a href="#core.auth_backends">core.auth_backends</a>
+ &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.auth.middleware">django.contrib.auth.middleware</a>
  &#8226;   <a href="#django.test.signals">django.test.signals</a>
@@ -18500,6 +18994,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.auth.migrations.0001_initial">django.contrib.auth.migrations.0001_initial</a>
  &#8226;   <a href="#django.contrib.auth.migrations.0004_alter_user_username_opts">django.contrib.auth.migrations.0004_alter_user_username_opts</a>
@@ -18685,7 +19180,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#core.models">core.models</a>
+    <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+ &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.contenttypes.admin">django.contrib.contenttypes.admin</a>
  &#8226;   <a href="#django.contrib.contenttypes.checks">django.contrib.contenttypes.checks</a>
@@ -18850,10 +19346,15 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#core.models">core.models</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
@@ -24461,6 +24962,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.__main__">django.__main__</a>
@@ -25967,6 +26469,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.signals">core.signals</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.auth.forms">django.contrib.auth.forms</a>
@@ -27160,7 +27663,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
@@ -27557,10 +28061,14 @@ imported by:
     <a href="#DurielDentalApp.migrations.0001_initial">DurielDentalApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more">DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0001_initial">DurielEyeApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0003_eye_sync_ids">DurielEyeApp.migrations.0003_eye_sync_ids</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more">DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0001_initial">DurielMedicApp.migrations.0001_initial</a>
@@ -27570,6 +28078,12 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more">DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more">DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count">DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#channels.db">channels.db</a>
@@ -27581,9 +28095,16 @@ imported by:
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0007_alter_customuser_role">core.migrations.0007_alter_customuser_role</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
+ &#8226;   <a href="#core.migrations.0012_alter_billinglineitem_source_type">core.migrations.0012_alter_billinglineitem_source_type</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.checks">django.contrib.admin.checks</a>
@@ -29276,9 +29797,13 @@ imported by:
     <a href="#DurielDentalApp.migrations.0001_initial">DurielDentalApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more">DurielDentalApp.migrations.0004_remove_dentalprocedure_cost_and_more</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0001_initial">DurielEyeApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0003_eye_sync_ids">DurielEyeApp.migrations.0003_eye_sync_ids</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more">DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0001_initial">DurielMedicApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0002_initial">DurielMedicApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0003_offline_sync_ids">DurielMedicApp.migrations.0003_offline_sync_ids</a>
@@ -29286,12 +29811,24 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more">DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more">DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count">DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0007_alter_customuser_role">core.migrations.0007_alter_customuser_role</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
+ &#8226;   <a href="#core.migrations.0012_alter_billinglineitem_source_type">core.migrations.0012_alter_billinglineitem_source_type</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0001_initial">django.contrib.admin.migrations.0001_initial</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0002_logentry_remove_auto_add">django.contrib.admin.migrations.0002_logentry_remove_auto_add</a>
@@ -29877,11 +30414,14 @@ imported by:
     <a href="#DurielDentalApp.migrations.0001_initial">DurielDentalApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0001_initial">DurielEyeApp.migrations.0001_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0003_eye_sync_ids">DurielEyeApp.migrations.0003_eye_sync_ids</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more">DurielEyeApp.migrations.0004_eyeexam_anterior_segment_findings_and_more</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.forms">DurielMedicApp.forms</a>
@@ -29892,15 +30432,28 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more">DurielMedicApp.migrations.0009_vitals_bmi_vitals_height_vitals_oxygen_saturation_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more">DurielMedicApp.migrations.0012_physiotherapyrecord_session_count_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count">DurielMedicApp.migrations.0013_alter_physiotherapyrecord_session_count</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.admin">core.admin</a>
+ &#8226;   <a href="#core.auth_backends">core.auth_backends</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0007_alter_customuser_role">core.migrations.0007_alter_customuser_role</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more">core.migrations.0011_alter_customuser_options_alter_customuser_email_and_more</a>
+ &#8226;   <a href="#core.migrations.0012_alter_billinglineitem_source_type">core.migrations.0012_alter_billinglineitem_source_type</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
@@ -30102,6 +30655,7 @@ imported by:
     <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django.db.backends.oracle.functions">django.db.backends.oracle.functions</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
 
@@ -30369,15 +30923,23 @@ imports:
 imported by:
     <a href="#DurielDentalApp.migrations.0002_initial">DurielDentalApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
+ &#8226;   <a href="#DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more">DurielDentalApp.migrations.0005_dentalexam_encounter_dentalmedicalrecord_encounter_and_more</a>
  &#8226;   <a href="#DurielEyeApp.migrations.0002_initial">DurielEyeApp.migrations.0002_initial</a>
+ &#8226;   <a href="#DurielEyeApp.migrations.0005_eyeexam_encounter">DurielEyeApp.migrations.0005_eyeexam_encounter</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0002_initial">DurielMedicApp.migrations.0002_initial</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0007_medication_administration_billing">DurielMedicApp.migrations.0007_medication_administration_billing</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more">DurielMedicApp.migrations.0008_vitals_appointment_content_type_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more">DurielMedicApp.migrations.0010_admission_encounter_medicalrecord_encounter_and_more</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
+ &#8226;   <a href="#core.migrations.0008_alter_billing_appointment_content_type_and_more">core.migrations.0008_alter_billing_appointment_content_type_and_more</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.utils">django.contrib.admin.utils</a>
  &#8226;   <a href="#django.contrib.contenttypes.management.commands.remove_stale_contenttypes">django.contrib.contenttypes.management.commands.remove_stale_contenttypes</a>
@@ -31618,6 +32180,7 @@ imported by:
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.options">django.contrib.admin.options</a>
@@ -32546,7 +33109,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.templatetags.financial_tags">DurielMedicApp.templatetags.financial_tags</a>
+    <a href="#DurielDentalApp.templatetags.dental_extras">DurielDentalApp.templatetags.dental_extras</a>
+ &#8226;   <a href="#DurielMedicApp.templatetags.financial_tags">DurielMedicApp.templatetags.financial_tags</a>
  &#8226;   <a href="#DurielMedicApp.templatetags.math_filters">DurielMedicApp.templatetags.math_filters</a>
  &#8226;   <a href="#core.templatetags.custom_filters">core.templatetags.custom_filters</a>
  &#8226;   <a href="#core.templatetags.inventory_filters">core.templatetags.inventory_filters</a>
@@ -33776,15 +34340,18 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielDentalApp.urls">DurielDentalApp.urls</a>
+    <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
+ &#8226;   <a href="#DurielDentalApp.urls">DurielDentalApp.urls</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.urls">DurielEyeApp.urls</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedic.urls">DurielMedic.urls</a>
+ &#8226;   <a href="#DurielMedicApp.management.commands.send_birthday_notifications">DurielMedicApp.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.urls">DurielMedicApp.urls</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
+ &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.routing">core.routing</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.tests">core.tests</a>
@@ -34016,6 +34583,7 @@ imports:
 imported by:
     <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
@@ -35410,6 +35978,7 @@ imported by:
     <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
  &#8226;   <a href="#DurielDentalApp.migrations.0003_standard_dental_clinic">DurielDentalApp.migrations.0003_standard_dental_clinic</a>
  &#8226;   <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
@@ -35426,6 +35995,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
@@ -40515,7 +41085,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#django.http.multipartparser">django.http.multipartparser</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#django.http.multipartparser">django.http.multipartparser</a>
  &#8226;   <a href="#django.test.html">django.test.html</a>
  &#8226;   <a href="#django.utils.html">django.utils.html</a>
  &#8226;   <a href="#django.utils.text">django.utils.text</a>
@@ -41525,7 +42096,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#PIL.AvifImagePlugin">PIL.AvifImagePlugin</a>
  &#8226;   <a href="#PIL.BlpImagePlugin">PIL.BlpImagePlugin</a>
  &#8226;   <a href="#PIL.DdsImagePlugin">PIL.DdsImagePlugin</a>
@@ -42529,6 +43101,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#DurielDentalApp.forms">DurielDentalApp.forms</a>
+ &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#channels.generic.websocket">channels.generic.websocket</a>
  &#8226;   <a href="#charset_normalizer.models">charset_normalizer.models</a>
  &#8226;   <a href="#core.consumers">core.consumers</a>
@@ -55337,7 +55910,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.graphics.charts.legends">reportlab.graphics.charts.legends</a>
  &#8226;   <a href="#reportlab.graphics.charts.piecharts">reportlab.graphics.charts.piecharts</a>
  &#8226;   <a href="#reportlab.graphics.charts.textlabels">reportlab.graphics.charts.textlabels</a>
@@ -55507,7 +56081,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.graphics.charts.areas">reportlab.graphics.charts.areas</a>
  &#8226;   <a href="#reportlab.graphics.charts.legends">reportlab.graphics.charts.legends</a>
  &#8226;   <a href="#reportlab.graphics.charts.piecharts">reportlab.graphics.charts.piecharts</a>
@@ -55689,7 +56264,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.rl_config">reportlab.rl_config</a>
 
   </div>
@@ -55886,7 +56462,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.graphics.charts.textlabels">reportlab.graphics.charts.textlabels</a>
  &#8226;   <a href="#reportlab.platypus.doctemplate">reportlab.platypus.doctemplate</a>
  &#8226;   <a href="#reportlab.platypus.flowables">reportlab.platypus.flowables</a>
@@ -55934,7 +56511,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.graphics.testshapes">reportlab.graphics.testshapes</a>
  &#8226;   <a href="#reportlab.lib.corp">reportlab.lib.corp</a>
  &#8226;   <a href="#reportlab.lib.pagesizes">reportlab.lib.pagesizes</a>
@@ -56900,7 +57478,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+    <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
+ &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#reportlab.graphics.charts.textlabels">reportlab.graphics.charts.textlabels</a>
  &#8226;   <a href="#reportlab.graphics.renderPDF">reportlab.graphics.renderPDF</a>
  &#8226;   <a href="#reportlab.graphics.shapes">reportlab.graphics.shapes</a>
@@ -62463,6 +63042,7 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.migrations.0004_admission_inpatient_chart">DurielMedicApp.migrations.0004_admission_inpatient_chart</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0005_admission_handover">DurielMedicApp.migrations.0005_admission_handover</a>
  &#8226;   <a href="#DurielMedicApp.migrations.0006_physiotherapy_sync">DurielMedicApp.migrations.0006_physiotherapy_sync</a>
+ &#8226;   <a href="#DurielMedicApp.migrations.0011_physiotherapyreferral">DurielMedicApp.migrations.0011_physiotherapyreferral</a>
  &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
@@ -62470,6 +63050,8 @@ imported by:
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
  &#8226;   <a href="#core.migrations.0004_prescription_sync_id">core.migrations.0004_prescription_sync_id</a>
  &#8226;   <a href="#core.migrations.0005_expand_server_sync">core.migrations.0005_expand_server_sync</a>
+ &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
+ &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>

@@ -189,6 +189,8 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 # AUTH_USER_MODEL = 'DurielMedicApp.CustomUser'
 AUTH_USER_MODEL = 'core.CustomUser'
+AUTHENTICATION_BACKENDS = ['core.auth_backends.EmailOrUsernameBackend']
+SILENCED_SYSTEM_CHECKS = ['auth.W004']
 
 
 MEDIA_URL = '/media/'

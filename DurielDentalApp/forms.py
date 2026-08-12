@@ -43,7 +43,7 @@ class DentalAppointmentForm(forms.ModelForm):
             self.fields['provider'].queryset = CustomUser.objects.filter(
                 clinic__id=clinic_id,
                 is_active=True,
-                role__in=['DOCTOR', 'ADMIN'],
+                role__in=['DENTIST', 'ADMIN'],
             ).distinct()
         else:
             self.fields['patient'].queryset = Patient.objects.none()
@@ -115,14 +115,13 @@ class DentalExamForm(forms.ModelForm):
 class DentalTreatmentPlanForm(forms.ModelForm):
     class Meta:
         model = DentalTreatmentPlan
-        fields = ['exam', 'title', 'diagnosis', 'proposed_treatment', 'priority', 'estimated_cost', 'status', 'consent_obtained', 'consent_notes']
+        fields = ['exam', 'title', 'diagnosis', 'proposed_treatment', 'priority', 'status', 'consent_obtained', 'consent_notes']
         widgets = {
             'exam': forms.Select(attrs={'class': BASE_INPUT}),
             'title': forms.TextInput(attrs={'class': BASE_INPUT}),
             'diagnosis': forms.Textarea(attrs={'rows': 3, 'class': BASE_INPUT}),
             'proposed_treatment': forms.Textarea(attrs={'rows': 4, 'class': BASE_INPUT}),
             'priority': forms.Select(attrs={'class': BASE_INPUT}),
-            'estimated_cost': forms.NumberInput(attrs={'class': BASE_INPUT, 'step': '0.01'}),
             'status': forms.Select(attrs={'class': BASE_INPUT}),
             'consent_notes': forms.Textarea(attrs={'rows': 2, 'class': BASE_INPUT}),
         }
@@ -137,7 +136,7 @@ class DentalTreatmentPlanForm(forms.ModelForm):
 class DentalProcedureForm(forms.ModelForm):
     class Meta:
         model = DentalProcedure
-        fields = ['appointment', 'treatment_plan', 'tooth_numbers', 'procedure_name', 'materials_used', 'anesthesia', 'notes', 'cost', 'status', 'performed_at']
+        fields = ['appointment', 'treatment_plan', 'tooth_numbers', 'procedure_name', 'materials_used', 'anesthesia', 'notes', 'status', 'performed_at']
         widgets = {
             'appointment': forms.Select(attrs={'class': BASE_INPUT}),
             'treatment_plan': forms.Select(attrs={'class': BASE_INPUT}),
@@ -146,7 +145,6 @@ class DentalProcedureForm(forms.ModelForm):
             'materials_used': forms.Textarea(attrs={'rows': 2, 'class': BASE_INPUT}),
             'anesthesia': forms.TextInput(attrs={'class': BASE_INPUT}),
             'notes': forms.Textarea(attrs={'rows': 3, 'class': BASE_INPUT}),
-            'cost': forms.NumberInput(attrs={'class': BASE_INPUT, 'step': '0.01'}),
             'status': forms.Select(attrs={'class': BASE_INPUT}),
             'performed_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': BASE_INPUT}),
         }
@@ -160,6 +158,18 @@ class DentalProcedureForm(forms.ModelForm):
 
 
 class DentalFollowUpForm(forms.ModelForm):
+    class Meta:
+        model = DentalFollowUp
+        fields = ['reason', 'scheduled_date', 'scheduled_time', 'notes']
+        widgets = {
+            'reason': forms.Textarea(attrs={'rows': 3, 'class': BASE_INPUT}),
+            'scheduled_date': forms.DateInput(attrs={'type': 'date', 'class': BASE_INPUT}),
+            'scheduled_time': forms.TimeInput(attrs={'type': 'time', 'class': BASE_INPUT}),
+            'notes': forms.Textarea(attrs={'rows': 2, 'class': BASE_INPUT}),
+        }
+
+
+class DentalFollowUpClinicalForm(forms.ModelForm):
     class Meta:
         model = DentalFollowUp
         fields = ['treatment_plan', 'reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']

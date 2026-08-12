@@ -39,7 +39,9 @@ urlpatterns = [
     
     # Vitals
     path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
-    path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
+    path('appointments/<str:clinic_type>/<int:appointment_id>/vitals/', views.record_appointment_vitals, name='record_appointment_vitals'),
+    path('vitals/queue/', views.vitals_queue, name='vitals_queue'),
+    path('vitals/queue/count/', views.vitals_queue_count, name='vitals_queue_count'),
 
     # Admission
     path('patients/<str:patient_id>/admit/', views.admit_patient, name='admit_patient'),
@@ -72,6 +74,11 @@ urlpatterns = [
     path('reports/generate/', views.generate_report, name='generate_report'),
 
     # Physiotherapy Records
+    path('physiotherapy/queue/', views.physiotherapy_queue, name='physiotherapy_queue'),
+    path('physiotherapy/queue/count/', views.physiotherapy_queue_count, name='physiotherapy_queue_count'),
+    path('physiotherapy/referrals/<int:referral_id>/<str:status>/', views.update_physiotherapy_referral_status, name='update_physiotherapy_referral_status'),
+    path('physiotherapy/appointments/<int:appointment_id>/complete/', views.complete_physiotherapy_consultation, name='complete_physiotherapy_consultation'),
+    path('patients/<str:patient_id>/physiotherapy/refer/', views.refer_to_physiotherapy, name='refer_to_physiotherapy'),
     path('patients/<str:patient_id>/physiotherapy-records/add/', views.add_physiotherapy_record, name='add_physiotherapy_record'),
     path('physiotherapy-records/<int:record_id>/edit/', views.edit_physiotherapy_record, name='edit_physiotherapy_record'),
     path('physiotherapy-records/<int:record_id>/delete/', views.delete_physiotherapy_record, name='delete_physiotherapy_record'),

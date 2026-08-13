@@ -5,7 +5,7 @@ from django.db.models import Sum
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column
 from core.models import CustomUser, Patient, Prescription
-from .models import Appointment, MedicalRecord, Vitals, Admission, FollowUp, PhysiotherapyRecord, PhysiotherapyReferral, MedicationAdministration, AdmissionHandover
+from .models import Appointment, MedicalRecord, NurseInstruction, Vitals, Admission, FollowUp, PhysiotherapyRecord, PhysiotherapyReferral, MedicationAdministration, AdmissionHandover
 
 class VitalsForm(forms.ModelForm):
     class Meta:
@@ -424,6 +424,16 @@ class PhysiotherapyRecordForm(forms.ModelForm):
             'session_count': forms.NumberInput(attrs={'min': 0, 'class': 'form-control', 'placeholder': 'Number of sessions held'}),
             'session_dates': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'One session date per line, e.g. 2026-08-11'}),
             'additional_notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Enter any additional notes...'}),
+        }
+
+
+class NurseInstructionForm(forms.ModelForm):
+    class Meta:
+        model = NurseInstruction
+        fields = ['priority', 'instruction']
+        widgets = {
+            'priority': forms.Select(attrs={'class': 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500'}),
+            'instruction': forms.Textarea(attrs={'rows': 4, 'class': 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500', 'placeholder': 'Nursing instruction or task...'}),
         }
 
 

@@ -596,6 +596,7 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'DurielDentalApp.DentalAppointment',
     'DurielMedicApp.Vitals',
     'DurielMedicApp.MedicalRecord',
+    'DurielMedicApp.NurseInstruction',
     'DurielEyeApp.EyeMedicalRecord',
     'DurielEyeApp.EyeExam',
     'DurielDentalApp.DentalExam',

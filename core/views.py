@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.conf import settings
+from django.core.cache import cache
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -10,6 +12,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
+import hashlib
 
 from .models import CustomUser, Patient, Billing, BillingLineItem, Clinic, Payment, Prescription, ServicePriceList, StockMovement
 from .forms import (CustomUserCreationForm, FacilityRegistrationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
@@ -25,7 +28,7 @@ from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required, clinic_subscription_is_expired
 from core.permissions import PRESCRIBER_ROLES, can_manage_patient_demographics, can_view_patient
-from DurielMedicApp.models import Appointment, MedicalRecord, PhysiotherapyRecord, Admission  
+from DurielMedicApp.models import Appointment, MedicalRecord, NurseInstruction, PhysiotherapyRecord, Admission  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
@@ -293,9 +296,38 @@ from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.views import LoginView
 from .utils import log_login, log_logout
 
+
+def _client_ip(request):
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+
+def _rate_limit_key(prefix, *parts):
+    raw = ':'.join(str(part or '') for part in parts)
+    return f"rl:{prefix}:{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
+
+
+def _is_rate_limited(prefix, parts, *, limit, window_seconds):
+    key = _rate_limit_key(prefix, *parts)
+    count = cache.get(key, 0)
+    if count >= limit:
+        return True
+    cache.set(key, count + 1, window_seconds)
+    return False
+
+
 # views.py (snippet)
 class CustomLoginView(LoginView):
     template_name = 'registration/login.html'
+
+    def post(self, request, *args, **kwargs):
+        username = request.POST.get('username', '').strip().lower()
+        if _is_rate_limited('auth', (_client_ip(request), username), limit=10, window_seconds=300):
+            messages.error(request, "Too many login attempts. Please try again in a few minutes.")
+            return self.form_invalid(self.get_form())
+        return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -896,6 +928,10 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         ).select_related(
             'admitted_by', 'discharged_by', 'clinic'
         ).order_by('-date_admitted')[:5]
+        context['nurse_instructions'] = NurseInstruction.objects.filter(
+            patient=patient,
+            clinic=patient.clinic,
+        ).select_related('created_by', 'completed_by').order_by('-created_at')[:5]
 
         # Medical Records Pagination (show for both GENERAL and EYE clinics)
         can_view_general_notes = self.request.user.role == 'DOCTOR'
@@ -1126,7 +1162,7 @@ def billing_list(request):
         messages.error(request, "No clinic selected. Please select a clinic first.")
         return redirect('core:select_clinic')
 
-    bills = Billing.objects.filter(clinic_id=clinic_id).select_related('patient').order_by('-service_date')
+    bills = Billing.objects.filter(clinic_id=clinic_id).select_related('patient').order_by('-created_at', '-service_date', '-id')
     
     # Filtering options
     status_filter = request.GET.get('status', '')
@@ -2442,26 +2478,55 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables
 
-AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
+AI_API_KEY = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+
+
+def _ai_provider_config():
+    key = (
+        getattr(settings, 'AI_API_KEY', None)
+        or os.getenv("OPENROUTER_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+        or AI_API_KEY
+    )
+    key = str(key or '').strip()
+    if not key or key.lower() in {'none', 'null', 'false'}:
+        return None
+    if key.startswith('sk-or-'):
+        return {
+            'name': 'OpenRouter',
+            'key': key,
+            'url': 'https://openrouter.ai/api/v1/chat/completions',
+            'model': 'openai/gpt-4o-mini',
+        }
+    return {
+        'name': 'OpenAI',
+        'key': key,
+        'url': 'https://api.openai.com/v1/chat/completions',
+        'model': 'gpt-4o-mini',
+    }
 
 @csrf_exempt
+@login_required
+@clinic_selected_required
 def ai_chat(request):
     if request.method == "POST":
         try:
+            if _is_rate_limited('ai-chat', (request.user.pk, _client_ip(request)), limit=10, window_seconds=60):
+                return JsonResponse({"answer": "Too many chat requests. Please wait a moment and try again."}, status=429)
             data = json.loads(request.body)
             prompt = data.get("prompt", "")
-
-            if not AI_API_KEY:
-                return JsonResponse({"answer": "Error: API key not set"}, status=500)
+            provider = _ai_provider_config()
+            if not provider:
+                return JsonResponse({"answer": "AI chat is not configured. Please set OPENAI_API_KEY or OPENROUTER_API_KEY."}, status=503)
 
             res = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                provider['url'],
                 headers={
-                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Authorization": f"Bearer {provider['key']}",
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": provider['model'],
                     "messages": [
                         {"role": "system", "content": "You are a helpful medical assistant for doctors."},
                         {"role": "user", "content": prompt}
@@ -2469,8 +2534,10 @@ def ai_chat(request):
                 }
             )
 
+            if res.status_code in [401, 403]:
+                return JsonResponse({"answer": f"AI chat authentication failed. Please verify the {provider['name']} API key on the server."}, status=503)
             if res.status_code != 200:
-                return JsonResponse({"answer": f"API Error: {res.text}"}, status=500)
+                return JsonResponse({"answer": "AI chat service is temporarily unavailable. Please try again later."}, status=502)
 
             answer = res.json()["choices"][0]["message"]["content"]
             return JsonResponse({"answer": answer})
@@ -3159,7 +3226,10 @@ def prescription_list(request):
 
     if query:
         prescriptions = prescriptions.filter(
-            Q(patient__full_name__icontains=query) |
+            Q(patient__first_name__icontains=query) |
+            Q(patient__last_name__icontains=query) |
+            Q(patient__patient_id__icontains=query) |
+            Q(patient__contact__icontains=query) |
             Q(prescribed_by__first_name__icontains=query) |
             Q(prescribed_by__last_name__icontains=query) |
             Q(clinic_medication__name__icontains=query) |
@@ -4990,11 +5060,17 @@ from .forms import (LabTestCategoryForm, LabTestForm, LabTestOrderForm,
 
 # ----- Lab Test Category Management (ADMIN) -----
 
+def _general_clinic_only(request):
+    return getattr(request.clinic, 'clinic_type', None) == 'GENERAL'
+
 @login_required
 @clinic_selected_required
 @role_required('ADMIN')
 def lab_category_list(request):
     """List all lab test categories for the clinic"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     categories = LabTestCategory.objects.filter(clinic_id=clinic_id).order_by('name')
 
@@ -5008,6 +5084,9 @@ def lab_category_list(request):
 @role_required('ADMIN')
 def add_lab_category(request):
     """Add a new lab test category"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
 
@@ -5036,6 +5115,9 @@ def add_lab_category(request):
 @role_required('ADMIN')
 def edit_lab_category(request, pk):
     """Edit a lab test category"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     category = get_object_or_404(LabTestCategory, pk=pk, clinic_id=clinic_id)
 
@@ -5064,6 +5146,9 @@ def edit_lab_category(request, pk):
 @role_required('ADMIN')
 def lab_test_list(request):
     """List all lab tests for the clinic"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     tests = LabTest.objects.filter(clinic_id=clinic_id).select_related('category').order_by('category__name', 'name')
 
@@ -5085,6 +5170,9 @@ def lab_test_list(request):
 @role_required('ADMIN')
 def add_lab_test(request):
     """Add a new lab test to the catalog"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
     # Check if clinic has any active categories
@@ -5125,6 +5213,9 @@ def add_lab_test(request):
 @role_required('ADMIN')
 def edit_lab_test(request, pk):
     """Edit a lab test"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab management is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
     clinic = get_object_or_404(Clinic, id=clinic_id)
     test = get_object_or_404(LabTest, pk=pk, clinic_id=clinic_id)
@@ -5218,6 +5309,9 @@ def order_lab_tests(request, patient_id):
 @role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
 def lab_queue(request):
     """View lab queue with pending orders"""
+    if not _general_clinic_only(request):
+        messages.info(request, 'Lab queue is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     clinic_id = request.session.get('clinic_id')
 
     # Get filter parameters
@@ -5321,6 +5415,8 @@ def lab_queue(request):
 @role_required('ADMIN', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN')
 def lab_queue_count(request):
     """Return count of new/pending lab orders for polling badge."""
+    if not _general_clinic_only(request):
+        return JsonResponse({'count': 0})
     clinic_id = request.session.get('clinic_id')
     count = LabTestOrder.objects.filter(
         clinic_id=clinic_id,

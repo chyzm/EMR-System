@@ -17,6 +17,11 @@ import dj_database_url
 from dotenv import load_dotenv
 load_dotenv()
 
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -122,6 +127,18 @@ CHANNEL_LAYERS = {
 }
 
 
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+
+if SENTRY_DSN and sentry_sdk:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        send_default_pii=False,
+        traces_sample_rate=0.1,
+        enable_logs=True,
+        environment="production",
+    )
+
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -136,12 +153,12 @@ CHANNEL_LAYERS = {
 #     }
 # }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 
 # Server-to-server clinic sync.
@@ -162,22 +179,22 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(1
 
 
 
-if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-    DATABASES = {
-        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-         "default": dj_database_url.config(conn_max_age=600)
-    }
-else:  # PythonAnywhere/MySQL
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
+# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+#     DATABASES = {
+#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+#          "default": dj_database_url.config(conn_max_age=600)
+#     }
+# else:  # PythonAnywhere/MySQL
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DB_ENGINE'),
+#             'NAME': os.getenv('DB_NAME'),
+#             'USER': os.getenv('DB_USER'),
+#             'PASSWORD': os.getenv('DB_PASSWORD'),
+#             'HOST': os.getenv('DB_HOST'),
+#             'PORT': os.getenv('DB_PORT'),
+#         }
+#     }
     
     
 
@@ -205,27 +222,76 @@ CRISPY_TEMPLATE_PACK = "tailwind"
 
 
 
+# LOGS_DIR = BASE_DIR / "logs"
+# LOGS_DIR.mkdir(exist_ok=True)  # ✅ auto-create logs folder if missing
+
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'file': {
+#             'level': 'WARNING',
+#             'class': 'logging.FileHandler',
+#             'filename': LOGS_DIR / 'django.log',
+#         },
+#     },
+#     'loggers': {
+#         'django': {
+#             'handlers': ['file'],
+#             'level': 'WARNING',
+#             'propagate': True,
+#         },
+#     },
+# }
+
 LOGS_DIR = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)  # ✅ auto-create logs folder if missing
+LOGS_DIR.mkdir(exist_ok=True)
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'WARNING',
-            'class': 'logging.FileHandler',
-            'filename': LOGS_DIR / 'django.log',
+
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
         },
     },
+
+    'handlers': {
+        # Keep your existing file logging
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'formatter': 'verbose',
+        },
+
+        # Also show logs in terminal / PythonAnywhere
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+
     'loggers': {
+        # Django's own logs
         'django': {
-            'handlers': ['file'],
+            'handlers': ['file', 'console'],
             'level': 'WARNING',
+            'propagate': True,
+        },
+
+        # Your DurielMedic operational logs
+        'durielmedic': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
             'propagate': True,
         },
     },
 }
+
 
 
 

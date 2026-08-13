@@ -248,6 +248,8 @@
                         {% endif %}
                     {% endif %}
                     {% if request.session.clinic_type == "GENERAL" and request.user.role == 'DOCTOR' %}
+                        <a href="{% url 'DurielMedicApp:add_nurse_instruction' patient_id=patient.patient_id %}"
+                           class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded">Nurse Instruction</a>
                         <a href="{% url 'DurielMedicApp:refer_to_physiotherapy' patient_id=patient.patient_id %}"
                            class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded">Refer to Physio</a>
                     {% endif %}
@@ -259,6 +261,30 @@
     {% endif %}
 
   
+{% if request.session.clinic_type == "GENERAL" and request.user.role == 'DOCTOR' or request.session.clinic_type == "GENERAL" and request.user.role == 'NURSE' %}
+<div class="mt-8 overflow-hidden rounded-lg bg-white shadow">
+  <div class="flex items-center justify-between bg-indigo-900 px-6 py-3 text-white">
+    <h2 class="text-xl font-semibold">Nurse Instructions</h2>
+    {% if request.user.role == 'DOCTOR' %}
+    <a href="{% url 'DurielMedicApp:add_nurse_instruction' patient_id=patient.patient_id %}" class="rounded bg-indigo-600 px-3 py-1 text-sm text-white hover:bg-indigo-500">Add Instruction</a>
+    {% endif %}
+  </div>
+  <div class="divide-y">
+    {% for instruction in nurse_instructions %}
+    <div class="p-4">
+      <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <p class="text-sm text-gray-800">{{ instruction.instruction|linebreaksbr }}</p>
+        <span class="text-xs font-medium {% if instruction.status == 'OPEN' %}text-blue-700{% else %}text-green-700{% endif %}">{{ instruction.get_status_display }}</span>
+      </div>
+      <p class="mt-2 text-xs text-gray-500">{{ instruction.created_at|date:"M j, Y H:i" }} · {{ instruction.created_by.get_full_name|default:instruction.created_by.username }}</p>
+    </div>
+    {% empty %}
+    <div class="p-4 text-sm text-gray-500">No nurse instructions recorded.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
  <!-- Medical Records Section -->
 {% if can_view_case_notes %}
 		<div id="medical-records-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">

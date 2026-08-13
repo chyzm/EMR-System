@@ -7,6 +7,7 @@ from .models import (
     FollowUp,
     MedicalRecord,
     MedicationAdministration,
+    NurseInstruction,
     PhysiotherapyRecord,
     Vitals,
 )
@@ -20,6 +21,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'provider', 'clinic')
     date_hierarchy = 'date'
     readonly_fields = ('sync_id', 'created_at', 'updated_at')
+    ordering = ('clinic__name', '-date', '-start_time')
 
 
 @admin.register(Vitals)
@@ -29,10 +31,14 @@ class VitalsAdmin(admin.ModelAdmin):
     search_fields = ('appointment__patient__patient_id', 'appointment__patient__first_name', 'appointment__patient__last_name')
     list_select_related = ('appointment', 'appointment__patient')
     readonly_fields = ('sync_id',)
+    ordering = ('appointment__clinic__name', '-id')
 
     @admin.display(description='Patient', ordering='appointment__patient__last_name')
     def patient_name(self, obj):
-        return obj.appointment.patient.full_name
+        if obj.appointment_id:
+            return obj.appointment.patient.full_name
+        appointment = obj.appointment_object
+        return appointment.patient.full_name if appointment else '-'
 
 
 @admin.register(MedicalRecord)
@@ -43,6 +49,7 @@ class MedicalRecordAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'created_by')
     date_hierarchy = 'created_at'
     readonly_fields = ('sync_id', 'created_at', 'updated_at')
+    ordering = ('patient__clinic__name', '-created_at')
 
     @admin.display(description='Diagnosis')
     def diagnosis_summary(self, obj):
@@ -57,6 +64,7 @@ class AdmissionAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'clinic', 'attending_doctor', 'admitted_by', 'discharged_by')
     date_hierarchy = 'date_admitted'
     readonly_fields = ('sync_id', 'date_admitted')
+    ordering = ('clinic__name', '-date_admitted')
 
 
 @admin.register(MedicationAdministration)
@@ -67,6 +75,7 @@ class MedicationAdministrationAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'admission', 'prescription', 'billing', 'administered_by')
     date_hierarchy = 'administered_at'
     readonly_fields = tuple(field.name for field in MedicationAdministration._meta.fields)
+    ordering = ('patient__clinic__name', '-administered_at')
 
     def has_add_permission(self, request):
         return False
@@ -83,6 +92,7 @@ class AdmissionHandoverAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'admission', 'created_by', 'receiving_staff')
     date_hierarchy = 'created_at'
     readonly_fields = ('sync_id', 'created_at')
+    ordering = ('patient__clinic__name', '-created_at')
 
 
 @admin.register(FollowUp)
@@ -93,6 +103,17 @@ class FollowUpAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'created_by')
     date_hierarchy = 'scheduled_date'
     readonly_fields = ('sync_id', 'created_at')
+    ordering = ('patient__clinic__name', '-scheduled_date')
+
+
+@admin.register(NurseInstruction)
+class NurseInstructionAdmin(admin.ModelAdmin):
+    list_display = ('patient', 'clinic', 'priority', 'status', 'created_by', 'completed_by', 'created_at')
+    list_filter = ('clinic', 'priority', 'status', 'created_at')
+    search_fields = ('patient__patient_id', 'patient__first_name', 'patient__last_name', 'instruction')
+    list_select_related = ('patient', 'clinic', 'created_by', 'completed_by')
+    readonly_fields = ('sync_id', 'created_at', 'updated_at', 'completed_at')
+    ordering = ('clinic__name', '-created_at')
 
 
 @admin.register(PhysiotherapyRecord)
@@ -103,6 +124,7 @@ class PhysiotherapyRecordAdmin(admin.ModelAdmin):
     list_select_related = ('patient', 'created_by')
     date_hierarchy = 'created_at'
     readonly_fields = ('sync_id', 'created_at', 'updated_at')
+    ordering = ('patient__clinic__name', '-created_at')
 
     @admin.display(description='Diagnosis')
     def diagnosis_summary(self, obj):

@@ -15,6 +15,8 @@
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
   <style>
+    [x-cloak] { display: none !important; }
+
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     * {
@@ -376,7 +378,16 @@
               </a>
               {% endif %}
 
-              {% if can_access_lab_queue %}
+              {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+              <a href="{% url 'DurielMedicApp:nurse_instruction_queue' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'nurse_instruction_queue' %}active{% endif %}">
+                <i class="fas fa-clipboard-list mr-3"></i>
+                <span class="flex-1">Nurse Instructions</span>
+                <span class="js-nurse-instruction-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+              </a>
+              {% endif %}
+
+              {% if request.session.clinic_type == 'GENERAL' and can_access_lab_queue %}
               <a href="{% url 'core:lab_queue' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-flask mr-3"></i>
@@ -385,7 +396,7 @@
               </a>
               {% endif %}
 
-              {% if request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+              {% if request.session.clinic_type == 'GENERAL' and request.user.role == 'ADMIN' or request.session.clinic_type == 'GENERAL' and request.user.role == 'DOCTOR' or request.session.clinic_type == 'GENERAL' and request.user.role == 'PHYSIOTHERAPIST' %}
               <a href="{% url 'DurielMedicApp:physiotherapy_queue' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'physiotherapy_queue' %}active{% endif %}">
                 <i class="fas fa-person-walking mr-3"></i>
@@ -394,7 +405,7 @@
               </a>
               {% endif %}
 
-              {% if can_manage_lab %}
+              {% if request.session.clinic_type == 'GENERAL' and can_manage_lab %}
               <a href="{% url 'core:lab_test_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-vials mr-3"></i>
@@ -715,7 +726,16 @@
           </a>
           {% endif %}
 
-          {% if can_access_lab_queue %}
+          {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+          <a href="{% url 'DurielMedicApp:nurse_instruction_queue' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'nurse_instruction_queue' %}active{% endif %}">
+            <i class="fas fa-clipboard-list mr-3"></i>
+            <span class="flex-1">Nurse Instructions</span>
+            <span class="js-nurse-instruction-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+          </a>
+          {% endif %}
+
+          {% if request.session.clinic_type == 'GENERAL' and can_access_lab_queue %}
           <a href="{% url 'core:lab_queue' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_queue' in request.resolver_match.url_name or 'lab_order' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-flask mr-3"></i>
@@ -724,7 +744,7 @@
           </a>
           {% endif %}
 
-          {% if request.user.role == 'ADMIN' or request.user.role == 'DOCTOR' or request.user.role == 'PHYSIOTHERAPIST' %}
+          {% if request.session.clinic_type == 'GENERAL' and request.user.role == 'ADMIN' or request.session.clinic_type == 'GENERAL' and request.user.role == 'DOCTOR' or request.session.clinic_type == 'GENERAL' and request.user.role == 'PHYSIOTHERAPIST' %}
           <a href="{% url 'DurielMedicApp:physiotherapy_queue' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'physiotherapy_queue' %}active{% endif %}">
             <i class="fas fa-person-walking mr-3"></i>
@@ -733,7 +753,7 @@
           </a>
           {% endif %}
 
-          {% if can_manage_lab %}
+          {% if request.session.clinic_type == 'GENERAL' and can_manage_lab %}
           <a href="{% url 'core:lab_test_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'lab_test' in request.resolver_match.url_name or 'lab_category' in request.resolver_match.url_name %}active{% endif %}">
             <i class="fas fa-vials mr-3"></i>
@@ -890,6 +910,7 @@
         { selector: '.js-lab-queue-count', url: "{% url 'core:lab_queue_count' %}" },
         { selector: '.js-vitals-queue-count', url: "{% url 'DurielMedicApp:vitals_queue_count' %}" },
         { selector: '.js-physio-queue-count', url: "{% url 'DurielMedicApp:physiotherapy_queue_count' %}" },
+        { selector: '.js-nurse-instruction-count', url: "{% url 'DurielMedicApp:nurse_instruction_count' %}" },
       ];
 
       async function refreshQueueCount(queue) {

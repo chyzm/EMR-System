@@ -616,6 +616,7 @@ class ClinicMedicationForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         clinic = kwargs.pop('clinic', None)
+        self.clinic = clinic
         super().__init__(*args, **kwargs)
         
         if clinic:
@@ -628,6 +629,25 @@ class ClinicMedicationForm(forms.ModelForm):
         # Make category optional with empty label
         self.fields['category'].empty_label = "Select Category (Optional)"
         self.fields['category'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        clinic = getattr(self, 'clinic', None)
+        name = (cleaned_data.get('name') or '').strip()
+        strength = (cleaned_data.get('strength') or '').strip()
+        if clinic and name:
+            duplicate = ClinicMedication.objects.filter(
+                clinic=clinic,
+                name__iexact=name,
+                strength__iexact=strength,
+            )
+            if self.instance and self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError(
+                    "This medication and strength already exist for this clinic. Update the existing stock item instead."
+                )
+        return cleaned_data
 
 
 class StockAdjustmentForm(forms.Form):

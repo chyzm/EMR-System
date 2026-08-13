@@ -7,7 +7,8 @@
       {% if appointment.clinic.clinic_type == "EYE" or appointment.clinic.clinic_type == "DENTAL" %}Show Vitals (Optional){% else %}Show Vitals{% endif %}
     </button>
 
-    <div x-show="vitalsOpen"
+    <div x-cloak
+         x-show="vitalsOpen"
          x-transition
          class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black bg-opacity-50 px-3 py-6 sm:px-4">
       <div @click.away="vitalsOpen = false"

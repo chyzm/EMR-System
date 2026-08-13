@@ -31,6 +31,48 @@ class MedicalRecord(models.Model):
         return f"Medical Record for {self.patient.full_name} - {self.created_at.strftime('%Y-%m-%d')}"
 
 
+class NurseInstruction(models.Model):
+    STATUS_CHOICES = (
+        ('OPEN', 'Open'),
+        ('DONE', 'Done'),
+        ('CANCELLED', 'Cancelled'),
+    )
+    PRIORITY_CHOICES = (
+        ('ROUTINE', 'Routine'),
+        ('URGENT', 'Urgent'),
+    )
+
+    sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='nurse_instructions')
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='nurse_instructions')
+    appointment = models.ForeignKey('Appointment', on_delete=models.SET_NULL, null=True, blank=True, related_name='nurse_instructions')
+    admission = models.ForeignKey('Admission', on_delete=models.SET_NULL, null=True, blank=True, related_name='nurse_instructions')
+    instruction = models.TextField()
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='ROUTINE')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='OPEN')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='nurse_instructions_created')
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='nurse_instructions_completed')
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['clinic', 'status', '-created_at'], name='DurielMedic_nurse_q_idx'),
+            models.Index(fields=['patient', '-created_at'], name='DurielMedic_nurse_pat_idx'),
+        ]
+
+    def __str__(self):
+        return f"Nurse instruction for {self.patient.full_name} - {self.get_status_display()}"
+
+    def mark_done(self, user):
+        self.status = 'DONE'
+        self.completed_by = user
+        self.completed_at = timezone.now()
+        self.save(update_fields=['status', 'completed_by', 'completed_at', 'updated_at'])
+
+
 class Appointment(models.Model):
     STATUS_CHOICES = (
         ('SCHEDULED', 'Scheduled'),

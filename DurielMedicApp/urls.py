@@ -43,6 +43,12 @@ urlpatterns = [
     path('vitals/queue/', views.vitals_queue, name='vitals_queue'),
     path('vitals/queue/count/', views.vitals_queue_count, name='vitals_queue_count'),
 
+    # Nursing instructions
+    path('nursing/instructions/', views.nurse_instruction_queue, name='nurse_instruction_queue'),
+    path('nursing/instructions/count/', views.nurse_instruction_count, name='nurse_instruction_count'),
+    path('patients/<str:patient_id>/nursing/instructions/add/', views.add_nurse_instruction, name='add_nurse_instruction'),
+    path('nursing/instructions/<int:instruction_id>/complete/', views.complete_nurse_instruction, name='complete_nurse_instruction'),
+
     # Admission
     path('patients/<str:patient_id>/admit/', views.admit_patient, name='admit_patient'),
     path('patients/<str:patient_id>/discharge/', views.discharge_patient, name='discharge_patient'),

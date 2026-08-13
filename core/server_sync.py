@@ -14,6 +14,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
 from django.db import OperationalError, ProgrammingError
 from django.db import transaction
@@ -30,6 +31,7 @@ SYNCABLE_MODELS = {
     'DurielMedicApp.Appointment',
     'DurielMedicApp.Vitals',
     'DurielMedicApp.MedicalRecord',
+    'DurielMedicApp.NurseInstruction',
     'DurielMedicApp.Admission',
     'DurielMedicApp.AdmissionHandover',
     'DurielMedicApp.MedicationAdministration',
@@ -365,11 +367,21 @@ def serialize_instance(instance, deleted=False):
     for field in instance._meta.fields:
         if field.primary_key or field.name == 'id':
             continue
-        value = getattr(instance, field.name, None)
         if isinstance(field, FileField):
+            value = getattr(instance, field.name, None)
             payload[field.name] = _serialize_file(value)
             continue
         if field.is_relation and (field.many_to_one or field.one_to_one):
+            raw_id = getattr(instance, field.attname, None)
+            if raw_id is None:
+                payload[f'{field.name}_sync_id'] = None
+                payload[f'{field.name}_id'] = None
+                continue
+            try:
+                value = getattr(instance, field.name, None)
+            except ObjectDoesNotExist:
+                payload[f'{field.name}_id'] = raw_id
+                continue
             if value is None:
                 payload[f'{field.name}_sync_id'] = None
                 payload[f'{field.name}_id'] = None
@@ -380,6 +392,7 @@ def serialize_instance(instance, deleted=False):
             else:
                 payload[f'{field.name}_id'] = value.pk
             continue
+        value = getattr(instance, field.name, None)
         payload[field.name] = _json_value(value)
     for field in instance._meta.many_to_many:
         if instance.pk:

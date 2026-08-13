@@ -33,6 +33,7 @@ class CustomUserAdmin(UserAdmin):
     model = CustomUser
     list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'get_clinic', 'is_staff')
     list_filter = ('role',)
+    ordering = ('primary_clinic__name', 'username')
 
     def get_clinic(self, obj):
         # If it's ManyToMany
@@ -76,6 +77,7 @@ CustomUserAdmin.list_filter = ('role', ClinicListFilter)
 @admin.register(Clinic)
 class ClinicAdmin(admin.ModelAdmin):
     list_display = ('name', 'email', 'phone')
+    ordering = ('name',)
 
 
 @admin.register(Patient)
@@ -83,6 +85,7 @@ class PatientAdmin(admin.ModelAdmin):
     list_display = ('patient_id', 'full_name', 'clinic', 'contact', 'date_of_birth')
     search_fields = ('patient_id', 'first_name', 'last_name', 'contact')
     list_filter = ('clinic', 'gender')
+    ordering = ('clinic__name', 'last_name', 'first_name')
 
 
 @admin.register(Billing)
@@ -91,6 +94,7 @@ class BillingAdmin(admin.ModelAdmin):
     list_filter = ('status', 'clinic')
     search_fields = ('patient__first_name', 'patient__last_name', 'id')
     actions = ['mark_paid']
+    ordering = ('clinic__name', '-created_at', '-service_date', '-id')
 
     def mark_paid(self, request, queryset):
         updated = queryset.update(status='PAID', paid_amount=models.F('final_amount'))
@@ -103,6 +107,7 @@ class ServicePriceListAdmin(admin.ModelAdmin):
     list_display = ('name', 'clinic', 'price', 'is_active')
     list_filter = ('clinic', 'is_active')
     search_fields = ('name',)
+    ordering = ('clinic__name', 'name')
 
 
 @admin.register(Prescription)
@@ -111,6 +116,7 @@ class PrescriptionAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'prescribed_by', 'patient__clinic')
     search_fields = ('patient__first_name', 'patient__last_name')
     actions = ('deactivate_selected',)
+    ordering = ('patient__clinic__name', '-date_prescribed', '-id')
 
     def get_readonly_fields(self, request, obj=None):
         return tuple(field.name for field in self.model._meta.fields)
@@ -131,6 +137,8 @@ class PrescriptionAdmin(admin.ModelAdmin):
 class MedicationCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'clinic', 'created_at')
     search_fields = ('name',)
+    list_filter = ('clinic',)
+    ordering = ('clinic__name', 'name')
 
 
 @admin.register(ClinicMedication)
@@ -138,13 +146,15 @@ class ClinicMedicationAdmin(admin.ModelAdmin):
     list_display = ('display_name', 'clinic', 'quantity_in_stock', 'selling_price', 'status')
     list_filter = ('clinic', 'status')
     search_fields = ('name', 'generic_name')
+    ordering = ('clinic__name', 'name', 'strength')
 
 
 @admin.register(StockMovement)
 class StockMovementAdmin(admin.ModelAdmin):
     list_display = ('medication', 'movement_type', 'quantity', 'previous_stock', 'new_stock', 'created_by', 'created_at')
-    list_filter = ('movement_type',)
     search_fields = ('medication__name',)
+    list_filter = ('medication__clinic', 'movement_type')
+    ordering = ('medication__clinic__name', '-created_at')
 
 
 # ---------- Lab Admin ----------
@@ -165,6 +175,7 @@ class LabTestCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'clinic', 'category_type', 'is_active')
     list_filter = ('clinic', 'category_type', 'is_active')
     search_fields = ('name',)
+    ordering = ('clinic__name', 'name')
 
 
 @admin.register(LabTest)
@@ -173,6 +184,7 @@ class LabTestAdmin(admin.ModelAdmin):
     list_filter = ('clinic', 'category', 'sample_type', 'is_active')
     search_fields = ('name', 'code')
     actions = ['make_active', 'make_inactive']
+    ordering = ('clinic__name', 'name')
 
     def make_active(self, request, queryset):
         updated = queryset.update(is_active=True)
@@ -192,6 +204,7 @@ class LabTestOrderAdmin(admin.ModelAdmin):
     search_fields = ('patient__first_name', 'patient__last_name', 'id')
     inlines = [LabTestResultInline]
     actions = ['mark_completed', 'mark_reviewed']
+    ordering = ('clinic__name', '-ordered_at', '-id')
 
     def mark_completed(self, request, queryset):
         updated = queryset.update(status='COMPLETED')
@@ -210,6 +223,7 @@ class LabTestResultAdmin(admin.ModelAdmin):
     list_filter = ('performed_by', 'lab_test_order__clinic')
     search_fields = ('test__name', 'lab_test_order__patient__first_name')
     readonly_fields = ('result_file_link',)
+    ordering = ('lab_test_order__clinic__name', '-created_at')
 
     def result_file_link(self, obj):
         if obj and obj.result_file:
@@ -223,6 +237,7 @@ class ActionLogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'user', 'action', 'content_type', 'object_id')
     search_fields = ('user__username', 'details')
     list_filter = ('action',)
+    ordering = ('clinic__name', '-timestamp')
 
 
 @admin.register(Notification)
@@ -230,6 +245,7 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ('message', 'user', 'clinic', 'is_read', 'created_at')
     list_filter = ('is_read', 'clinic')
     search_fields = ('message',)
+    ordering = ('clinic__name', '-created_at')
 
 
 @admin.register(NotificationRead)

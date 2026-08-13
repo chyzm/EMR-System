@@ -1,86 +1,282 @@
 {% extends "base.html" %}
-{% comment %} {% load math_filters %} {% endcomment %}
-{% load custom_filters %} 
 
-
-{% block title %}Generate Report{% endblock %}
+{% block title %}Clinic Reports{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-6">
-    <h1 class="text-2xl font-bold text-blue-900 mb-6">Generate Report</h1>
-    
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
-                    <select name="report_type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        <option value="appointments">Appointments</option>
-                        <option value="patients">Patient Registrations</option>
-                        <option value="financial">Financial</option>
-                    </select>
-                </div>
+<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+  <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-blue-900">Reports & Business Intelligence</h1>
+      <p class="mt-1 text-sm text-gray-600">{{ request.clinic.name }} · {{ start_date|date:"M j, Y" }} to {{ end_date|date:"M j, Y" }}</p>
+    </div>
+    <form method="get" class="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-3 xl:min-w-[720px]">
+      <div>
+        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Start</label>
+        <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">End</label>
+        <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Update Dashboard</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="mb-5 flex flex-wrap gap-2">
+    <form method="post" class="contents">
+      {% csrf_token %}
+      <input type="hidden" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
+      <input type="hidden" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
+      <button name="report_type" value="appointments" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Appointments CSV</button>
+      <button name="report_type" value="patients" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Patients CSV</button>
+      <button name="report_type" value="financial" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Financial CSV</button>
+    </form>
+  </div>
+
+  <div class="mb-6 grid gap-3 lg:grid-cols-2">
+    {% for insight in insight_cards %}
+    <div class="rounded-lg border p-4 shadow-sm {% if insight.tone == 'red' %}border-red-200 bg-red-50 text-red-900{% elif insight.tone == 'amber' %}border-yellow-200 bg-yellow-50 text-yellow-900{% elif insight.tone == 'blue' %}border-blue-200 bg-blue-50 text-blue-900{% else %}border-green-200 bg-green-50 text-green-900{% endif %}">
+      <div class="flex gap-3">
+        <i class="fas {% if insight.tone == 'red' %}fa-triangle-exclamation{% elif insight.tone == 'amber' %}fa-circle-exclamation{% elif insight.tone == 'blue' %}fa-arrow-trend-up{% else %}fa-circle-check{% endif %} mt-1"></i>
+        <div>
+          <div class="text-sm font-semibold">{{ insight.title }}</div>
+          <div class="mt-1 text-sm">{{ insight.message }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Billed</div>
+      <div class="mt-2 text-3xl font-semibold text-gray-900">₦{{ financial_stats.total_amount|default:0|floatformat:0 }}</div>
+      <div class="mt-2 text-xs {% if revenue_delta >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+        {% if revenue_delta >= 0 %}↗{% else %}↘{% endif %} ₦{{ revenue_delta|floatformat:0 }}{% if revenue_delta_percent != None %} · {{ revenue_delta_percent }}%{% endif %} vs prior period
+      </div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Collected</div>
+      <div class="mt-2 text-3xl font-semibold text-green-700">₦{{ financial_stats.total_paid|default:0|floatformat:0 }}</div>
+      <div class="mt-2 text-xs text-gray-500">{{ collection_rate }}% collection rate</div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Outstanding</div>
+      <div class="mt-2 text-3xl font-semibold {% if outstanding %}text-red-700{% else %}text-gray-900{% endif %}">₦{{ outstanding|default:0|floatformat:0 }}</div>
+      <div class="mt-2 text-xs text-gray-500">{% if outstanding %}Follow up unpaid/partial bills{% else %}No aging data yet{% endif %}</div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Revenue / Patient</div>
+      <div class="mt-2 text-3xl font-semibold text-gray-900">₦{{ avg_revenue_per_patient|default:0|floatformat:0 }}</div>
+      <div class="mt-2 text-xs {% if revenue_per_patient_above_target %}text-green-700{% else %}text-yellow-700{% endif %}">
+        Target ₦{{ revenue_per_patient_target|floatformat:0 }} · {% if revenue_per_patient_above_target %}above target{% else %}below target{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-6 xl:grid-cols-3">
+    <div class="space-y-6 xl:col-span-2">
+      <div class="grid gap-6 lg:grid-cols-2">
+        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">Needs Attention</h2>
+            <span class="text-xs text-gray-500">Prioritized</span>
+          </div>
+          <div class="mt-4 divide-y divide-gray-100">
+            {% for item in attention_items %}
+            <a href="{{ item.url }}" class="flex items-center justify-between py-3 hover:bg-gray-50 {% if not item.count %}text-gray-400{% endif %}">
+              <span class="text-sm">{{ item.label }}</span>
+              <span class="rounded-full {% if item.count %}bg-red-100 text-red-700{% else %}bg-gray-100 text-gray-500{% endif %} px-2 py-0.5 text-xs font-semibold">{{ item.count }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-gray-900">Provider Activity</h2>
+          <div class="mt-4 space-y-4">
+            {% for provider in provider_revenue %}
+            <div>
+              <div class="mb-1 flex justify-between gap-3 text-sm">
+                <span class="truncate text-gray-700">{{ provider.created_by__first_name }} {{ provider.created_by__last_name }}{% if not provider.created_by__first_name and not provider.created_by__last_name %}{{ provider.created_by__username|default:"Unassigned" }}{% endif %}</span>
+                <span class="font-medium text-gray-900">₦{{ provider.revenue|default:0|floatformat:0 }}</span>
+              </div>
+              <div class="h-2 rounded-full bg-gray-100">
+                <div class="h-2 rounded-full bg-blue-600" style="width: {% widthratio provider.revenue financial_stats.total_amount|default:0 100 %}%;"></div>
+              </div>
             </div>
-            
-            <button type="submit" 
-                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Generate Report
-            </button>
-        </form>
+            {% empty %}
+            <p class="text-sm text-gray-500">No provider revenue activity in this period.</p>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h2 class="text-lg font-semibold text-gray-900">Service Performance</h2>
+          <span class="text-xs text-gray-500">Ranked by revenue</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Service / Action</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Type</th>
+                <th class="px-3 py-2 text-right font-medium text-gray-500">Count</th>
+                <th class="px-3 py-2 text-right font-medium text-gray-500">Revenue</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              {% for service in top_services %}
+              <tr>
+                <td class="px-3 py-2 text-gray-800">{{ service.description }}</td>
+                <td class="px-3 py-2 text-gray-500">{{ service.source_type|title }}</td>
+                <td class="px-3 py-2 text-right">{{ service.count }}</td>
+                <td class="px-3 py-2 text-right font-medium {% if not service.total %}text-yellow-700{% endif %}">₦{{ service.total|default:0|floatformat:2 }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">No billable services in this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="grid gap-6 lg:grid-cols-2">
+        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-gray-900">Patient Flow</h2>
+          <div class="mt-4 grid grid-cols-2 gap-4">
+            <div><div class="text-sm text-gray-500">New patients</div><div class="text-xl font-semibold">{{ patient_stats.total|default:0 }}</div></div>
+            <div><div class="text-sm text-gray-500">Returning</div><div class="text-xl font-semibold">{{ returning_patients }}</div></div>
+            <div><div class="text-sm text-gray-500">Total patients</div><div class="text-xl font-semibold">{{ total_patients }}</div></div>
+            <div><div class="text-sm text-gray-500">New patient delta</div><div class="text-xl font-semibold {% if new_patient_delta >= 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ new_patient_delta }}</div></div>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-gray-900">Operations</h2>
+          <div class="mt-4 space-y-3 text-sm">
+            <div class="flex justify-between"><span>Prescriptions written</span><span class="font-medium">{{ prescription_count }}</span></div>
+            <div class="flex justify-between"><span>Admissions</span><span class="font-medium">{{ admission_stats.total|default:0 }}</span></div>
+            <div class="flex justify-between"><span>Discharges</span><span class="font-medium">{{ admission_stats.discharged|default:0 }}</span></div>
+            {% for stat in lab_stats %}
+            <div class="flex justify-between"><span>Lab {{ stat.status|title }}</span><span class="font-medium">{{ stat.count }}</span></div>
+            {% empty %}
+            <div class="text-gray-500">No lab orders in this period.</div>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
     </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <!-- Appointments Summary -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Appointments Summary</h3>
-            <ul class="space-y-2">
-                {% for stat in appointment_stats %}
-                <li class="flex justify-between">
-                    <span>{{ stat.status }}:</span>
-                    <span class="font-medium">{{ stat.count }}</span>
-                </li>
-                {% endfor %}
-            </ul>
+
+    <aside class="space-y-6">
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-gray-900">Pie Charts</h2>
+        <div class="mt-5 space-y-6">
+          <div class="flex items-center gap-4">
+            <div class="h-32 w-32 flex-none">
+              <canvas id="revenuePieChart" aria-label="Revenue paid versus outstanding pie chart"></canvas>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">Revenue Mix</div>
+              <div class="mt-2 text-xs text-gray-600"><span class="inline-block h-2 w-2 rounded-full bg-green-600"></span> Paid {{ collection_rate }}%</div>
+              <div class="mt-1 text-xs text-gray-600"><span class="inline-block h-2 w-2 rounded-full bg-red-300"></span> Outstanding {{ outstanding_percent }}%</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="h-32 w-32 flex-none">
+              <canvas id="patientPieChart" aria-label="New versus returning patients pie chart"></canvas>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">Patient Mix</div>
+              <div class="mt-2 text-xs text-gray-600"><span class="inline-block h-2 w-2 rounded-full bg-purple-600"></span> New {{ new_patient_percent }}%</div>
+              <div class="mt-1 text-xs text-gray-600"><span class="inline-block h-2 w-2 rounded-full bg-teal-600"></span> Returning {{ returning_patient_percent }}%</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="h-32 w-32 flex-none">
+              <canvas id="appointmentPieChart" aria-label="Completed versus other appointments pie chart"></canvas>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">Appointment Status</div>
+              <div class="mt-2 text-xs text-gray-600"><span class="inline-block h-2 w-2 rounded-full bg-blue-600"></span> Completed {{ appointment_completion_rate }}%</div>
+              <div class="mt-1 text-xs text-gray-600">{{ completed_appointments }} of {{ total_appointments }} appointments</div>
+            </div>
+          </div>
         </div>
-        
-        <!-- Patients Summary -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Patients Summary</h3>
-            <p>Total New Patients: <span class="font-medium">{{ patient_stats.total }}</span></p>
+      </section>
+
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-gray-900">Unpaid Bills</h2>
+        <div class="mt-4 space-y-3">
+          {% for bill in recent_unpaid_bills %}
+          <a href="{% url 'core:view_bill' bill.pk %}" class="block rounded-lg border border-gray-100 p-3 hover:bg-gray-50">
+            <div class="flex justify-between text-sm">
+              <span class="font-medium text-gray-800">{{ bill.patient.full_name }}</span>
+              <span class="text-red-700">₦{{ bill.get_balance|floatformat:2 }}</span>
+            </div>
+            <div class="mt-1 text-xs text-gray-500">{{ bill.service_date }} · {{ bill.get_status_display }}</div>
+          </a>
+          {% empty %}
+          <p class="text-sm text-gray-500">No unpaid bills in this period.</p>
+          {% endfor %}
         </div>
-        
-        <!-- Financial Summary -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Financial Summary</h3>
-            <ul class="space-y-2">
-                <li class="flex justify-between">
-                    <span>Total Billed:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0|floatformat:2 }}</span>
-                </li>
-                <li class="flex justify-between">
-                    <span>Total Paid:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_paid|default:0|floatformat:2 }}</span>
-                </li>
-                <li class="flex justify-between">
-                    <span>Outstanding:</span>
-                    <span class="font-medium">₦{{ financial_stats.total_amount|default:0|subtract:financial_stats.total_paid|default:0|floatformat:2 }}</span>
-                </li>
-            </ul>
-        </div>
-    </div>
+      </section>
+    </aside>
+  </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof Chart === 'undefined') return;
+
+  const baseOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed || 0;
+            return `${context.label}: ${value}`;
+          }
+        }
+      }
+    }
+  };
+
+  function makePie(id, labels, values, colors) {
+    const element = document.getElementById(id);
+    if (!element) return;
+    const total = values.reduce((sum, value) => sum + Number(value || 0), 0);
+    const dataValues = total > 0 ? values : [1];
+    const dataLabels = total > 0 ? labels : ['No data'];
+    const dataColors = total > 0 ? colors : ['#e5e7eb'];
+    new Chart(element, {
+      type: 'pie',
+      data: {
+        labels: dataLabels,
+        datasets: [{
+          data: dataValues,
+          backgroundColor: dataColors,
+          borderColor: '#ffffff',
+          borderWidth: 2
+        }]
+      },
+      options: baseOptions
+    });
+  }
+
+  makePie('revenuePieChart', ['Paid', 'Outstanding'], [{{ financial_stats.total_paid|default:0|floatformat:2 }}, {{ outstanding|default:0|floatformat:2 }}], ['#16a34a', '#fca5a5']);
+  makePie('patientPieChart', ['New', 'Returning'], [{{ patient_stats.total|default:0 }}, {{ returning_patients }}], ['#7c3aed', '#0d9488']);
+  makePie('appointmentPieChart', ['Completed', 'Other'], [{{ completed_appointments }}, {{ other_appointments }}], ['#2563eb', '#e5e7eb']);
+});
+</script>
 {% endblock %}

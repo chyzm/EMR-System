@@ -27,7 +27,7 @@ from core.server_sync import (
     serialize_instance,
     sync_worker_lock,
 )
-from DurielMedicApp.models import Admission, Appointment, FollowUp, PhysiotherapyReferral, Vitals
+from DurielMedicApp.models import Admission, Appointment, FollowUp, NurseInstruction, PhysiotherapyReferral, Vitals
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
@@ -756,6 +756,17 @@ class BillingAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Recent Patient Activity for Billing')
 
+    def test_report_dashboard_renders_business_sections_and_chat(self):
+        self.select_clinic_as(self.admin)
+        response = self.client.get(reverse('DurielMedicApp:generate_report'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Reports & Business Intelligence')
+        self.assertContains(response, 'Needs Attention')
+        self.assertContains(response, 'Service Performance')
+        self.assertContains(response, 'Charts')
+        self.assertNotContains(response, 'Report Chat')
+
     def test_billing_queue_merges_items_from_same_appointment_flow(self):
         self.select_clinic_as(self.admin)
         appointment = Appointment.objects.create(
@@ -1185,6 +1196,49 @@ class WorkflowNotificationTests(TestCase):
         vitals.save()
         response = self.client.get(reverse('DurielMedicApp:vitals_queue_count'))
         self.assertEqual(response.json()['count'], 0)
+
+    def test_vitals_queue_renders_list_without_auto_opening_modal_state(self):
+        Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate() + timedelta(days=1),
+            start_time='10:00',
+            end_time='10:30',
+            reason='Vitals list',
+            status='SCHEDULED',
+        )
+        self.client.force_login(self.nurse)
+        self.select_clinic()
+
+        response = self.client.get(reverse('DurielMedicApp:vitals_queue'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Vitals Queue')
+        self.assertContains(response, 'x-data="{ vitalsOpen: false }"')
+        self.assertContains(response, 'x-cloak')
+
+    def test_doctor_instruction_queues_for_nurse_and_can_be_completed(self):
+        self.client.force_login(self.doctor)
+        self.select_clinic()
+        response = self.client.post(reverse('DurielMedicApp:add_nurse_instruction', args=[self.patient.patient_id]), {
+            'priority': 'URGENT',
+            'instruction': 'Check blood pressure every 4 hours.',
+        })
+        self.assertRedirects(response, reverse('core:patient_detail', args=[self.patient.patient_id]), fetch_redirect_response=False)
+        instruction = NurseInstruction.objects.get(patient=self.patient, clinic=self.clinic)
+        self.assertEqual(instruction.status, 'OPEN')
+        self.assertTrue(Notification.objects.filter(user=self.nurse, message__icontains='Nursing instruction').exists())
+
+        self.client.force_login(self.nurse)
+        self.select_clinic()
+        response = self.client.get(reverse('DurielMedicApp:nurse_instruction_count'))
+        self.assertEqual(response.json()['count'], 1)
+        response = self.client.post(reverse('DurielMedicApp:complete_nurse_instruction', args=[instruction.pk]))
+        self.assertRedirects(response, reverse('DurielMedicApp:nurse_instruction_queue'), fetch_redirect_response=False)
+        instruction.refresh_from_db()
+        self.assertEqual(instruction.status, 'DONE')
+        self.assertEqual(instruction.completed_by, self.nurse)
 
     def test_physio_queue_count_tracks_assigned_referrals(self):
         PhysiotherapyReferral.objects.create(

@@ -9,15 +9,15 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
-from core.models import Patient, Clinic, Billing, ClinicMedication, StockMovement
+from core.models import Patient, Clinic, Billing, BillingLineItem, ClinicMedication, LabTestOrder, StockMovement
 from .models import (
     Appointment, Vitals, Admission, AdmissionHandover, MedicationAdministration, FollowUp,
-    Prescription, MedicalRecord, PhysiotherapyRecord, PhysiotherapyReferral
+    Prescription, MedicalRecord, NurseInstruction, PhysiotherapyRecord, PhysiotherapyReferral
 )
 from core.views import PatientDetailView
 from .forms import (
     VitalsForm, AppointmentForm, FollowUpForm,
-    MedicalRecordForm, PhysiotherapyRecordForm, PhysiotherapyReferralForm
+    MedicalRecordForm, NurseInstructionForm, PhysiotherapyRecordForm, PhysiotherapyReferralForm
 )
 from core.forms import PrescriptionForm
 from core.decorators import clinic_selected_required, role_required
@@ -528,6 +528,87 @@ def vitals_queue_count(request):
 
 @login_required
 @clinic_selected_required
+@role_required('DOCTOR', 'NURSE')
+def nurse_instruction_queue(request):
+    instructions = NurseInstruction.objects.filter(
+        clinic=request.clinic,
+        status='OPEN',
+    ).select_related('patient', 'created_by', 'appointment', 'admission').order_by('-created_at')
+    paginator = Paginator(instructions, 15)
+    page = request.GET.get('page', 1)
+    try:
+        instruction_page = paginator.page(page)
+    except PageNotAnInteger:
+        instruction_page = paginator.page(1)
+    except EmptyPage:
+        instruction_page = paginator.page(paginator.num_pages)
+    return render(request, 'nursing/instruction_queue.html', {'instructions': instruction_page})
+
+
+@login_required
+@clinic_selected_required
+def nurse_instruction_count(request):
+    if request.user.role not in {'DOCTOR', 'NURSE'}:
+        return JsonResponse({'count': 0})
+    return JsonResponse({'count': NurseInstruction.objects.filter(clinic=request.clinic, status='OPEN').count()})
+
+
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR')
+def add_nurse_instruction(request, patient_id):
+    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
+    appointment_id = request.GET.get('appointment_id') or request.POST.get('appointment_id')
+    admission_id = request.GET.get('admission_id') or request.POST.get('admission_id')
+    appointment = Appointment.objects.filter(pk=appointment_id, clinic=request.clinic, patient=patient).first() if appointment_id else None
+    admission = Admission.objects.filter(pk=admission_id, clinic=request.clinic, patient=patient).first() if admission_id else None
+
+    if request.method == 'POST':
+        form = NurseInstructionForm(request.POST)
+        if form.is_valid():
+            instruction = form.save(commit=False)
+            instruction.clinic = request.clinic
+            instruction.patient = patient
+            instruction.appointment = appointment
+            instruction.admission = admission
+            instruction.created_by = request.user
+            instruction.save()
+            log_action(request, 'CREATE', instruction, details=f"Created nurse instruction for {patient.full_name}")
+            notify_role_handoff(
+                request.clinic,
+                ['NURSE'],
+                f"Nursing instruction for {patient.full_name}.",
+                link=reverse('DurielMedicApp:nurse_instruction_queue'),
+                app_name='nursing',
+                object_id=instruction.pk,
+                actor=request.user,
+            )
+            messages.success(request, 'Nurse instruction sent.')
+            return redirect('core:patient_detail', pk=patient.patient_id)
+    else:
+        form = NurseInstructionForm()
+    return render(request, 'nursing/instruction_form.html', {
+        'form': form,
+        'patient': patient,
+        'appointment': appointment,
+        'admission': admission,
+    })
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'NURSE')
+def complete_nurse_instruction(request, instruction_id):
+    instruction = get_object_or_404(NurseInstruction, pk=instruction_id, clinic=request.clinic, status='OPEN')
+    instruction.mark_done(request.user)
+    log_action(request, 'UPDATE', instruction, details=f"Completed nurse instruction for {instruction.patient.full_name}")
+    messages.success(request, 'Nurse instruction completed.')
+    return redirect('DurielMedicApp:nurse_instruction_queue')
+
+
+@login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def refer_to_physiotherapy(request, patient_id):
     patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic)
@@ -589,6 +670,10 @@ def _physiotherapy_appointment_queryset(request):
     return queryset
 
 
+def _is_general_clinic(request):
+    return getattr(request.clinic, 'clinic_type', None) == 'GENERAL'
+
+
 def _complete_physiotherapy_work(request, patient, appointment=None):
     completed_appointment = None
     completed_referrals = []
@@ -632,6 +717,9 @@ def _complete_physiotherapy_work(request, patient, appointment=None):
 @clinic_selected_required
 @role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
 def physiotherapy_queue(request):
+    if not _is_general_clinic(request):
+        messages.info(request, 'Physiotherapy queue is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     referrals = [{'kind': 'referral', 'item': referral} for referral in _physiotherapy_referral_queryset(request)]
     appointments = [{'kind': 'appointment', 'item': appointment} for appointment in _physiotherapy_appointment_queryset(request)]
     queue_items = sorted(
@@ -657,6 +745,9 @@ def physiotherapy_queue(request):
 @clinic_selected_required
 @role_required('ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST')
 def update_physiotherapy_referral_status(request, referral_id, status):
+    if not _is_general_clinic(request):
+        messages.info(request, 'Physiotherapy queue is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     normalized_status = status.upper()
     valid_statuses = dict(PhysiotherapyReferral.STATUS_CHOICES)
     if normalized_status not in valid_statuses:
@@ -697,6 +788,9 @@ def update_physiotherapy_referral_status(request, referral_id, status):
 @clinic_selected_required
 @role_required('DOCTOR', 'PHYSIOTHERAPIST')
 def complete_physiotherapy_consultation(request, appointment_id):
+    if not _is_general_clinic(request):
+        messages.info(request, 'Physiotherapy queue is available in the General clinic only.')
+        return redirect('core:clinic_dashboard')
     appointment = get_object_or_404(
         Appointment.objects.select_related('patient', 'provider'),
         pk=appointment_id,
@@ -744,6 +838,8 @@ def complete_physiotherapy_consultation(request, appointment_id):
 @login_required
 @clinic_selected_required
 def physiotherapy_queue_count(request):
+    if not _is_general_clinic(request):
+        return JsonResponse({'count': 0})
     if request.user.role not in {'ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST'}:
         return JsonResponse({'count': 0})
     count = _physiotherapy_referral_queryset(request).count() + _physiotherapy_appointment_queryset(request).count()
@@ -2255,15 +2351,17 @@ def generate_report(request):
     # Default date range: last 30 days
     end_date = timezone.now()
     start_date = end_date - timedelta(days=30)
-
-    if request.method == 'POST':
-        start_date_str = request.POST.get('start_date')
-        end_date_str = request.POST.get('end_date')
-        report_type = request.POST.get('report_type')
-
-        if start_date_str and end_date_str:
+    start_date_str = request.GET.get('start_date') or request.POST.get('start_date')
+    end_date_str = request.GET.get('end_date') or request.POST.get('end_date')
+    if start_date_str and end_date_str:
+        try:
             start_date = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
             end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+        except ValueError:
+            messages.error(request, "Invalid report date range.")
+
+    if request.method == 'POST':
+        report_type = request.POST.get('report_type')
 
         # Route to correct report
         if report_type == 'appointments':
@@ -2278,11 +2376,26 @@ def generate_report(request):
         clinic_id=clinic_id,
         date__range=[start_date.date(), end_date.date()]
     ).values('status').annotate(count=Count('id'))
+    appointment_counts = {row['status']: row['count'] for row in appointment_stats}
+    total_appointments = sum(appointment_counts.values())
+    completed_appointments = appointment_counts.get('COMPLETED', 0)
+    other_appointments = max(total_appointments - completed_appointments, 0)
+    appointment_completion_rate = round((completed_appointments / total_appointments) * 100, 1) if total_appointments else 0
 
     patient_stats = Patient.objects.filter(
         clinic_id=clinic_id,
         created_at__range=[start_date, end_date]
     ).aggregate(total=Count('patient_id'))
+    total_patients = Patient.objects.filter(clinic_id=clinic_id).count()
+    new_patient_ids = set(Patient.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[start_date, end_date],
+    ).values_list('patient_id', flat=True))
+    seen_patient_ids = set(Appointment.objects.filter(
+        clinic_id=clinic_id,
+        date__range=[start_date.date(), end_date.date()],
+    ).values_list('patient_id', flat=True))
+    returning_patients = max(len(seen_patient_ids - new_patient_ids), 0)
 
     effective_amount_expr = models.Case(
         models.When(discount_type__in=['PERCENTAGE', 'FIXED'], then=F('final_amount')),
@@ -2291,19 +2404,183 @@ def generate_report(request):
         output_field=DecimalField(max_digits=10, decimal_places=2),
     )
 
-    # Match /billing/ totals (all bills in clinic, discount-aware).
-    bills_for_totals = Billing.objects.filter(clinic_id=clinic_id).annotate(effective_amount=effective_amount_expr)
+    bills_for_totals = Billing.objects.filter(
+        clinic_id=clinic_id,
+        service_date__range=[start_date.date(), end_date.date()],
+    ).annotate(effective_amount=effective_amount_expr)
     financial_stats = bills_for_totals.aggregate(
         total_amount=Coalesce(Sum('effective_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
         total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField()))
     )
+    total_amount = financial_stats['total_amount'] or 0
+    total_paid = financial_stats['total_paid'] or 0
+    outstanding = total_amount - total_paid
+    collection_rate = round((total_paid / total_amount) * 100, 1) if total_amount else 0
+    avg_revenue_per_patient = (total_amount / len(seen_patient_ids)) if seen_patient_ids else 0
+    period_days = max((end_date.date() - start_date.date()).days + 1, 1)
+    previous_end = start_date - timedelta(seconds=1)
+    previous_start = previous_end - timedelta(days=period_days - 1)
+    previous_bills = Billing.objects.filter(
+        clinic_id=clinic_id,
+        service_date__range=[previous_start.date(), previous_end.date()],
+    ).annotate(effective_amount=effective_amount_expr)
+    previous_financial = previous_bills.aggregate(
+        total_amount=Coalesce(Sum('effective_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        total_paid=Coalesce(Sum('paid_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+    )
+    previous_total_amount = previous_financial['total_amount'] or 0
+    revenue_delta = total_amount - previous_total_amount
+    revenue_delta_percent = round((revenue_delta / previous_total_amount) * 100, 1) if previous_total_amount else None
+    previous_new_patients = Patient.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[previous_start, previous_end],
+    ).count()
+    new_patient_delta = (patient_stats['total'] or 0) - previous_new_patients
+    revenue_per_patient_target = 40000
+    revenue_per_patient_above_target = avg_revenue_per_patient >= revenue_per_patient_target
+    patient_mix_total = (patient_stats['total'] or 0) + returning_patients
+    new_patient_percent = round(((patient_stats['total'] or 0) / patient_mix_total) * 100, 1) if patient_mix_total else 0
+    returning_patient_percent = round((returning_patients / patient_mix_total) * 100, 1) if patient_mix_total else 0
+    outstanding_percent = round((outstanding / total_amount) * 100, 1) if total_amount else 0
+
+    billing_line_items = BillingLineItem.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[start_date, end_date],
+    )
+    top_services = billing_line_items.exclude(status='VOIDED').values(
+        'description', 'source_type'
+    ).annotate(
+        total=Coalesce(Sum('total_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        count=Count('id'),
+    ).order_by('-total', '-count')[:8]
+
+    due_billing_count = BillingLineItem.objects.filter(
+        clinic_id=clinic_id,
+        status__in=['DRAFT', 'APPROVED'],
+        bill__isnull=True,
+    ).count()
+    pending_lab_count = LabTestOrder.objects.filter(clinic_id=clinic_id, status__in=['ORDERED', 'IN_QUEUE', 'SAMPLE_COLLECTED', 'PROCESSING']).count()
+    pending_physio_count = PhysiotherapyReferral.objects.filter(clinic_id=clinic_id, status__in=['PENDING', 'ACCEPTED', 'IN_PROGRESS']).count()
+    pending_nurse_instruction_count = NurseInstruction.objects.filter(clinic_id=clinic_id, status='OPEN').count()
+    pending_follow_up_count = FollowUp.objects.filter(patient__clinic_id=clinic_id, completed=False, scheduled_date__lte=end_date.date()).count()
+    low_stock_count = ClinicMedication.objects.filter(
+        clinic_id=clinic_id,
+        quantity_in_stock__lte=F('minimum_stock_level'),
+        status='ACTIVE',
+    ).count()
+
+    provider_activity = Appointment.objects.filter(
+        clinic_id=clinic_id,
+        date__range=[start_date.date(), end_date.date()],
+    ).values(
+        'provider__first_name', 'provider__last_name', 'provider__username', 'provider__role'
+    ).annotate(
+        total=Count('id'),
+        completed=Count('id', filter=Q(status='COMPLETED')),
+    ).order_by('-completed', '-total')[:8]
+    provider_revenue = BillingLineItem.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[start_date, end_date],
+    ).exclude(
+        status='VOIDED',
+    ).values(
+        'created_by__first_name', 'created_by__last_name', 'created_by__username', 'created_by__role'
+    ).annotate(
+        revenue=Coalesce(Sum('total_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
+        count=Count('id'),
+    ).order_by('-revenue', '-count')[:8]
+
+    lab_stats = LabTestOrder.objects.filter(
+        clinic_id=clinic_id,
+        ordered_at__range=[start_date, end_date],
+    ).values('status').annotate(count=Count('id')).order_by('status')
+    prescription_count = Prescription.objects.filter(
+        patient__clinic_id=clinic_id,
+        date_prescribed__range=[start_date, end_date],
+    ).count()
+    admission_stats = Admission.objects.filter(
+        clinic_id=clinic_id,
+        date_admitted__range=[start_date, end_date],
+    ).aggregate(
+        total=Count('id'),
+        discharged=Count('id', filter=Q(discharged=True)),
+    )
+    recent_unpaid_bills = bills_for_totals.filter(status__in=['PENDING', 'PARTIAL']).select_related('patient').order_by('-service_date', '-id')[:8]
+    attention_items = [
+        {'label': 'Patients due for billing', 'count': due_billing_count, 'url': reverse('core:billing_list')},
+        {'label': 'Pending lab orders', 'count': pending_lab_count, 'url': reverse('core:lab_queue')},
+        {'label': 'Pending physio work', 'count': pending_physio_count, 'url': reverse('DurielMedicApp:physiotherapy_queue')},
+        {'label': 'Open nurse instructions', 'count': pending_nurse_instruction_count, 'url': reverse('DurielMedicApp:nurse_instruction_queue')},
+        {'label': 'Due follow-ups', 'count': pending_follow_up_count, 'url': reverse('DurielMedicApp:followup_list')},
+        {'label': 'Low stock medicines', 'count': low_stock_count, 'url': reverse('core:low_stock_report')},
+    ]
+    attention_items = sorted(attention_items, key=lambda item: (item['count'] == 0, -item['count'], item['label']))
+    insight_cards = []
+    if outstanding == 0 and total_amount > 0:
+        insight_cards.append({
+            'tone': 'amber',
+            'title': 'Billing Capture Check',
+            'message': f'Outstanding is ₦0, but verify all completed work has reached billing before closing this period.',
+        })
+    elif outstanding > 0:
+        insight_cards.append({
+            'tone': 'red',
+            'title': 'Collection Follow-up',
+            'message': f'₦{outstanding:,.0f} remains outstanding. Review unpaid bills and follow up on partial payments.',
+        })
+    if patient_mix_total and returning_patients == 0:
+        insight_cards.append({
+            'tone': 'blue',
+            'title': 'Retention Watch',
+            'message': f'All {patient_mix_total} patients seen in this period were new. Track follow-ups as patient volume grows.',
+        })
+    if avg_revenue_per_patient and not revenue_per_patient_above_target:
+        insight_cards.append({
+            'tone': 'amber',
+            'title': 'Revenue Per Patient Below Target',
+            'message': f'Average revenue per patient is below the ₦{revenue_per_patient_target:,.0f} benchmark.',
+        })
+    if not insight_cards:
+        insight_cards.append({
+            'tone': 'green',
+            'title': 'Stable Period',
+            'message': 'No urgent business exceptions were detected for this report period.',
+        })
 
     context = {
         'start_date': start_date.date(),
         'end_date': end_date.date(),
         'appointment_stats': appointment_stats,
+        'appointment_counts': appointment_counts,
+        'total_appointments': total_appointments,
+        'completed_appointments': completed_appointments,
+        'other_appointments': other_appointments,
+        'appointment_completion_rate': appointment_completion_rate,
         'patient_stats': patient_stats,
+        'total_patients': total_patients,
+        'returning_patients': returning_patients,
         'financial_stats': financial_stats,
+        'outstanding': outstanding,
+        'outstanding_percent': outstanding_percent,
+        'collection_rate': collection_rate,
+        'avg_revenue_per_patient': avg_revenue_per_patient,
+        'revenue_per_patient_target': revenue_per_patient_target,
+        'revenue_per_patient_above_target': revenue_per_patient_above_target,
+        'previous_total_amount': previous_total_amount,
+        'revenue_delta': revenue_delta,
+        'revenue_delta_percent': revenue_delta_percent,
+        'new_patient_delta': new_patient_delta,
+        'new_patient_percent': new_patient_percent,
+        'returning_patient_percent': returning_patient_percent,
+        'top_services': top_services,
+        'provider_activity': provider_activity,
+        'provider_revenue': provider_revenue,
+        'lab_stats': lab_stats,
+        'prescription_count': prescription_count,
+        'admission_stats': admission_stats,
+        'recent_unpaid_bills': recent_unpaid_bills,
+        'attention_items': attention_items,
+        'insight_cards': insight_cards,
     }
 
     return render(request, 'reports/generate_report.html', context)

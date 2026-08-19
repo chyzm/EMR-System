@@ -1,16 +1,18 @@
 import json
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from html import escape
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.utils.timezone import make_aware
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -18,6 +20,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from core.decorators import clinic_selected_required, role_required
 from core.utils import ensure_appointment_consultation_charge, ensure_billing_line_item, get_or_create_encounter_for_appointment
 from core.models import Billing, Patient
+from core.reporting import build_clinic_report_context, export_appointment_report, export_patient_report, export_financial_report
 from core.permissions import DENTAL_CLINICAL_ROLES
 from core.utils import log_action, notify_roles, notify_user_db, notify_role_handoff
 from DurielMedicApp.models import Vitals
@@ -121,7 +124,7 @@ class DentalAppointmentListView(LoginRequiredMixin, ListView):
             qs = qs.filter(status=self.request.GET['status'])
         if self.request.user.role not in [*DENTAL_FRONT_DESK_ROLES, 'DENTIST']:
             qs = qs.filter(provider=self.request.user)
-        return qs.order_by('date', 'start_time')
+        return qs.order_by('-date', '-start_time')
 
 
 class DentalAppointmentCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -192,6 +195,70 @@ def appointment_detail(request, pk):
         clinic_id=_clinic_id(request),
     )
     return render(request, 'dental/appointments/appointment_detail.html', {'appointment': appointment})
+
+
+@login_required
+@clinic_selected_required
+@role_required('DENTIST')
+def begin_consultation(request, pk):
+    appointment = get_object_or_404(
+        DentalAppointment.objects.select_related('patient', 'clinic', 'provider'),
+        pk=pk,
+        clinic_id=_clinic_id(request),
+    )
+    patient = appointment.patient
+    if appointment.status == 'COMPLETED':
+        messages.info(request, 'This dental consultation has already been completed.')
+        return redirect('core:patient_detail', pk=patient.patient_id)
+
+    with transaction.atomic():
+        if appointment.status in ['SCHEDULED', 'CHECKED_IN']:
+            appointment.status = 'IN_CHAIR'
+            appointment.save(update_fields=['status', 'updated_at'])
+        if patient.status != 'IN_CONSULTATION':
+            patient.status = 'IN_CONSULTATION'
+            patient.save(update_fields=['status'])
+        get_or_create_encounter_for_appointment(appointment, request.user)
+
+    log_action(request, 'UPDATE', appointment, details=f"Began dental consultation for {patient.full_name}")
+    return redirect('core:patient_detail', pk=patient.patient_id)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DENTIST')
+def complete_consultation(request, patient_id):
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic_id=_clinic_id(request))
+    appointment = DentalAppointment.objects.filter(
+        patient=patient,
+        clinic_id=_clinic_id(request),
+        status__in=['SCHEDULED', 'CHECKED_IN', 'IN_CHAIR'],
+    ).order_by('-date', '-start_time').first()
+    if not appointment:
+        messages.error(request, 'No active dental appointment found for this patient.')
+        return redirect('core:patient_detail', pk=patient.patient_id)
+
+    with transaction.atomic():
+        appointment.status = 'COMPLETED'
+        appointment.save(update_fields=['status', 'updated_at'])
+        patient.status = 'CONSULTATION_COMPLETE'
+        patient.save(update_fields=['status'])
+        ensure_appointment_consultation_charge(appointment, request.user, description='Dental consultation')
+
+    log_action(request, 'UPDATE', appointment, details=f"Completed dental consultation for {patient.full_name}")
+    notify_role_handoff(
+        appointment.clinic,
+        ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DENTIST'],
+        f"Dental consultation completed for {patient.full_name}. Billing/review pending.",
+        link=f"{reverse_lazy('core:create_bill')}?patient={patient.patient_id}&appointment_id={appointment.pk}&appointment_type=dental",
+        app_name='dental',
+        object_id=appointment.pk,
+        actor=request.user,
+        provider=appointment.provider,
+    )
+    messages.success(request, 'Dental consultation completed.')
+    return redirect('core:patient_detail', pk=patient.patient_id)
 
 
 @require_POST
@@ -621,3 +688,38 @@ def dental_file_pdf(request, file_type, pk):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="dental_{file_type}_{patient.patient_id}_{obj.pk}.pdf"'
     return response
+
+
+@login_required
+@clinic_selected_required
+@role_required('ADMIN')
+def generate_dental_report(request):
+    """Dental analytics dashboard — same shared report as General/Eye."""
+    clinic_id = request.session.get('clinic_id')
+    if not clinic_id:
+        messages.error(request, "No clinic selected. Please select a clinic first.")
+        return redirect('core:select_clinic')
+
+    # Default date range: last 30 days
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=30)
+    start_date_str = request.GET.get('start_date') or request.POST.get('start_date')
+    end_date_str = request.GET.get('end_date') or request.POST.get('end_date')
+    if start_date_str and end_date_str:
+        try:
+            start_date = make_aware(datetime.combine(datetime.strptime(start_date_str, '%Y-%m-%d'), time.min))
+            end_date = make_aware(datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d'), time.max))
+        except ValueError:
+            messages.error(request, "Invalid report date range.")
+
+    if request.method == 'POST':
+        report_type = request.POST.get('report_type')
+        if report_type == 'appointments':
+            return export_appointment_report(DentalAppointment, start_date, end_date, clinic_id)
+        elif report_type == 'patients':
+            return export_patient_report(start_date, end_date, clinic_id)
+        elif report_type == 'financial':
+            return export_financial_report(start_date, end_date, clinic_id)
+
+    context = build_clinic_report_context(clinic_id, DentalAppointment, start_date, end_date)
+    return render(request, 'reports/generate_report.html', context)

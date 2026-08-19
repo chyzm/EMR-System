@@ -823,8 +823,7 @@ class BillingAccessTests(TestCase):
             if group['patient'] == self.patient and group.get('appointment') == appointment
         ]
         self.assertEqual(len(matching_groups), 1)
-        self.assertEqual(len(matching_groups[0]['items']), 2)
-        self.assertContains(response, 'Consultation')
+        self.assertEqual(len(matching_groups[0]['items']), 1)
         self.assertContains(response, 'FBC')
 
     def test_admin_can_deactivate_billing_queue_entry(self):
@@ -1496,21 +1495,26 @@ class WorkflowNotificationTests(TestCase):
         url = f"{reverse('core:create_bill')}?patient={self.patient.patient_id}&appointment_id={appointment.pk}&appointment_type=general"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        item = BillingLineItem.objects.get(patient=self.patient, clinic=self.clinic, source_type='CONSULTATION')
-        self.assertEqual(item.description, 'Consultation')
-        self.assertEqual(item.total_amount, Decimal('0.00'))
-        self.assertEqual(item.status, 'APPROVED')
+        self.assertFalse(
+            BillingLineItem.objects.filter(
+                patient=self.patient,
+                clinic=self.clinic,
+                source_type='CONSULTATION',
+            ).exists()
+        )
+        self.assertContains(response, 'Consultation')
 
         response = self.client.post(reverse('core:create_bill'), {
             'patient': self.patient.patient_id,
             'appointment_id': appointment.pk,
             'appointment_type': 'general',
-            'billing_line_items': [item.pk],
+            'billing_line_items': [],
             'service_date': timezone.localdate().isoformat(),
             'due_date': (timezone.localdate() + timedelta(days=7)).isoformat(),
             'amount': '0',
             'paid_amount': '0',
             'description': '',
+            'notes': 'Consultation',
             'discount_type': 'NONE',
             'discount_value': '0',
             'discount_reason': '',
@@ -1518,9 +1522,7 @@ class WorkflowNotificationTests(TestCase):
         self.assertEqual(response.status_code, 302)
         bill = Billing.objects.get(patient=self.patient, clinic=self.clinic, appointment_object_id=appointment.pk)
         self.assertEqual(bill.amount, Decimal('0.00'))
-        item.refresh_from_db()
-        self.assertEqual(item.status, 'BILLED')
-        self.assertEqual(item.bill, bill)
+        self.assertEqual(bill.notes, 'Consultation')
 
 
 class ClinicScopedUsernameTests(TestCase):

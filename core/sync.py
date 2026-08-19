@@ -359,7 +359,7 @@ ACTION_HANDLERS = {
 ACTION_ROLES = {
     'patient_create': {'ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST'},
     'appointment_create': {'ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST'},
-    'record_vitals': {'ADMIN', 'DOCTOR', 'NURSE'},
+    'record_vitals': {'ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'},
     'add_medical_record': {'ADMIN', 'DOCTOR', 'NURSE'},
     'admit_patient': {'ADMIN', 'DOCTOR', 'NURSE'},
     'schedule_follow_up': {'ADMIN', 'DOCTOR'},

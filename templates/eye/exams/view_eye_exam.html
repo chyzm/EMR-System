@@ -41,6 +41,10 @@
           <div><dt class="font-medium text-gray-600 inline">Final Prescription:</dt> <dd class="inline text-gray-900">{{ exam.final_prescription_left|default:"Not recorded" }}</dd></div>
           <div><dt class="font-medium text-gray-600 inline">Sphere/Cylinder/Axis/Add:</dt> <dd class="inline text-gray-900">{{ exam.sphere_left|default:"Not recorded" }} / {{ exam.cylinder_left|default:"Not recorded" }} / {{ exam.axis_left|default:"Not recorded" }} / {{ exam.add_left|default:"Not recorded" }}</dd></div>
           <div><dt class="font-medium text-gray-600 inline">Pupil Size:</dt> <dd class="inline text-gray-900">{{ exam.pupil_size_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Cup/Disc Ratio:</dt> <dd class="inline text-gray-900">{{ exam.cup_disc_ratio_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Keratometry:</dt> <dd class="inline text-gray-900">{{ exam.keratometry_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pachymetry:</dt> <dd class="inline text-gray-900">{{ exam.pachymetry_left|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Prism / Base:</dt> <dd class="inline text-gray-900">{{ exam.prism_left|default:"Not recorded" }} / {{ exam.base_direction_left|default:"Not recorded" }}</dd></div>
         </dl>
       </section>
 
@@ -57,11 +61,31 @@
           <div><dt class="font-medium text-gray-600 inline">Final Prescription:</dt> <dd class="inline text-gray-900">{{ exam.final_prescription_right|default:"Not recorded" }}</dd></div>
           <div><dt class="font-medium text-gray-600 inline">Sphere/Cylinder/Axis/Add:</dt> <dd class="inline text-gray-900">{{ exam.sphere_right|default:"Not recorded" }} / {{ exam.cylinder_right|default:"Not recorded" }} / {{ exam.axis_right|default:"Not recorded" }} / {{ exam.add_right|default:"Not recorded" }}</dd></div>
           <div><dt class="font-medium text-gray-600 inline">Pupil Size:</dt> <dd class="inline text-gray-900">{{ exam.pupil_size_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Cup/Disc Ratio:</dt> <dd class="inline text-gray-900">{{ exam.cup_disc_ratio_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Keratometry:</dt> <dd class="inline text-gray-900">{{ exam.keratometry_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Pachymetry:</dt> <dd class="inline text-gray-900">{{ exam.pachymetry_right|default:"Not recorded" }}</dd></div>
+          <div><dt class="font-medium text-gray-600 inline">Prism / Base:</dt> <dd class="inline text-gray-900">{{ exam.prism_right|default:"Not recorded" }} / {{ exam.base_direction_right|default:"Not recorded" }}</dd></div>
         </dl>
       </section>
     </div>
 
+    <div class="p-6 border-t border-gray-200">
+      <h2 class="font-semibold text-gray-900 mb-3">Pupils, Motility &amp; Screening</h2>
+      <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+        <div><dt class="font-medium text-gray-600 inline">Pupils / PERRLA:</dt> <dd class="inline text-gray-900">{{ exam.pupils_perrla|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">RAPD:</dt> <dd class="inline text-gray-900">{{ exam.rapd_note|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">Motility:</dt> <dd class="inline text-gray-900">{{ exam.extraocular_motility|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">Cover Test:</dt> <dd class="inline text-gray-900">{{ exam.cover_test|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">Confrontation Fields:</dt> <dd class="inline text-gray-900">{{ exam.confrontation_visual_fields|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">Colour Vision:</dt> <dd class="inline text-gray-900">{{ exam.colour_vision|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">IOP Method:</dt> <dd class="inline text-gray-900">{{ exam.iop_method|default:"Not recorded" }}</dd></div>
+        <div><dt class="font-medium text-gray-600 inline">IOP Time:</dt> <dd class="inline text-gray-900">{{ exam.iop_time|default:"Not recorded" }}</dd></div>
+      </dl>
+    </div>
+
     <div class="p-6 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+      <div><h3 class="font-medium text-gray-700">Frame Prescription</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{% if exam.frame_product %}{{ exam.frame_product.display_name }}{% if exam.frame_prescription %}<br>{{ exam.frame_prescription }}{% endif %}{% elif exam.frame_prescribed or exam.frame_prescription %}{{ exam.frame_prescription|default:"Prescribed" }}{% else %}Not prescribed{% endif %}</p></div>
+      <div><h3 class="font-medium text-gray-700">Lens Prescription</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{% if exam.lens_product %}{{ exam.lens_product.display_name }}{% if exam.lens_prescription %}<br>{{ exam.lens_prescription }}{% endif %}{% elif exam.lens_prescribed or exam.lens_prescription %}{{ exam.lens_prescription|default:"Prescribed" }}{% else %}Not prescribed{% endif %}</p></div>
       <div><h3 class="font-medium text-gray-700">Chief Complaint</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.chief_complaint|default:"Not recorded" }}</p></div>
       <div><h3 class="font-medium text-gray-700">Diagnosis</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.diagnosis|default:"Not recorded" }}</p></div>
       <div><h3 class="font-medium text-gray-700">Anterior Segment</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.anterior_segment_findings|default:"Not recorded" }}</p></div>

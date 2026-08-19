@@ -56,17 +56,53 @@
                         </p>
                     </div>
                 {% endif %}
-                {% if request.session.clinic_type == "DENTAL" and request.user.role == "DENTIST" %}
-                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                        <p class="font-medium text-blue-900">Dental clinic workflow</p>
-                        <p class="text-sm text-blue-800">Open the patient’s odontogram, exams, treatment plans, procedures and follow-ups.</p>
-                        <p class="mt-2">
-                            <a href="{% url 'DurielDentalApp:patient_chart' patient.patient_id %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
-                                Open Dental Chart
-                            </a>
-                        </p>
-                    </div>
-                {% endif %}
+	                {% if request.session.clinic_type == "DENTAL" and request.user.role == "DENTIST" %}
+	                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+	                        <p class="font-medium text-blue-900">Dental clinic workflow</p>
+	                        <p class="text-sm text-blue-800">Review vitals, open the chart, then complete the consultation when finished.</p>
+	                        {% if vitals %}
+	                        <div class="mt-3 grid grid-cols-2 gap-3 rounded-md border border-blue-100 bg-white p-3 text-sm md:grid-cols-4">
+	                            <div>
+	                                <p class="text-gray-500">Blood Pressure</p>
+	                                <p class="font-medium text-gray-900">{{ vitals.blood_pressure }}</p>
+	                            </div>
+	                            <div>
+	                                <p class="text-gray-500">Pulse</p>
+	                                <p class="font-medium text-gray-900">{{ vitals.pulse }} bpm</p>
+	                            </div>
+	                            <div>
+	                                <p class="text-gray-500">Temperature</p>
+	                                <p class="font-medium text-gray-900">{{ vitals.temperature }}°C</p>
+	                            </div>
+	                            <div>
+	                                <p class="text-gray-500">Weight</p>
+	                                <p class="font-medium text-gray-900">{{ vitals.weight }} kg</p>
+	                            </div>
+	                        </div>
+	                        {% endif %}
+	                        <div class="mt-2 flex flex-wrap gap-2">
+	                            <a href="{% url 'DurielDentalApp:patient_chart' patient.patient_id %}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+	                                Open Dental Chart
+	                            </a>
+	                            {% if active_dental_appointment %}
+	                            <form method="post" action="{% url 'DurielDentalApp:complete_consultation' patient.patient_id %}" class="inline">
+	                                {% csrf_token %}
+	                                <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
+	                                    Complete Consultation
+	                                </button>
+	                            </form>
+	                            {% elif latest_dental_appointment and latest_dental_appointment.status == 'COMPLETED' %}
+	                            <button type="button" class="inline-flex items-center px-3 py-1.5 bg-gray-300 text-gray-600 text-sm rounded-md cursor-not-allowed" disabled>
+	                                Consultation Completed
+	                            </button>
+	                            {% else %}
+	                            <button type="button" class="inline-flex items-center px-3 py-1.5 bg-gray-300 text-gray-600 text-sm rounded-md cursor-not-allowed" disabled>
+	                                Complete Consultation
+	                            </button>
+	                            {% endif %}
+	                        </div>
+	                    </div>
+	                {% endif %}
             </div>
         </div>
 	    </div>
@@ -200,7 +236,7 @@
             <div class="flex flex-wrap gap-2">
                 {% if request.user.is_authenticated %}
                     {% if patient.status == 'REGISTERED' %}
-                        {% if request.user.role == 'NURSE' or request.user.role == 'DOCTOR' %}
+                        {% if can_access_vitals %}
                             <a href="{% url 'DurielMedicApp:record_vitals' patient_id=patient.patient_id %}" 
                             class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
                             Record Vitals
@@ -299,8 +335,27 @@
         {% endif %}
         {% if request.session.clinic_type == "EYE" %}
             {% if request.user.role == 'OPTOMETRIST' %}
+            {% if active_eye_appointment %}
+            <form method="post" action="{% url 'DurielEyeApp:complete_consultation' patient.patient_id %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded">
+                    <i class="fas fa-check-circle mr-1"></i>Complete Consultation
+                </button>
+            </form>
+            {% elif latest_eye_appointment and latest_eye_appointment.status == 'COMPLETED' %}
+            <button type="button" class="bg-gray-300 text-gray-600 text-sm px-3 py-1 rounded cursor-not-allowed" disabled>
+                <i class="fas fa-check-circle mr-1"></i>Consultation Completed
+            </button>
+            {% else %}
+            <button type="button" class="bg-gray-300 text-gray-600 text-sm px-3 py-1 rounded cursor-not-allowed" disabled>
+                <i class="fas fa-check-circle mr-1"></i>Complete Consultation
+            </button>
+            {% endif %}
+            <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}" class="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded">
+                <i class="fas fa-file-pdf mr-1"></i>Export PDF
+            </a>
             <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
-                <i class="fas fa-plus mr-1"></i>Add Record
+                <i class="fas fa-plus mr-1"></i>Add Exam
             </a>
             {% endif %}
         {% endif %}
@@ -393,9 +448,9 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2 ml-4">
-                        <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded">
+                        <a href="{% url 'DurielEyeApp:view_eye_medical_record' record.id %}" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-1.5 rounded">
                             <i class="fas fa-eye mr-1"></i>View
-                        </button>
+                        </a>
                         {% if request.user.role == 'OPTOMETRIST' %}
                         <a href="{% url 'DurielEyeApp:edit_eye_medical_record' record.id %}"
                            class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded">
@@ -944,106 +999,48 @@ document.addEventListener('keydown', function(e) {
             <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="text-sm hover:underline">Add Exam</a>
             {% endif %}
         </div>
-        <div class="divide-y">
+        <div class="divide-y bg-gray-50">
             {% for exam in eye_exams %}
-            <div class="p-4 hover:bg-gray-50">
-                <div class="flex justify-between items-start">
-                    <div class="w-full">
-                        <h3 class="font-medium">Eye Exam - {{ exam.created_at|date:"M j, Y" }}</h3>
-                        <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Left Eye -->
-                            <div>
-                                <p class="text-sm font-medium text-gray-700">Left Eye:</p>
-                                <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_left|default:"Not recorded" }} mmHg</p>
-                                <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Axis: {{ exam.axis_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Add: {{ exam.add_left|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_left|default:"Not recorded" }} mm</p>
-                            </div>
-                            
-                            <!-- Right Eye -->
-                            <div>
-                                <p class="text-sm font-medium text-gray-700">Right Eye:</p>
-                                <p class="text-sm text-gray-600">Visual Acuity: {{ exam.visual_acuity_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Pressure: {{ exam.intraocular_pressure_right|default:"Not recorded" }} mmHg</p>
-                                <p class="text-sm text-gray-600">Refraction: {{ exam.refraction_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Sphere: {{ exam.sphere_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Cylinder: {{ exam.cylinder_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Axis: {{ exam.axis_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Add: {{ exam.add_right|default:"Not recorded" }}</p>
-                                <p class="text-sm text-gray-600">Pupil Size: {{ exam.pupil_size_right|default:"Not recorded" }} mm</p>
-                            </div>
+            <div class="p-3">
+                <div class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-blue-200 hover:bg-blue-50 md:flex-row md:items-center md:justify-between">
+                    <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="flex min-w-0 flex-1 items-start gap-4">
+                        <div class="flex h-12 w-10 flex-shrink-0 items-center justify-center rounded border border-blue-200 bg-blue-50 text-blue-700 shadow-sm">
+                            <i class="fas fa-file-medical text-lg"></i>
                         </div>
-                        
-                        <!-- Special Findings -->
-	                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-	                            {% if exam.chief_complaint %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Chief Complaint:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.chief_complaint }}</p>
-	                            </div>
-	                            {% endif %}
-	                            {% if exam.diagnosis %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Diagnosis:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.diagnosis }}</p>
-	                            </div>
-	                            {% endif %}
-	                            {% if exam.slit_lamp_findings %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Slit Lamp Findings:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.slit_lamp_findings }}</p>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="font-semibold text-gray-900">Eye Exam - {{ exam.created_at|date:"M j, Y" }}</h3>
+                                {% if exam.frame_prescribed or exam.frame_product or exam.frame_prescription %}
+                                    <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">Frame Rx</span>
+                                {% endif %}
+                                {% if exam.lens_prescribed or exam.lens_product or exam.lens_prescription %}
+                                    <span class="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-800">Lens Rx</span>
+                                {% endif %}
                             </div>
+                            <p class="mt-1 text-sm text-gray-600">
+                                VA L: {{ exam.visual_acuity_left|default:"-" }} · VA R: {{ exam.visual_acuity_right|default:"-" }}
+                                {% if exam.diagnosis %} · Diagnosis: {{ exam.diagnosis|truncatechars:60 }}{% endif %}
+                                {% if exam.treatment_plan %} · Plan: {{ exam.treatment_plan|truncatechars:60 }}{% endif %}
+                            </p>
+                            {% if exam.chief_complaint %}
+                                <p class="mt-1 text-sm text-gray-500">Chief complaint: {{ exam.chief_complaint|truncatechars:110 }}</p>
                             {% endif %}
-                            
-                            {% if exam.fundus_exam_findings %}
-                            <div>
-                                <p class="text-sm font-medium text-gray-700">Fundus Exam Findings:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.fundus_exam_findings }}</p>
-	                            </div>
-	                            {% endif %}
-	                            {% if exam.treatment_plan %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Treatment Plan:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.treatment_plan }}</p>
-	                            </div>
-	                            {% endif %}
-	                            {% if exam.imaging_results %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Imaging/Investigation Results:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.imaging_results }}</p>
-	                            </div>
-	                            {% endif %}
-	                            {% if exam.follow_up_plan %}
-	                            <div>
-	                                <p class="text-sm font-medium text-gray-700">Follow-up Plan:</p>
-	                                <p class="text-sm text-gray-600">{{ exam.follow_up_plan }}</p>
-	                            </div>
-	                            {% endif %}
-	                        </div>
-                        
-                        <!-- General Notes -->
-                        {% if exam.notes %}
-                        <div class="mt-2">
-                            <p class="text-sm font-medium text-gray-700">Notes:</p>
-                            <p class="text-sm text-gray-600">{{ exam.notes }}</p>
                         </div>
-                        {% endif %}
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">
-                            {{ exam.created_at|date:"M j, Y" }}
-                        </p>
-                        <div class="mt-2">
-                            <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="text-gray-700 hover:text-gray-900 text-sm mr-2">View</a>
-                            {% if request.user.role in 'OPTOMETRIST' %}
-                            <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-blue-600 hover:text-blue-800 text-sm mr-2">Edit</a>
+                    </a>
+                    <div class="flex flex-shrink-0 items-center justify-between gap-3 md:flex-col md:items-end">
+                        <p class="text-xs text-gray-500">{{ exam.created_at|date:"M j, Y" }}</p>
+	                        <div class="flex items-center gap-3">
+	                            <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="text-sm font-medium text-gray-700 hover:text-gray-900">View</a>
+                                {% if exam.encounter_id %}
+                                <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}?encounter_id={{ exam.encounter_id }}" class="text-sm font-medium text-red-600 hover:text-red-800">PDF</a>
+                                {% elif exam.appointment_id %}
+                                <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}?appointment_id={{ exam.appointment_id }}" class="text-sm font-medium text-red-600 hover:text-red-800">PDF</a>
+                                {% endif %}
+	                            {% if request.user.role in 'OPTOMETRIST' %}
+                            <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">Edit</a>
                             <form action="{% url 'DurielEyeApp:delete_eye_exam' exam.id %}" method="post" class="inline">
                                 {% csrf_token %}
-                                <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                <button type="submit" class="text-sm font-medium text-red-600 hover:text-red-800">Delete</button>
                             </form>
                             {% endif %}
                         </div>
@@ -1290,7 +1287,7 @@ document.addEventListener('keydown', function(e) {
     <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
         <h2 class="text-xl font-semibold"><i class="fas fa-calendar-alt mr-2"></i>Appointments</h2>
         {% if patient.pk and request.user.role == 'ADMIN' or request.user.role == 'RECEPTIONIST' %}
-        <a href="{% if request.session.clinic_type == 'GENERAL' %}{% url 'DurielMedicApp:appointment_list' %}{% else %}{% url 'DurielEyeApp:appointment_list' %}{% endif %}?patient={{ patient.id }}" 
+        <a href="{% if request.session.clinic_type == 'GENERAL' %}{% url 'DurielMedicApp:appointment_list' %}{% elif request.session.clinic_type == 'DENTAL' %}{% url 'DurielDentalApp:appointment_list' %}{% else %}{% url 'DurielEyeApp:appointment_list' %}{% endif %}?patient={{ patient.id }}" 
            class="text-sm hover:underline">View All</a>
         {% endif %}
     </div>
@@ -1329,8 +1326,25 @@ document.addEventListener('keydown', function(e) {
             </div>
         </div>
         {% endfor %}
+
+        <!-- Dental Appointments -->
+        {% for dental_appointment in dental_appointments %}
+        <div class="p-4 hover:bg-gray-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-medium">{{ dental_appointment.date|date:"F j, Y" }}</h3>
+                    <p class="text-sm text-gray-600">{{ dental_appointment.get_visit_type_display }}</p>
+                    <p class="text-xs text-gray-500 text-emerald-600">Dental Clinic</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm">{{ dental_appointment.start_time|time:"h:i A" }} - {{ dental_appointment.end_time|time:"h:i A" }}</p>
+                    <p class="text-xs text-gray-500">{{ dental_appointment.get_status_display }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
         
-        {% if not appointments and not eye_appointments %}
+        {% if not appointments and not eye_appointments and not dental_appointments %}
         <div class="p-4 text-center text-gray-500">
             No appointments found
         </div>
@@ -1338,7 +1352,7 @@ document.addEventListener('keydown', function(e) {
     </div>
 
     <!-- Appointments Pagination -->
-    {% if appointments.has_other_pages or eye_appointments.has_other_pages %}
+    {% if appointments.has_other_pages or eye_appointments.has_other_pages or dental_appointments.has_other_pages %}
     <div class="px-6 py-4 bg-gray-50 border-t">
         <div class="flex items-center justify-between">
             <div class="text-sm text-gray-700">
@@ -1346,7 +1360,11 @@ document.addEventListener('keydown', function(e) {
                 {% if appointments %}
                     {{ appointments.start_index }} to {{ appointments.end_index }} of {{ appointments.paginator.count }} appointments
                 {% else %}
+                    {% if eye_appointments %}
                     {{ eye_appointments.start_index }} to {{ eye_appointments.end_index }} of {{ eye_appointments.paginator.count }} appointments
+                    {% else %}
+                    {{ dental_appointments.start_index }} to {{ dental_appointments.end_index }} of {{ dental_appointments.paginator.count }} appointments
+                    {% endif %}
                 {% endif %}
             </div>
             <div class="flex space-x-1">
@@ -1357,6 +1375,11 @@ document.addEventListener('keydown', function(e) {
                     </a>
                 {% elif eye_appointments.has_previous %}
                     <a href="?eye_appointments_page={{ eye_appointments.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Previous
+                    </a>
+                {% elif dental_appointments.has_previous %}
+                    <a href="?dental_appointments_page={{ dental_appointments.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'dental_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
                        class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
                         Previous
                     </a>
@@ -1373,12 +1396,23 @@ document.addEventListener('keydown', function(e) {
                             </a>
                         {% endif %}
                     {% endfor %}
-                {% else %}
+                {% elif eye_appointments %}
                     {% for num in eye_appointments.paginator.page_range %}
                         {% if eye_appointments.number == num %}
                             <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
                         {% elif num > eye_appointments.number|add:'-3' and num < eye_appointments.number|add:'3' %}
                             <a href="?eye_appointments_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                               class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    {% for num in dental_appointments.paginator.page_range %}
+                        {% if dental_appointments.number == num %}
+                            <span class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md">{{ num }}</span>
+                        {% elif num > dental_appointments.number|add:'-3' and num < dental_appointments.number|add:'3' %}
+                            <a href="?dental_appointments_page={{ num }}{% for key, value in request.GET.items %}{% if key != 'dental_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
                                class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
                                 {{ num }}
                             </a>
@@ -1393,6 +1427,11 @@ document.addEventListener('keydown', function(e) {
                     </a>
                 {% elif eye_appointments.has_next %}
                     <a href="?eye_appointments_page={{ eye_appointments.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'eye_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+                       class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
+                        Next
+                    </a>
+                {% elif dental_appointments.has_next %}
+                    <a href="?dental_appointments_page={{ dental_appointments.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'dental_appointments_page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
                        class="px-3 py-2 text-sm bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 rounded-md">
                         Next
                     </a>

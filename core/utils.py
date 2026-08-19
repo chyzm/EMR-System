@@ -274,8 +274,6 @@ def ensure_appointment_consultation_charge(appointment, user=None, description=N
     if provider_role == 'PHYSIOTHERAPIST':
         source_type = 'PHYSIO_CONSULTATION'
         label = 'Physio Consultation'
-    elif appointment_type == 'eye':
-        label = 'Eye Consultation'
     elif appointment_type == 'dental':
         label = 'Dental Consultation'
     return ensure_billing_line_item(

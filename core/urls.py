@@ -57,6 +57,7 @@ urlpatterns = [
     path('api/server-sync/push/', server_sync_push, name='server_sync_push'),
     path('api/server-sync/pull/', server_sync_pull, name='server_sync_pull'),
     path('api/notifications/unread/', views.unread_notifications_api, name='unread_notifications_api'),
+    path('api/pharmacy/pending-count/', views.pharmacy_pending_count, name='pharmacy_pending_count'),
     
     
     # Password reset
@@ -69,6 +70,7 @@ urlpatterns = [
     
     # Billing
     path('billing/', views.billing_list, name='billing_list'),
+    path('billing/due-count/', views.billing_due_count, name='billing_due_count'),
     path('billing/queue/deactivate/', views.deactivate_billing_queue, name='deactivate_billing_queue'),
     path('billing/create/', views.create_bill, name='create_bill'),
     # path('billing/create/patient/<int:patient_id>/', views.create_bill, name='create_bill_for_patient'),

@@ -14,16 +14,9 @@
                 <div class="text-sm font-medium text-blue-900">
                     {{ appointment.date|date:"l, F j, Y" }} at {{ appointment.start_time|time:"h:i A" }}
                 </div>
-                <div class="text-sm text-blue-700 mt-1">
-                    <strong>Reason:</strong>
-                    {% if appointment.reason %}
-                        {{ appointment.reason }}
-                    {% elif appointment.chief_complaint %}
-                        {{ appointment.chief_complaint }}
-                    {% else %}
-                        Consultation
-                    {% endif %}
-                </div>
+	                <div class="text-sm text-blue-700 mt-1">
+	                    <strong>Service:</strong> {{ appointment_type|default:"general"|title }} Consultation
+	                </div>
                 {% if appointment.doctor %}
                 <div class="text-sm text-blue-600 mt-1">
                     <strong>Doctor:</strong> {{ appointment.doctor.get_full_name }}

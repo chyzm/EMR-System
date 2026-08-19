@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Optical Lab{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">👓 Optical Lab Inventory</h2>
+            <p class="text-gray-600">{{ clinic.name }}</p>
+        </div>
+        <div class="flex flex-col md:flex-row gap-2 mt-4 md:mt-0">
+            <a href="{% url 'DurielEyeApp:optical_prescription_queue' %}"
+               class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <i class="fas fa-list-check mr-2"></i>Prescription Queue
+                {% if pending_optical_requests %}
+                    <span class="ml-2 rounded-full bg-white text-indigo-700 px-2 py-0.5 text-xs font-semibold">{{ pending_optical_requests }}</span>
+                {% endif %}
+            </a>
+            <a href="{% url 'DurielEyeApp:optical_dispense_history' %}"
+               class="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white transition-colors">
+                <i class="fas fa-clock-rotate-left mr-2"></i>Dispense History
+            </a>
+            <a href="{% url 'DurielEyeApp:add_optical_product' %}"
+               class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                <i class="fas fa-plus mr-2"></i>Add Product
+            </a>
+        </div>
+    </div>
+
+    {% if low_stock_count %}
+    <div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3">
+        <i class="fas fa-triangle-exclamation mr-2"></i>{{ low_stock_count }} product(s) at or below minimum stock level.
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+        <div class="p-4 bg-gray-50 border-b">
+            <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" name="search" value="{{ search }}" placeholder="Search name / brand / model..."
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select name="product_type" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">All Types</option>
+                    {% for value, label in product_types %}
+                        <option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="stock_status" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">All Stock</option>
+                    <option value="out_of_stock" {% if stock_filter == "out_of_stock" %}selected{% endif %}>Out of Stock</option>
+                    <option value="low_stock" {% if stock_filter == "low_stock" %}selected{% endif %}>Low Stock</option>
+                    <option value="in_stock" {% if stock_filter == "in_stock" %}selected{% endif %}>In Stock</option>
+                </select>
+                <button type="submit" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors">
+                    Filter
+                </button>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price (₦)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for product in products %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <div class="text-sm font-medium text-gray-900">{{ product.display_name }}</div>
+                            <div class="text-xs text-gray-500">
+                                {% if product.colour %}{{ product.colour }}{% endif %}
+                                {% if product.size %} · {{ product.size }}{% endif %}
+                                {% if product.material %} · {{ product.material }}{% endif %}
+                                {% if product.sphere or product.cylinder or product.axis %}
+                                    · SPH {{ product.sphere|default:"-" }} / CYL {{ product.cylinder|default:"-" }} / AX {{ product.axis|default:"-" }}
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ product.get_product_type_display }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ product.quantity_in_stock }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">₦{{ product.selling_price|default:"0" }}</td>
+                        <td class="px-6 py-4">
+                            {% if product.stock_status == "OUT_OF_STOCK" %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Out of Stock</span>
+                            {% elif product.stock_status == "LOW_STOCK" %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800">Low Stock</span>
+                            {% else %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">In Stock</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right text-sm space-x-2 whitespace-nowrap">
+                            <a href="{% url 'DurielEyeApp:edit_optical_product' product.pk %}"
+                               class="text-blue-600 hover:text-blue-800">Edit</a>
+                            {% if product.quantity_in_stock > 0 and product.status == "ACTIVE" %}
+                            <a href="{% url 'DurielEyeApp:dispense_optical' product.pk %}"
+                               class="inline-block px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white">Dispense</a>
+                            {% if request.user.role == "ADMIN" or request.user.role == "RECEPTIONIST" %}
+                            <a href="{% url 'DurielEyeApp:dispense_optical' product.pk %}"
+                               class="inline-block px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white">Add to Billing</a>
+                            {% endif %}
+                            {% else %}
+                            <span class="inline-block px-3 py-1 rounded bg-gray-200 text-gray-400 cursor-not-allowed">Dispense</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No optical products found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

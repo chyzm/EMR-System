@@ -298,6 +298,12 @@
                         <i class="fas fa-chart-pie mr-2"></i>Generate Report
                     </a>
                     {% endif %}
+
+                    {% if request.user.role == "ADMIN" or request.user.role == "OPTOMETRIST" or request.user.role == "RECEPTIONIST" %}
+                    <a href="{% url 'DurielEyeApp:optical_product_list' %}" class="block w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-4 rounded-xl transition-all card-hover text-center">
+                        <i class="fas fa-glasses mr-2"></i>Optical Lab
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

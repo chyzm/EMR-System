@@ -1,7 +1,8 @@
 from django import forms
 from core.models import Patient, CustomUser
 from django.utils import timezone
-from .models import (EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam)
+from .models import (EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam,
+                     OpticalProduct, OpticalDispense, OpticalPrescriptionRequest)
 from django.core.exceptions import ValidationError
 
 
@@ -157,11 +158,27 @@ class EyeExamForm(forms.ModelForm):
             'final_prescription_right',
             'final_prescription_left',
             'pupillary_distance',
+            # Standard eye-exam extensions
+            'pupils_perrla', 'rapd_note',
+            'extraocular_motility', 'cover_test',
+            'confrontation_visual_fields', 'colour_vision',
+            'iop_method', 'iop_time',
+            'cup_disc_ratio_right', 'cup_disc_ratio_left',
+            'keratometry_right', 'keratometry_left',
+            'pachymetry_right', 'pachymetry_left',
+            'prism_right', 'prism_left',
+            'base_direction_right', 'base_direction_left',
             'diagnosis',
             'treatment_plan',
             'procedure_notes',
             'imaging_results',
             'spectacle_or_contact_lens_plan',
+            'frame_prescribed',
+            'frame_product',
+            'frame_prescription',
+            'lens_prescribed',
+            'lens_product',
+            'lens_prescription',
             'follow_up_plan',
             'notes',
             'sphere_right', 'cylinder_right', 'axis_right', 'add_right', 'pupil_size_right',
@@ -198,11 +215,35 @@ class EyeExamForm(forms.ModelForm):
             'final_prescription_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'final_prescription_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'pupillary_distance': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'pupils_perrla': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. PERRLA'}),
+            'rapd_note': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'RAPD (e.g. none / +OS)'}),
+            'extraocular_motility': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. Full OU'}),
+            'cover_test': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. Orthophoric'}),
+            'confrontation_visual_fields': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. Full to confrontation OU'}),
+            'colour_vision': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. Ishihara 14/14'}),
+            'iop_method': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Goldmann / NCT / Tono-pen'}),
+            'iop_time': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 10:30'}),
+            'cup_disc_ratio_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 0.3'}),
+            'cup_disc_ratio_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 0.3'}),
+            'keratometry_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 43.00/44.00 @ 90'}),
+            'keratometry_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 43.00/44.00 @ 90'}),
+            'pachymetry_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 545 µm'}),
+            'pachymetry_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 545 µm'}),
+            'prism_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 2Δ'}),
+            'prism_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'e.g. 2Δ'}),
+            'base_direction_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Base direction (BU/BD/BI/BO)'}),
+            'base_direction_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Base direction (BU/BD/BI/BO)'}),
             'diagnosis': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'treatment_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'procedure_notes': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'imaging_results': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'spectacle_or_contact_lens_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'frame_prescribed': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 border-gray-300 rounded'}),
+            'frame_product': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'frame_prescription': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Frame type, model, colour, size, or fitting notes'}),
+            'lens_prescribed': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 border-gray-300 rounded'}),
+            'lens_product': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
+            'lens_prescription': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Lens type, coating, tint, material, or prescription notes'}),
             'follow_up_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'sphere_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
@@ -216,6 +257,30 @@ class EyeExamForm(forms.ModelForm):
             'add_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'pupil_size_left': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        clinic_id = kwargs.pop('clinic_id', None)
+        super().__init__(*args, **kwargs)
+        if clinic_id:
+            self.fields['frame_product'].queryset = OpticalProduct.objects.filter(
+                clinic_id=clinic_id,
+                product_type='FRAME',
+                status='ACTIVE',
+            ).order_by('brand', 'name', 'model_code')
+            self.fields['lens_product'].queryset = OpticalProduct.objects.filter(
+                clinic_id=clinic_id,
+                product_type__in=['SPECTACLE_LENS', 'CONTACT_LENS'],
+                status='ACTIVE',
+            ).order_by('product_type', 'brand', 'name', 'sphere', 'cylinder', 'axis')
+        else:
+            self.fields['frame_product'].queryset = OpticalProduct.objects.none()
+            self.fields['lens_product'].queryset = OpticalProduct.objects.none()
+        self.fields['frame_product'].required = False
+        self.fields['lens_product'].required = False
+        self.fields['frame_product'].empty_label = 'Select frame from Optical Lab'
+        self.fields['lens_product'].empty_label = 'Select lens from Optical Lab'
+        self.fields['frame_product'].label_from_instance = lambda obj: f"{obj.display_name} - Stock: {obj.quantity_in_stock}"
+        self.fields['lens_product'].label_from_instance = lambda obj: f"{obj.display_name} - Stock: {obj.quantity_in_stock}"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -235,3 +300,86 @@ class EyeExamForm(forms.ModelForm):
             if not cleaned_data.get(field):
                 cleaned_data[field] = default_value
         return cleaned_data
+
+
+OPTICAL_INPUT_CLASS = 'w-full px-3 py-2 border-2 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+
+
+class OpticalProductForm(forms.ModelForm):
+    class Meta:
+        model = OpticalProduct
+        fields = [
+            'product_type', 'name', 'brand', 'model_code', 'colour', 'size',
+            'material', 'sphere', 'cylinder', 'axis',
+            'quantity_in_stock', 'minimum_stock_level', 'cost_price', 'selling_price',
+            'status', 'batch_number', 'expiry_date',
+        ]
+        widgets = {
+            'product_type': forms.Select(attrs={'class': OPTICAL_INPUT_CLASS}),
+            'name': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Product name'}),
+            'brand': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Brand (optional)'}),
+            'model_code': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Model / SKU'}),
+            'colour': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Colour'}),
+            'size': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Size (e.g. 52-18-140)'}),
+            'material': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Material'}),
+            'sphere': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Sphere (stock lens)'}),
+            'cylinder': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Cylinder (stock lens)'}),
+            'axis': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Axis (stock lens)'}),
+            'quantity_in_stock': forms.NumberInput(attrs={'class': OPTICAL_INPUT_CLASS, 'min': '0'}),
+            'minimum_stock_level': forms.NumberInput(attrs={'class': OPTICAL_INPUT_CLASS, 'min': '0'}),
+            'cost_price': forms.NumberInput(attrs={'class': OPTICAL_INPUT_CLASS, 'step': '0.01', 'min': '0'}),
+            'selling_price': forms.NumberInput(attrs={'class': OPTICAL_INPUT_CLASS, 'step': '0.01', 'min': '0'}),
+            'status': forms.Select(attrs={'class': OPTICAL_INPUT_CLASS}),
+            'batch_number': forms.TextInput(attrs={'class': OPTICAL_INPUT_CLASS, 'placeholder': 'Batch/Lot number'}),
+            'expiry_date': forms.DateInput(attrs={'class': OPTICAL_INPUT_CLASS, 'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        # Accept an optional clinic kwarg for parity with the pharmacy form.
+        self.clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+
+
+class OpticalDispenseForm(forms.ModelForm):
+    class Meta:
+        model = OpticalDispense
+        fields = ['patient', 'quantity', 'notes']
+        widgets = {
+            'patient': forms.Select(attrs={'class': OPTICAL_INPUT_CLASS}),
+            'quantity': forms.NumberInput(attrs={'class': OPTICAL_INPUT_CLASS, 'min': '1', 'value': '1'}),
+            'notes': forms.Textarea(attrs={'class': OPTICAL_INPUT_CLASS, 'rows': 2, 'placeholder': 'Notes (optional)'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        clinic_id = kwargs.pop('clinic_id', None)
+        self.product = kwargs.pop('product', None)
+        super().__init__(*args, **kwargs)
+        self.fields['quantity'].min_value = 1
+        if clinic_id:
+            self.fields['patient'].queryset = Patient.objects.filter(
+                clinic_id=clinic_id, clinic__clinic_type='EYE'
+            ).order_by('first_name', 'last_name')
+        self.fields['patient'].empty_label = 'Select patient'
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data.get('quantity') or 0
+        if quantity < 1:
+            raise ValidationError('Quantity must be at least 1.')
+        if self.product and quantity > self.product.quantity_in_stock:
+            raise ValidationError(
+                f'Only {self.product.quantity_in_stock} in stock for {self.product.display_name}.'
+            )
+        return quantity
+
+
+class OpticalPrescriptionRequestNoteForm(forms.ModelForm):
+    class Meta:
+        model = OpticalPrescriptionRequest
+        fields = ['optician_note']
+        widgets = {
+            'optician_note': forms.Textarea(attrs={
+                'class': OPTICAL_INPUT_CLASS,
+                'rows': 3,
+                'placeholder': 'Custom lens/frame notes, lab order details, supplier reference, or fitting instructions',
+            }),
+        }

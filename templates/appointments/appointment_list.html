@@ -10,7 +10,7 @@
             <h2 class="text-2xl font-bold text-gray-900">Appointments</h2>
             <p class="mt-1 text-sm text-gray-500">View and manage patient appointments</p>
         </div>
-         {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+         {% if can_create_appointment %}
         <a href="{% url 'DurielMedicApp:add_appointment' %}" 
            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             <i class="fas fa-plus mr-2"></i> Add Appointment
@@ -107,7 +107,7 @@
                  <h2 class="text-lg font-semibold mb-4">Actions</h2>
                  <div class="space-y-2 w-full">
                      {% include "appointments/partials/vitals_modal_action.html" %}
-                     {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                     {% if can_create_appointment %}
                      <a href="{% url 'DurielMedicApp:appointment_update' appointment.pk %}"
                         class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded text-center">
                          ✏️ Edit
@@ -146,7 +146,7 @@
                     </form>
                      
 
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_appointment %}
                     <form action="{% url 'DurielMedicApp:mark_cancelled' appointment.pk %}" method="post">
                         {% csrf_token %}
                         <button type="submit"
@@ -157,7 +157,7 @@
                     {% endif %}
                     
 
-                    {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
+                    {% if can_create_appointment %}
                     <a href="{% url 'DurielMedicApp:appointment_delete' appointment.pk %}"
                        class="block px-4 py-2 text-sm text-red-600 hover:bg-red-100 rounded text-center">
                         🗑️ Delete

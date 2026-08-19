@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Optical Prescription Queue{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Optical Prescription Queue</h2>
+      <p class="text-gray-600">{{ clinic.name }}</p>
+    </div>
+    <a href="{% url 'DurielEyeApp:optical_product_list' %}"
+       class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+      <i class="fas fa-arrow-left mr-2"></i>Back to Optical Lab
+    </a>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <form method="get" class="flex flex-col md:flex-row gap-3 md:items-end">
+      <div class="flex-1">
+        <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <select id="status" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+          <option value="">All Statuses</option>
+          {% for value, label in statuses %}
+            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white">Filter</button>
+      {% if status_filter %}
+        <a href="{% url 'DurielEyeApp:optical_prescription_queue' %}" class="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prescription</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Optician Note</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for item in requests %}
+          <tr>
+            <td class="px-6 py-4 text-sm">
+              <div class="font-medium text-gray-900">{{ item.patient.full_name }}</div>
+              <div class="text-gray-500">{{ item.patient.patient_id }} · {{ item.created_at|date:"M j, Y H:i" }}</div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-700 max-w-md">
+              {% if item.frame_prescription %}
+                <div><span class="font-medium text-gray-900">Frame:</span> {{ item.frame_prescription }}</div>
+              {% elif item.frame_product %}
+                <div><span class="font-medium text-gray-900">Frame:</span> {{ item.frame_product.display_name }}</div>
+              {% endif %}
+              {% if item.lens_prescription %}
+                <div class="mt-1"><span class="font-medium text-gray-900">Lens:</span> {{ item.lens_prescription }}</div>
+              {% elif item.lens_product %}
+                <div class="mt-1"><span class="font-medium text-gray-900">Lens:</span> {{ item.lens_product.display_name }}</div>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-700 max-w-xs whitespace-pre-wrap">{{ item.optician_note|default:"-" }}</td>
+            <td class="px-6 py-4 text-sm">
+              <span class="px-2 py-1 text-xs rounded-full
+                {% if item.status == 'DISPENSED' %}bg-green-100 text-green-800
+                {% elif item.status == 'PROCESSED' %}bg-blue-100 text-blue-800
+                {% elif item.status == 'ACKNOWLEDGED' %}bg-amber-100 text-amber-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ item.get_status_display }}
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right text-sm whitespace-nowrap space-x-2">
+              <a href="{% url 'DurielEyeApp:edit_optical_prescription_note' item.pk %}" class="text-indigo-600 hover:text-indigo-800">Note</a>
+              {% if item.status == 'PENDING' %}
+                <form method="post" action="{% url 'DurielEyeApp:update_optical_prescription_status' item.pk 'ACKNOWLEDGED' %}" class="inline">
+                  {% csrf_token %}
+                  <button type="submit" class="text-amber-700 hover:text-amber-900">Acknowledge</button>
+                </form>
+              {% endif %}
+              {% if item.status == 'PENDING' or item.status == 'ACKNOWLEDGED' %}
+                <form method="post" action="{% url 'DurielEyeApp:update_optical_prescription_status' item.pk 'PROCESSED' %}" class="inline">
+                  {% csrf_token %}
+                  <button type="submit" class="text-blue-700 hover:text-blue-900">Processed</button>
+                </form>
+              {% endif %}
+              {% if item.status != 'DISPENSED' %}
+                <form method="post" action="{% url 'DurielEyeApp:update_optical_prescription_status' item.pk 'DISPENSED' %}" class="inline">
+                  {% csrf_token %}
+                  <button type="submit" class="text-green-700 hover:text-green-900">Dispensed</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="px-6 py-8 text-center text-gray-500">No optical prescription requests found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

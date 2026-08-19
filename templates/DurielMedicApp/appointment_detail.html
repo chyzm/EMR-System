@@ -12,7 +12,9 @@
       </div>
       <div class="flex flex-wrap gap-2">
         <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">Patient Detail</a>
+        {% if can_prescribe %}
         <a href="{% url 'core:add_prescription' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=general" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Prescribe</a>
+        {% endif %}
         <a href="{% url 'core:order_lab_tests' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=general" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Order Lab</a>
         {% if request.user.role == 'DOCTOR' and appointment.status != 'CANCELLED' %}
         <a href="{% url 'DurielMedicApp:refer_to_physiotherapy' patient_id=appointment.patient.patient_id %}?appointment_id={{ appointment.id }}" class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">Refer to Physio</a>

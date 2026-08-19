@@ -48,7 +48,7 @@
   function allowedRoles(action) {
     return ({
       appointment: ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST'],
-      vitals: ['ADMIN', 'DOCTOR', 'NURSE'],
+      vitals: ['ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'],
       medical: ['ADMIN', 'DOCTOR', 'NURSE'],
       admission: ['ADMIN', 'DOCTOR', 'NURSE'],
       followup: ['ADMIN', 'DOCTOR'],

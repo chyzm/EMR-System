@@ -193,6 +193,7 @@
                 </div>
             </div>
 
+            {% if can_manage_billing %}
             <!-- Financial Card -->
             <div class="stat-card rounded-2xl p-6 card-hover">
                 <div class="flex items-center justify-between mb-4">
@@ -206,7 +207,6 @@
                     </div>
                 </div>
                 <h3 class="text-gray-500 text-sm font-medium mb-2">Pending Bills</h3>
-                {% if request.user.role in 'ADMIN,RECEPTIONIST' %}
                 <p class="text-3xl font-bold text-gray-800 mb-2">{{ stats.pending_bills }}</p>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-yellow-600">₦{{ stats.total_pending_amount|floatformat:2 }}</span>
@@ -215,9 +215,9 @@
                 
                 <div class="mt-4 bg-gray-200 rounded-full h-2">
                     <div class="bg-gradient-to-r from-red-400 to-red-600 h-2 rounded-full" style="width: 36%"></div>
-                 {% endif %}   
                 </div>
             </div>
+            {% endif %}
         </div>
 
         <!-- Main Content Grid -->

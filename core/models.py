@@ -87,9 +87,10 @@ class Clinic(models.Model):
 class CustomUser(AbstractUser):
     username = models.CharField(
         max_length=150,
+        unique=True,
         help_text='Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.',
         validators=[AbstractUser.username_validator],
-        error_messages={'unique': 'A user with that username already exists in this clinic.'},
+        error_messages={'unique': 'username not accepted'},
     )
     email = models.EmailField(unique=True, blank=True, null=True)
 
@@ -108,6 +109,7 @@ class CustomUser(AbstractUser):
         ('NURSE', 'Nurse'),
         ('PHARMACIST', 'Pharmacist'),
         ('OPTOMETRIST', 'Optometrist'),
+        ('OPTICIAN', 'Optician'),
         ('DENTIST', 'Dentist'),
         ('PHYSIOTHERAPIST', 'Physiotherapist'),
         ('RECEPTIONIST', 'Receptionist'),
@@ -126,14 +128,12 @@ class CustomUser(AbstractUser):
     is_verified = models.BooleanField(default=False)
     last_activity = models.DateTimeField(auto_now=True)
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['primary_clinic', 'username'],
-                name='core_unique_username_primary_clinic',
-                condition=models.Q(primary_clinic__isnull=False),
-            ),
-        ]
+    @property
+    def display_name(self):
+        return self.get_full_name() or self.username
+
+    def __str__(self):
+        return self.display_name
 
 class Patient(models.Model):
     BLOOD_GROUPS = (
@@ -285,6 +285,7 @@ class Billing(models.Model):
     service_date = models.DateField()
     due_date = models.DateField()
     description = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
 
     # Discount fields
     discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPE_CHOICES, default='NONE')
@@ -388,6 +389,7 @@ class BillingLineItem(models.Model):
         ('PHYSIO_CONSULTATION', 'Physiotherapy Consultation'),
         ('PHYSIO_SESSION', 'Physiotherapy Session'),
         ('TREATMENT', 'Treatment'),
+        ('OPTICAL', 'Optical'),
         ('MANUAL', 'Manual'),
     )
 

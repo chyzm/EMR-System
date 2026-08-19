@@ -26,7 +26,7 @@
         {% for appointment in appointments %}
           <a href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}" class="block rounded-lg border p-3 hover:bg-gray-50">
             <div class="font-medium">{{ appointment.start_time|time:"H:i" }} • {{ appointment.patient.full_name }}</div>
-            <div class="text-sm text-gray-600">{{ appointment.get_visit_type_display }} with {{ appointment.provider.get_full_name|default:appointment.provider.username }} • {{ appointment.get_status_display }}</div>
+            <div class="text-sm text-gray-600">{{ appointment.get_visit_type_display }} with {{ appointment.provider.display_name }} • {{ appointment.get_status_display }}</div>
           </a>
         {% empty %}
           <p class="text-sm text-gray-500">No dental appointments today.</p>

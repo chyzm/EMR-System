@@ -45,6 +45,7 @@ class DentalAppointmentForm(forms.ModelForm):
                 is_active=True,
                 role__in=['DENTIST', 'ADMIN'],
             ).distinct()
+            self.fields['provider'].label_from_instance = lambda user: user.display_name
         else:
             self.fields['patient'].queryset = Patient.objects.none()
             self.fields['provider'].queryset = CustomUser.objects.none()

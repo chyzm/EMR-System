@@ -10,9 +10,14 @@
       <div class="bg-blue-600 px-6 py-4">
         <div class="flex justify-between items-center">
           <h1 class="text-xl font-semibold text-white">Begin Consultation</h1>
-          <span class="px-3 py-1 text-sm rounded-full bg-white text-blue-600">
-            {% if appointment %}Appointment: {{ appointment.date }}{% else %}Walk-in{% endif %}
-          </span>
+          <div class="flex items-center gap-3">
+            <a href="{% url 'core:patient_detail' patient.patient_id %}" class="px-3 py-1 text-sm rounded-full bg-blue-700 text-white hover:bg-blue-800">
+              <i class="fas fa-arrow-left mr-1"></i>Back to Patient
+            </a>
+            <span class="px-3 py-1 text-sm rounded-full bg-white text-blue-600">
+              {% if appointment %}Appointment: {{ appointment.date }}{% else %}Walk-in{% endif %}
+            </span>
+          </div>
         </div>
       </div>
       
@@ -32,9 +37,73 @@
           </div>
         </div>
         
+        {% if vitals %}
+        <div class="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="text-base font-semibold text-emerald-950">
+              <i class="fas fa-heart-pulse mr-2 text-emerald-700"></i>Vitals Recorded
+            </h3>
+            <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700">{{ vitals.get_category_display }}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+            <div>
+              <p class="text-gray-500">Blood Pressure</p>
+              <p class="font-semibold text-gray-900">{{ vitals.blood_pressure }}</p>
+            </div>
+            <div>
+              <p class="text-gray-500">Pulse</p>
+              <p class="font-semibold text-gray-900">{{ vitals.pulse }} bpm</p>
+            </div>
+            <div>
+              <p class="text-gray-500">Temperature</p>
+              <p class="font-semibold text-gray-900">{{ vitals.temperature }} C</p>
+            </div>
+            <div>
+              <p class="text-gray-500">Weight</p>
+              <p class="font-semibold text-gray-900">{{ vitals.weight }} kg</p>
+            </div>
+            {% if vitals.respiratory_rate %}
+            <div>
+              <p class="text-gray-500">Respiratory Rate</p>
+              <p class="font-semibold text-gray-900">{{ vitals.respiratory_rate }} bpm</p>
+            </div>
+            {% endif %}
+            {% if vitals.oxygen_saturation %}
+            <div>
+              <p class="text-gray-500">Oxygen Saturation</p>
+              <p class="font-semibold text-gray-900">{{ vitals.oxygen_saturation }}%</p>
+            </div>
+            {% endif %}
+            {% if vitals.height %}
+            <div>
+              <p class="text-gray-500">Height</p>
+              <p class="font-semibold text-gray-900">{{ vitals.height }} cm</p>
+            </div>
+            {% endif %}
+            {% if vitals.bmi %}
+            <div>
+              <p class="text-gray-500">BMI</p>
+              <p class="font-semibold text-gray-900">{{ vitals.bmi }}</p>
+            </div>
+            {% endif %}
+          </div>
+          {% if vitals.notes %}
+          <div class="mt-4 border-t border-emerald-100 pt-3 text-sm">
+            <p class="text-gray-500">Notes</p>
+            <p class="font-medium text-gray-900">{{ vitals.notes }}</p>
+          </div>
+          {% endif %}
+        </div>
+        {% elif appointment %}
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <i class="fas fa-triangle-exclamation mr-2"></i>No vitals have been recorded for this appointment.
+        </div>
+        {% endif %}
+
         <!-- Consultation Options -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           <!-- Record Eye Exam -->
+          {% if appointment %}
           <a href="{% url 'DurielEyeApp:record_eye_exam' appointment.pk %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
             <div class="flex items-center justify-center mb-4">
               <div class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
@@ -44,18 +113,17 @@
             <h3 class="text-lg font-medium text-center text-gray-900 mb-2">Record Eye Exam</h3>
             <p class="text-sm text-center text-gray-500">Perform comprehensive eye examination</p>
           </a>
-          
-          <!-- Add Medical Record -->
-          <a href="{% url 'DurielEyeApp:add_medical_record' patient.patient_id %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
+          {% else %}
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
             <div class="flex items-center justify-center mb-4">
-              <div class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                <i class="fas fa-file-medical text-xl"></i>
+              <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                <i class="fas fa-eye text-xl"></i>
               </div>
             </div>
-            <h3 class="text-lg font-medium text-center text-gray-900 mb-2">Add Medical Record</h3>
-            <p class="text-sm text-center text-gray-500">Document diagnosis and treatment</p>
-          </a>
-          
+            <h3 class="text-lg font-medium text-center text-gray-500 mb-2">Record Eye Exam</h3>
+            <p class="text-sm text-center text-gray-400">Schedule or open an appointment before recording an exam</p>
+          </div>
+          {% endif %}
           <!-- Schedule Follow-up -->
           <a href="{% url 'DurielEyeApp:schedule_follow_up' patient.patient_id %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
             <div class="flex items-center justify-center mb-4">

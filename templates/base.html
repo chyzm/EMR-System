@@ -254,7 +254,7 @@
               </a>
               {% endif %}
 
-              {% if can_access_administration %}
+              {% if can_access_activity_log %}
               <a href="{% url 'core:activity_log' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
                <i class="fas fa-tasks mr-3"></i>
@@ -348,9 +348,21 @@
               {% if can_access_pharmacy %}
               <a href="{% url 'core:prescription_menu' %}" 
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="fas fa-prescription mr-3"></i>
-                Pharmacy
-              </a>
+	                <i class="fas fa-prescription mr-3"></i>
+	                <span class="flex-1">Pharmacy</span>
+	                <span class="js-pharmacy-pending-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	              </a>
+              {% endif %}
+
+              {% if request.session.clinic_type == "EYE" %}
+              {% if can_access_optical_lab %}
+              <a href="{% url 'DurielEyeApp:optical_product_list' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'optical' in request.resolver_match.url_name %}active{% endif %}">
+	                <i class="fas fa-glasses mr-3"></i>
+	                <span class="flex-1">Optical Lab</span>
+	                <span class="js-optical-pending-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	              </a>
+              {% endif %}
               {% endif %}
 
               {% if can_manage_services %}
@@ -364,12 +376,13 @@
               {% if can_manage_billing %}
               <a href="{% url 'core:billing_list' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="fas fa-money-bill-wave mr-3"></i>
-                Billing
-              </a>
+	                <i class="fas fa-money-bill-wave mr-3"></i>
+	                <span class="flex-1">Billing</span>
+	                <span class="js-billing-due-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	              </a>
               {% endif %}
 
-              {% if request.user.role == 'ADMIN' or request.user.role == 'NURSE' or request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' or request.user.role == 'DENTIST' %}
+              {% if can_access_vitals %}
               <a href="{% url 'DurielMedicApp:vitals_queue' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'vitals_queue' %}active{% endif %}">
                 <i class="fas fa-heartbeat mr-3"></i>
@@ -422,7 +435,13 @@
               </a>
 
               {% elif request.session.clinic_type == "EYE" %}
-              <a href="{% url 'DurielEyeApp:generate_report' %}" 
+              <a href="{% url 'DurielEyeApp:generate_report' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-chart-line mr-3"></i>
+                Reports
+              </a>
+              {% elif request.session.clinic_type == "DENTAL" %}
+              <a href="{% url 'DurielDentalApp:generate_report' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-chart-line mr-3"></i>
                 Reports
@@ -600,7 +619,7 @@
           </a>
           {% endif %}
 
-          {% if can_access_administration %}
+          {% if can_access_activity_log %}
           <a href="{% url 'core:activity_log' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'activity_log' in request.resolver_match.url_name %}active{% endif %}">
            <i class="fas fa-tasks mr-3"></i>
@@ -694,9 +713,21 @@
           {% if can_access_pharmacy %}
           <a href="{% url 'core:prescription_menu' %}" 
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'prescription' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="fas fa-prescription mr-3"></i>
-            Pharmacy
-          </a>
+	            <i class="fas fa-prescription mr-3"></i>
+	            <span class="flex-1">Pharmacy</span>
+	            <span class="js-pharmacy-pending-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	          </a>
+          {% endif %}
+
+          {% if request.session.clinic_type == "EYE" %}
+          {% if can_access_optical_lab %}
+          <a href="{% url 'DurielEyeApp:optical_product_list' %}"
+             class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'optical' in request.resolver_match.url_name %}active{% endif %}">
+	            <i class="fas fa-glasses mr-3"></i>
+	            <span class="flex-1">Optical Lab</span>
+	            <span class="js-optical-pending-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	          </a>
+          {% endif %}
           {% endif %}
 
          
@@ -712,12 +743,13 @@
           {% if can_manage_billing %}
           <a href="{% url 'core:billing_list' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'billing' in request.resolver_match.url_name %}active{% endif %}">
-            <i class="fas fa-money-bill-wave mr-3"></i>
-            Billing
-          </a>
+	            <i class="fas fa-money-bill-wave mr-3"></i>
+	            <span class="flex-1">Billing</span>
+	            <span class="js-billing-due-count hidden ml-auto inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold px-2 py-0.5"></span>
+	          </a>
           {% endif %}
 
-          {% if request.user.role == 'ADMIN' or request.user.role == 'NURSE' or request.user.role == 'DOCTOR' or request.user.role == 'OPTOMETRIST' or request.user.role == 'DENTIST' %}
+          {% if can_access_vitals %}
           <a href="{% url 'DurielMedicApp:vitals_queue' %}"
              class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if request.resolver_match.url_name == 'vitals_queue' %}active{% endif %}">
             <i class="fas fa-heartbeat mr-3"></i>
@@ -770,7 +802,13 @@
               </a>
 
               {% elif request.session.clinic_type == "EYE" %}
-              <a href="{% url 'DurielEyeApp:generate_report' %}" 
+              <a href="{% url 'DurielEyeApp:generate_report' %}"
+                 class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="fas fa-chart-line mr-3"></i>
+                Reports
+              </a>
+              {% elif request.session.clinic_type == "DENTAL" %}
+              <a href="{% url 'DurielDentalApp:generate_report' %}"
                  class="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-blue-800/50 group transition-colors nav-link {% if 'report' in request.resolver_match.url_name %}active{% endif %}">
                 <i class="fas fa-chart-line mr-3"></i>
                 Reports
@@ -908,10 +946,15 @@
     document.addEventListener('DOMContentLoaded', function() {
       const queues = [
         { selector: '.js-lab-queue-count', url: "{% url 'core:lab_queue_count' %}" },
-        { selector: '.js-vitals-queue-count', url: "{% url 'DurielMedicApp:vitals_queue_count' %}" },
-        { selector: '.js-physio-queue-count', url: "{% url 'DurielMedicApp:physiotherapy_queue_count' %}" },
-        { selector: '.js-nurse-instruction-count', url: "{% url 'DurielMedicApp:nurse_instruction_count' %}" },
-      ];
+	        { selector: '.js-vitals-queue-count', url: "{% url 'DurielMedicApp:vitals_queue_count' %}" },
+	        { selector: '.js-physio-queue-count', url: "{% url 'DurielMedicApp:physiotherapy_queue_count' %}" },
+	        { selector: '.js-nurse-instruction-count', url: "{% url 'DurielMedicApp:nurse_instruction_count' %}" },
+	        { selector: '.js-pharmacy-pending-count', url: "{% url 'core:pharmacy_pending_count' %}" },
+	        { selector: '.js-billing-due-count', url: "{% url 'core:billing_due_count' %}" },
+	        {% if request.session.clinic_type == "EYE" %}
+	        { selector: '.js-optical-pending-count', url: "{% url 'DurielEyeApp:optical_pending_count' %}" },
+	        {% endif %}
+	      ];
 
       async function refreshQueueCount(queue) {
         const badges = document.querySelectorAll(queue.selector);

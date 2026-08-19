@@ -103,16 +103,7 @@
                         <div class="text-sm text-gray-900">
                             {{ appointment.date }} at {{ appointment.start_time|time:"h:i A" }}
                         </div>
-                        <div class="text-sm text-gray-500">
-                            Reason:
-                            {% if appointment.reason %}
-                                {{ appointment.reason|truncatechars:30 }}
-                            {% elif appointment.chief_complaint %}
-                                {{ appointment.chief_complaint|truncatechars:30 }}
-                            {% else %}
-                                Consultation
-                            {% endif %}
-                        </div>
+                        <div class="text-sm text-gray-500">Service: {{ appointment_type|default:"general"|title }} Consultation</div>
                         {% if appointment.doctor %}
                         <div class="text-sm text-gray-500">
                             Doctor: {{ appointment.doctor.get_full_name }}
@@ -122,9 +113,9 @@
                             Provider: {{ appointment.provider.get_full_name }}
                         </div>
                         {% endif %}
-                    {% else %}
-                        <div class="text-sm text-gray-500">No appointment found for this patient</div>
-                    {% endif %}
+	                    {% else %}
+	                        <div class="text-sm text-gray-500">No appointment found for this patient</div>
+	                    {% endif %}
                 </div>
             </div>
 
@@ -148,7 +139,7 @@
                                class="billing-line-item mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 	                               data-description="{{ item.description }}"
 	                               data-amount="{{ item.total_amount }}"
-	                               {% if item.status == 'APPROVED' %}checked{% endif %}>
+		                               {% if item.status == 'APPROVED' %}checked{% endif %}>
                         <span class="flex-1">
                             <span class="block text-sm font-medium text-gray-900">{{ item.description }}</span>
                             <span class="block text-xs text-gray-500">{{ item.get_source_type_display }} • {{ item.get_status_display }} • Qty {{ item.quantity }}</span>
@@ -229,10 +220,17 @@
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Charge Description</label>
                     <textarea name="description" id="id_description"
                               class="w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                               readonly>{{ form.description.value|default:'' }}</textarea>
+                </div>
+
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Billing Notes</label>
+                    <textarea name="notes" id="id_notes"
+                              class="w-full px-3 py-2 border border-gray-400 rounded-md bg-gray-50 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                              readonly>{{ form.notes.value|default:billing_service_notes }}</textarea>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

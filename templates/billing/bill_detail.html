@@ -73,8 +73,15 @@
 
     {% if bill.description %}
     <div class="mb-4">
-      <p><strong>Description:</strong></p>
+      <p><strong>Charge Description:</strong></p>
       <p class="text-gray-600 whitespace-pre-wrap">{{ bill.description }}</p>
+    </div>
+    {% endif %}
+
+    {% if bill.notes %}
+    <div class="mb-4">
+      <p><strong>Billing Notes:</strong></p>
+      <p class="text-gray-600 whitespace-pre-wrap">{{ bill.notes }}</p>
     </div>
     {% endif %}
 
@@ -82,15 +89,7 @@
     <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
       <h2 class="text-lg font-semibold mb-2">Linked Appointment</h2>
       <p class="text-sm text-gray-700">{{ bill.appointment.date }} at {{ bill.appointment.start_time|time:"h:i A" }}</p>
-      <p class="text-sm text-gray-600">
-        {% if bill.appointment.reason %}
-          {{ bill.appointment.reason|truncatechars:100 }}
-        {% elif bill.appointment.chief_complaint %}
-          {{ bill.appointment.chief_complaint|truncatechars:100 }}
-        {% else %}
-          Consultation
-        {% endif %}
-      </p>
+	      <p class="text-sm text-gray-600">Service: Consultation</p>
     </div>
     {% endif %}
 

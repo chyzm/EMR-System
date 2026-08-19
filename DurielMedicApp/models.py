@@ -110,7 +110,7 @@ class Appointment(models.Model):
 
 class Vitals(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    appointment = models.OneToOneField(Appointment, on_delete=models.CASCADE, null=True, blank=True)
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, null=True, blank=True)
     appointment_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,

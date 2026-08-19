@@ -138,13 +138,24 @@
 	                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
 	                        </tr>
 	                    </thead>
-	                    <tbody class="bg-white divide-y divide-gray-200">
-	                        {% for group in due_billing_groups %}
-	                        <tr class="hover:bg-blue-50">
-	                            <td class="px-6 py-4 whitespace-nowrap">
-	                                <div class="text-sm font-medium text-gray-900">{{ group.patient.full_name }}</div>
-	                                <div class="text-xs text-gray-500">{{ group.patient.patient_id }}</div>
-	                            </td>
+		                    <tbody class="bg-white divide-y divide-gray-200">
+		                        {% for group in due_billing_groups %}
+		                        <tr class="hover:bg-blue-50">
+		                            <td class="px-6 py-4 whitespace-nowrap">
+		                                <div class="flex items-start gap-3">
+		                                    {% if group.patient_group_mergeable %}
+		                                    <input type="checkbox"
+		                                           class="js-pending-bill-group mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+		                                           data-patient-id="{{ group.patient.patient_id }}"
+		                                           data-line-items="{{ group.merge_line_items }}"
+		                                           data-total="{{ group.total }}">
+		                                    {% endif %}
+		                                    <div>
+		                                <div class="text-sm font-medium text-gray-900">{{ group.patient.full_name }}</div>
+		                                <div class="text-xs text-gray-500">{{ group.patient.patient_id }}</div>
+		                                    </div>
+		                                </div>
+		                            </td>
 	                            <td class="px-6 py-4 text-sm text-gray-700">
 	                                {% if group.appointment %}
 	                                    {{ group.appointment_type|title }} appointment<br>
@@ -156,20 +167,20 @@
 	                                    Patient activity
 	                                {% endif %}
 	                            </td>
-	                            <td class="px-6 py-4 text-sm text-gray-700">
-	                                {% for item in group.items %}
-	                                    <div class="mb-1">
-	                                        <span class="font-medium">{{ item.description }}</span>
-	                                        <span class="text-xs text-gray-500">({{ item.get_source_type_display }})</span>
-	                                    </div>
-	                                {% endfor %}
-	                            </td>
+		                            <td class="px-6 py-4 text-sm text-gray-700">
+		                                {% for item in group.items %}
+		                                    <div class="mb-1">
+		                                        <span class="font-medium">{{ item.description }}</span>
+		                                        <span class="text-xs text-gray-500">({{ item.get_source_type_display }})</span>
+		                                    </div>
+		                                {% endfor %}
+		                            </td>
 	                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">₦{{ group.total|floatformat:2 }}</td>
 	                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-	                                <a href="{{ group.create_bill_url }}" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-	                                    Create Bill
-	                                </a>
-	                                {% if request.user.role == 'ADMIN' %}
+		                                <a href="{{ group.create_bill_url }}" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+		                                    Create Bill
+		                                </a>
+		                                {% if request.user.role == 'ADMIN' %}
 	                                <form method="post" action="{% url 'core:deactivate_billing_queue' %}" class="mt-2" onsubmit="return confirm('Deactivate this billing queue entry? The clinical record will remain, but these pending billing items will be removed from the queue.');">
 	                                    {% csrf_token %}
 	                                    <input type="hidden" name="line_items" value="{{ group.deactivate_item_ids }}">
@@ -180,15 +191,28 @@
 	                                {% endif %}
 	                            </td>
 	                        </tr>
-	                        {% empty %}
+		                        {% empty %}
 	                        <tr>
 	                            <td colspan="5" class="px-6 py-6 text-center text-gray-500">No completed clinical work is awaiting billing.</td>
 	                        </tr>
 	                        {% endfor %}
-	                    </tbody>
-	                </table>
-	            </div>
-	        </div>
+		                    </tbody>
+		                </table>
+		                <form id="merge-selected-pending-bills" method="get" action="{% url 'core:create_bill' %}" class="hidden border-t border-blue-100 bg-blue-50 px-6 py-4">
+		                    <input type="hidden" name="patient" id="merge-selected-patient">
+		                    <span id="merge-selected-line-items"></span>
+		                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		                        <div class="text-sm text-blue-900">
+		                            <span class="font-semibold" id="merge-selected-count">0</span> pending bill row(s) selected
+		                            <span class="ml-2 font-semibold" id="merge-selected-total"></span>
+		                        </div>
+		                        <button type="submit" id="merge-selected-submit" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300" disabled>
+		                            Merge Selected Bills
+		                        </button>
+		                    </div>
+		                </form>
+		            </div>
+		        </div>
 
 	        <!-- Bills Table -->
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden border card-hover fade-in">
@@ -271,4 +295,70 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const checkboxes = Array.from(document.querySelectorAll('.js-pending-bill-group'));
+  const form = document.getElementById('merge-selected-pending-bills');
+  const patientInput = document.getElementById('merge-selected-patient');
+  const itemContainer = document.getElementById('merge-selected-line-items');
+  const countLabel = document.getElementById('merge-selected-count');
+  const totalLabel = document.getElementById('merge-selected-total');
+  const submitButton = document.getElementById('merge-selected-submit');
+
+  if (!checkboxes.length || !form) return;
+
+  function refreshMergeSelection(changedBox) {
+    if (changedBox && changedBox.checked) {
+      checkboxes.forEach(function(box) {
+        if (box !== changedBox && box.dataset.patientId !== changedBox.dataset.patientId) {
+          box.checked = false;
+        }
+      });
+    }
+
+    const selected = checkboxes.filter(function(box) { return box.checked; });
+    itemContainer.innerHTML = '';
+
+    if (!selected.length) {
+      form.classList.add('hidden');
+      patientInput.value = '';
+      countLabel.textContent = '0';
+      totalLabel.textContent = '';
+      submitButton.disabled = true;
+      return;
+    }
+
+    const patientId = selected[0].dataset.patientId;
+    const lineItemIds = [];
+    let total = 0;
+
+    selected.forEach(function(box) {
+      String(box.dataset.lineItems || '').split(',').forEach(function(id) {
+        if (id) lineItemIds.push(id);
+      });
+      total += Number(box.dataset.total || 0);
+    });
+
+    patientInput.value = patientId;
+    lineItemIds.forEach(function(id) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'line_items';
+      input.value = id;
+      itemContainer.appendChild(input);
+    });
+
+    form.classList.remove('hidden');
+    countLabel.textContent = String(selected.length);
+    totalLabel.textContent = '₦' + total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    submitButton.disabled = selected.length < 2;
+  }
+
+  checkboxes.forEach(function(box) {
+    box.addEventListener('change', function() {
+      refreshMergeSelection(box);
+    });
+  });
+});
+</script>
 {% endblock %}

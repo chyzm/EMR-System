@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Optical Dispense History{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">👓 Optical Dispense History</h2>
+            <p class="text-gray-600">{{ clinic.name }}</p>
+        </div>
+        <a href="{% url 'DurielEyeApp:optical_product_list' %}"
+           class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Inventory
+        </a>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total (₦)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispensed By</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for d in dispenses %}
+                    <tr>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.dispensed_at|date:"M j, Y H:i" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ d.patient.full_name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.product.display_name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.quantity }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">₦{{ d.total_price }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.dispensed_by.get_full_name|default:d.dispensed_by.username|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No dispenses recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

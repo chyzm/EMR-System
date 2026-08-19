@@ -1,57 +1,204 @@
 {% extends 'base.html' %}
 
+{% block title %}Dental Appointments{% endblock %}
+
 {% block content %}
-<div class="space-y-5">
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold text-gray-900">Dental Appointments</h1>
+{% now "Y-m-d" as today_str %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Dental Appointments</h1>
+      <p class="mt-1 text-sm text-gray-500">View and manage dental clinic appointments</p>
+    </div>
     {% if can_create_appointment %}
-      <a href="{% url 'DurielDentalApp:appointment_create' %}" class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">New Appointment</a>
+      <a href="{% url 'DurielDentalApp:appointment_create' %}" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+        <i class="fas fa-plus mr-2"></i> New Appointment
+      </a>
     {% endif %}
   </div>
-  <div class="overflow-x-auto rounded-xl border bg-white shadow-sm">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Date/Time</th>
-          <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Patient</th>
-          <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Dentist</th>
-          <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Visit</th>
-          <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Status</th>
-          <th class="px-4 py-3"></th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-100">
-        {% for appointment in appointments %}
+
+  <div class="mb-6 rounded-lg bg-white p-4 shadow-md">
+    <form method="get" class="flex flex-col gap-4 lg:flex-row lg:items-end">
+      <div class="w-full lg:w-56">
+        <label for="date" class="mb-1 block text-sm font-medium text-gray-700">Filter by Date</label>
+        <input type="date" name="date" id="date" value="{{ request.GET.date }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+      <div class="w-full lg:w-56">
+        <label for="status" class="mb-1 block text-sm font-medium text-gray-700">Filter by Status</label>
+        <select name="status" id="status" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <option value="">All statuses</option>
+          <option value="SCHEDULED" {% if request.GET.status == 'SCHEDULED' %}selected{% endif %}>Scheduled</option>
+          <option value="CHECKED_IN" {% if request.GET.status == 'CHECKED_IN' %}selected{% endif %}>Checked In</option>
+          <option value="IN_CHAIR" {% if request.GET.status == 'IN_CHAIR' %}selected{% endif %}>In Chair</option>
+          <option value="COMPLETED" {% if request.GET.status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+          <option value="CANCELLED" {% if request.GET.status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+          <option value="NO_SHOW" {% if request.GET.status == 'NO_SHOW' %}selected{% endif %}>No Show</option>
+        </select>
+      </div>
+      <button type="submit" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 lg:w-auto">Filter</button>
+      {% if request.GET.date or request.GET.status %}
+        <a href="{% url 'DurielDentalApp:appointment_list' %}" class="w-full rounded-lg bg-gray-200 px-5 py-2 text-center text-sm font-medium text-gray-800 hover:bg-gray-300 lg:w-auto">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="overflow-hidden rounded-lg bg-white shadow">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
           <tr>
-            <td class="px-4 py-3 text-sm">{{ appointment.date|date:"M j, Y" }} {{ appointment.start_time|time:"H:i" }}</td>
-            <td class="px-4 py-3 text-sm">{{ appointment.patient.full_name }}</td>
-            <td class="px-4 py-3 text-sm">{{ appointment.provider.get_full_name|default:appointment.provider.username }}</td>
-            <td class="px-4 py-3 text-sm">{{ appointment.get_visit_type_display }}</td>
-            <td class="px-4 py-3 text-sm">{{ appointment.get_status_display }}</td>
-            <td class="px-4 py-3 text-center text-sm">
-              <div x-data="{ open: false, vitalsOpen: false }" class="inline-block">
-                <button @click="open = true" type="button" class="text-2xl text-gray-600 hover:text-gray-900 focus:outline-none">⋮</button>
-                <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                  <div @click.away="open = false" class="w-96 rounded-lg bg-white p-6 text-center shadow-lg">
-                    <h2 class="mb-4 text-lg font-semibold">Actions</h2>
-                    <div class="space-y-2">
-                      {% include "appointments/partials/vitals_modal_action.html" %}
-                      <a class="block rounded px-4 py-2 text-sm text-blue-700 hover:bg-blue-100" href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}">Open</a>
-                      {% if can_view_dental_chart %}
-                        <a class="block rounded px-4 py-2 text-sm text-green-700 hover:bg-green-100" href="{% url 'DurielDentalApp:patient_chart' appointment.patient.patient_id %}">Dental Chart</a>
-                      {% endif %}
-                    </div>
-                    <button @click="open = false" class="mt-4 rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">Close</button>
-                  </div>
-                </div>
-              </div>
-            </td>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Patient</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Dentist</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date & Time</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Visit</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Payment Type</th>
+            <th scope="col" class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
           </tr>
-        {% empty %}
-          <tr><td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">No dental appointments.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody class="divide-y divide-gray-200 bg-white">
+          {% if appointments %}
+            {% regroup appointments by date as appointment_groups %}
+            {% for group in appointment_groups %}
+              <tr class="bg-blue-50">
+                <td colspan="7" class="px-6 py-3 text-sm font-semibold text-blue-900">
+                  {% if group.grouper|date:"Y-m-d" == today_str %}
+                    Today - {{ group.grouper|date:"l, M j, Y" }}
+                  {% else %}
+                    {{ group.grouper|date:"l, M j, Y" }}
+                  {% endif %}
+                </td>
+              </tr>
+              {% for appointment in group.list %}
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                      <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                        <i class="fas fa-user"></i>
+                      </div>
+                      <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900">{{ appointment.patient.full_name }} ({{ appointment.patient.patient_id }})</div>
+                        {% if appointment.patient.date_of_birth %}
+                          <div class="text-sm text-gray-500">DOB: {{ appointment.patient.date_of_birth|date:"M j, Y" }}</div>
+                        {% else %}
+                          <div class="text-sm italic text-gray-500">DOB not provided</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">{{ appointment.provider.display_name }}</div>
+                    <div class="text-sm text-gray-500">{{ appointment.provider.get_role_display }}</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm text-gray-900">{{ appointment.date|date:"M j, Y" }}</div>
+                    <div class="text-sm text-gray-500">{{ appointment.start_time|time:"H:i" }} - {{ appointment.end_time|time:"H:i" }}</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ appointment.get_visit_type_display }}</td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5
+                      {% if appointment.status == 'SCHEDULED' %}bg-blue-100 text-blue-800
+                      {% elif appointment.status == 'CHECKED_IN' %}bg-purple-100 text-purple-800
+                      {% elif appointment.status == 'IN_CHAIR' %}bg-yellow-100 text-yellow-800
+                      {% elif appointment.status == 'COMPLETED' %}bg-green-100 text-green-800
+                      {% elif appointment.status == 'CANCELLED' or appointment.status == 'NO_SHOW' %}bg-red-100 text-red-800
+                      {% else %}bg-gray-100 text-gray-800{% endif %}">
+                      {{ appointment.get_status_display }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5
+                      {% if appointment.payment_type == 'SELF' %}bg-purple-100 text-purple-800
+                      {% elif appointment.payment_type == 'INSURANCE' %}bg-indigo-100 text-indigo-800
+                      {% else %}bg-gray-100 text-gray-800{% endif %}">
+                      {{ appointment.get_payment_type_display }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                    <div x-data="{ open: false, vitalsOpen: false }" class="inline-block">
+                      <button @click="open = true" type="button" class="text-2xl text-gray-600 hover:text-gray-900 focus:outline-none" aria-label="Appointment actions">⋮</button>
+                      <div x-show="open" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div @click.away="open = false" class="w-96 rounded-lg bg-white p-6 text-center shadow-lg">
+                          <h2 class="mb-4 text-lg font-semibold">Actions</h2>
+                          <div class="space-y-2">
+                            {% include "appointments/partials/vitals_modal_action.html" %}
+                            <a class="block rounded px-4 py-2 text-sm text-blue-700 hover:bg-blue-100" href="{% url 'DurielDentalApp:appointment_detail' appointment.id %}">Open</a>
+                            {% if request.user.role == 'DENTIST' and appointment.status != 'COMPLETED' %}
+                              <a class="block rounded px-4 py-2 text-sm text-green-700 hover:bg-green-100" href="{% url 'DurielDentalApp:begin_consultation' appointment.id %}">Consultation</a>
+                            {% elif request.user.role == 'DENTIST' %}
+                              <a class="block rounded px-4 py-2 text-sm text-green-700 hover:bg-green-100" href="{% url 'core:patient_detail' appointment.patient.patient_id %}">Patient Detail</a>
+                            {% endif %}
+                            {% if can_create_appointment %}
+                              <a class="block rounded px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" href="{% url 'DurielDentalApp:appointment_update' appointment.id %}">Edit</a>
+                              {% if appointment.status == 'SCHEDULED' %}
+                                <form action="{% url 'DurielDentalApp:appointment_status' appointment.id 'CHECKED_IN' %}" method="post">
+                                  {% csrf_token %}
+                                  <button type="submit" class="w-full rounded px-4 py-2 text-sm text-purple-700 hover:bg-purple-100">Check In</button>
+                                </form>
+                              {% endif %}
+                              {% if appointment.status != 'COMPLETED' and appointment.status != 'CANCELLED' %}
+                                <form action="{% url 'DurielDentalApp:appointment_status' appointment.id 'CANCELLED' %}" method="post">
+                                  {% csrf_token %}
+                                  <button type="submit" class="w-full rounded px-4 py-2 text-sm text-red-600 hover:bg-red-100">Cancel</button>
+                                </form>
+                              {% endif %}
+                            {% endif %}
+                          </div>
+                          <button @click="open = false" type="button" class="mt-4 rounded bg-gray-200 px-4 py-2 text-sm text-gray-800 hover:bg-gray-300">Close</button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">No dental appointments found.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if is_paginated %}
+      <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3">
+        <div class="flex flex-1 justify-between sm:hidden">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Previous</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Next</a>
+          {% endif %}
+        </div>
+        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          <p class="text-sm text-gray-700">
+            Showing <span class="font-medium">{{ page_obj.start_index }}</span> to <span class="font-medium">{{ page_obj.end_index }}</span> of <span class="font-medium">{{ page_obj.paginator.count }}</span> results
+          </p>
+          <nav class="relative z-0 inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+            {% if page_obj.has_previous %}
+              <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center rounded-l-md border border-gray-300 bg-white px-2 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50">
+                <span class="sr-only">Previous</span>
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+              {% if page_obj.number == num %}
+                <a href="?page={{ num }}" class="relative inline-flex items-center border border-gray-300 bg-blue-600 px-4 py-2 text-sm font-medium text-white">{{ num }}</a>
+              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <a href="?page={{ num }}" class="relative inline-flex items-center border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">{{ num }}</a>
+              {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+              <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center rounded-r-md border border-gray-300 bg-white px-2 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50">
+                <span class="sr-only">Next</span>
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            {% endif %}
+          </nav>
+        </div>
+      </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

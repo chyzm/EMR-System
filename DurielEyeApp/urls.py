@@ -13,8 +13,10 @@ urlpatterns = [
 
     # Medical records
     path('patients/<str:patient_id>/medical_records/add/', views.add_eye_medical_record, name='add_medical_record'),
+    path('medical_records/<int:record_id>/', views.view_eye_medical_record, name='view_eye_medical_record'),
     path('medical_records/<int:record_id>/edit/', views.edit_eye_medical_record, name='edit_eye_medical_record'),
     path('medical_records/<int:record_id>/delete/', views.delete_eye_medical_record, name='delete_eye_medical_record'),
+    path('patients/<str:patient_id>/export-pdf/', views.export_eye_patient_record_pdf, name='export_patient_record_pdf'),
 
     # Appointments
     path('appointments/', EyeAppointmentListView.as_view(), name='appointment_list'),
@@ -56,7 +58,17 @@ urlpatterns = [
 
     # Reports
     path('reports/generate/', views.generate_eye_report, name='generate_report'),
-    
-    
-  
+
+    # Optical Lab (dispensary)
+    path('optical/', views.optical_product_list, name='optical_product_list'),
+    path('optical/pending-count/', views.optical_pending_count, name='optical_pending_count'),
+    path('optical/prescriptions/', views.optical_prescription_queue, name='optical_prescription_queue'),
+    path('optical/prescriptions/<int:pk>/note/', views.edit_optical_prescription_note, name='edit_optical_prescription_note'),
+    path('optical/prescriptions/<int:pk>/<str:status>/', views.update_optical_prescription_status, name='update_optical_prescription_status'),
+    path('optical/add/', views.add_optical_product, name='add_optical_product'),
+    path('optical/<int:pk>/edit/', views.edit_optical_product, name='edit_optical_product'),
+    path('optical/<int:pk>/dispense/', views.dispense_optical, name='dispense_optical'),
+    path('optical/dispenses/', views.optical_dispense_history, name='optical_dispense_history'),
+
+
 ]

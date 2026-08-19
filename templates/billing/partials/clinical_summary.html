@@ -3,79 +3,28 @@
     {% if summary.appointment_scoped %}Appointment Billing Handoff{% else %}Recent Patient Activity for Billing{% endif %}
   </h2>
 
-	  {% if summary.vitals %}
-  <div class="mb-4 rounded border border-blue-100 bg-white p-3 text-sm text-blue-900">
-    <div class="font-semibold text-blue-800 mb-1">Vitals</div>
-    BP {{ summary.vitals.blood_pressure }} • Pulse {{ summary.vitals.pulse }} • Temp {{ summary.vitals.temperature }} • Weight {{ summary.vitals.weight }}
-    {% if summary.vitals.respiratory_rate %} • RR {{ summary.vitals.respiratory_rate }}{% endif %}
-    {% if summary.vitals.oxygen_saturation %} • SpO2 {{ summary.vitals.oxygen_saturation }}%{% endif %}
-    {% if summary.vitals.bmi %} • BMI {{ summary.vitals.bmi }}{% endif %}
-  </div>
-	  {% endif %}
-
-	  {% if summary.billing_line_items %}
-	  <div class="mb-4 rounded border border-blue-100 bg-white p-3">
-	    <div class="font-semibold text-blue-800 mb-2">Billable Handoff</div>
-	    <div class="grid gap-2 md:grid-cols-2">
-	      {% for item in summary.billing_line_items %}
-	        <div class="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
+		  {% if summary.billing_line_items %}
+		  <div class="mb-4 rounded border border-blue-100 bg-white p-3">
+		    <div class="font-semibold text-blue-800 mb-2">Chargeable Items</div>
+		    <div class="grid gap-2 md:grid-cols-2">
+		      {% for item in summary.billing_line_items %}
+		        <div class="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
 	          <div class="font-medium text-gray-900">{{ item.description }}</div>
 	          <div class="text-xs text-gray-600">{{ item.get_source_type_display }} • {{ item.get_status_display }} • ₦{{ item.total_amount|floatformat:2 }}</div>
 	        </div>
 	      {% endfor %}
-	    </div>
-	  </div>
-	  {% endif %}
-	
-	  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-    <div>
-      <div class="text-sm font-semibold text-blue-800 mb-2">Clinical Notes</div>
-      {% for item in summary.general_records %}
-        <div class="mb-2 text-sm text-blue-900">{{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:50 }}</span></div>
-      {% empty %}
-        {% for item in summary.eye_records %}
-          <div class="mb-2 text-sm text-blue-900">{{ item.get_record_type_display }}<br><span class="text-blue-700">{{ item.title|truncatechars:50 }}</span></div>
-        {% empty %}
-          {% for item in summary.dental_records %}
-            <div class="mb-2 text-sm text-blue-900">{{ item.get_record_type_display }}<br><span class="text-blue-700">{{ item.title|truncatechars:50 }}</span></div>
-          {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-        {% endfor %}
-      {% endfor %}
-    </div>
+		    </div>
+		  </div>
+		  {% else %}
+		  <div class="rounded border border-blue-100 bg-white p-3 text-sm text-blue-700">
+		    No rendered services are waiting for billing.
+		  </div>
+		  {% endif %}
 
-    <div>
-      <div class="text-sm font-semibold text-blue-800 mb-2">Exams</div>
-      {% for item in summary.eye_exams %}
-        <div class="mb-2 text-sm text-blue-900">Eye exam {{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:50 }}</span></div>
-      {% empty %}
-        {% for item in summary.dental_exams %}
-          <div class="mb-2 text-sm text-blue-900">Dental exam {{ item.created_at|date:"M j, Y" }}<br><span class="text-blue-700">{{ item.diagnosis|default:item.chief_complaint|truncatechars:50 }}</span></div>
-        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-      {% endfor %}
-    </div>
-
-    <div>
-      <div class="text-sm font-semibold text-blue-800 mb-2">Procedures & Plans</div>
-      {% for item in summary.dental_procedures %}
-        <div class="mb-2 text-sm text-blue-900">{{ item.procedure_name }}{% if item.tooth_numbers %} - {{ item.tooth_numbers }}{% endif %}<br><span class="text-blue-700">{{ item.get_status_display }} • {{ item.performed_at|date:"M j, Y" }}</span></div>
-      {% empty %}
-        {% for item in summary.dental_plans %}
-          <div class="mb-2 text-sm text-blue-900">{{ item.title }}<br><span class="text-blue-700">{{ item.get_status_display }} • {{ item.get_priority_display }}</span></div>
-        {% empty %}<div class="text-sm text-blue-700">None</div>{% endfor %}
-      {% endfor %}
-    </div>
-
-    <div>
-      <div class="text-sm font-semibold text-blue-800 mb-2">Labs & Prescriptions</div>
-      {% for item in summary.lab_orders %}
-        <div class="mb-2 text-sm text-blue-900">Lab order #{{ item.pk }}<br><span class="text-blue-700">{{ item.get_status_display }} • {{ item.priority }}</span></div>
-      {% empty %}
-      {% endfor %}
-      {% for item in summary.prescriptions %}
-        <div class="mb-2 text-sm text-blue-900">{{ item.medication_name }}<br><span class="text-blue-700">{{ item.quantity_prescribed }} x {{ item.dosage }}{% if item.stock_deducted %} • Dispensed{% endif %}</span></div>
-      {% empty %}
-        {% if not summary.lab_orders %}<div class="text-sm text-blue-700">None</div>{% endif %}
-      {% endfor %}
-    </div>
+  {% if summary.service_notes %}
+  <div class="rounded border border-blue-100 bg-white p-3">
+    <div class="font-semibold text-blue-800 mb-2">Billing Notes</div>
+    <p class="whitespace-pre-wrap text-sm text-gray-700">{{ summary.service_notes }}</p>
   </div>
-</div>
+  {% endif %}
+	</div>

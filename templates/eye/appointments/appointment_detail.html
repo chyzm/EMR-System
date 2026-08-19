@@ -98,12 +98,11 @@
             <a href="{% url 'core:patient_detail' appointment.patient.patient_id %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
               <i class="fas fa-user mr-2"></i> Patient Detail
             </a>
+            {% if can_prescribe %}
             <a href="{% url 'core:add_prescription' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
               Prescription
             </a>
-            <a href="{% url 'core:order_lab_tests' appointment.patient.patient_id %}?appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
-              Order Lab
-            </a>
+            {% endif %}
             {% if can_manage_billing %}
             <a href="{% url 'core:create_bill' %}?patient={{ appointment.patient.patient_id }}&appointment_id={{ appointment.id }}&appointment_type=eye" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 px-4 py-2 rounded-lg flex items-center">
               Create Bill

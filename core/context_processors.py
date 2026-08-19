@@ -18,7 +18,7 @@ def permission_context(request):
     is_dental = clinic_type == "DENTAL"
 
     can_access_administration = is_admin_user(user)
-    can_access_activity_log = can_access_administration
+    can_access_activity_log = has_role(user, "ADMIN")
     can_access_patients = can_view_patient(user)
     can_create_patient = can_manage_patient_demographics(user)
     can_delete_patient = can_access_administration
@@ -31,13 +31,15 @@ def permission_context(request):
     can_view_reports = has_role(user, "ADMIN")
     can_access_settings = has_role(user, "ADMIN")
     can_access_admissions = has_role(user, "ADMIN", "DOCTOR", "NURSE") and is_general
-    can_access_vitals = has_role(user, "NURSE", "DOCTOR", "OPTOMETRIST", "DENTIST")
+    can_access_vitals = has_role(user, "ADMIN", "RECEPTIONIST", "NURSE", "DOCTOR", "OPTOMETRIST", "DENTIST")
     can_access_eye_consultation = is_eye and has_role(user, "DOCTOR", "OPTOMETRIST")
+    can_access_optical_lab = is_eye and has_role(user, "OPTICIAN")
     can_manage_eye_appointments = is_eye and has_role(
         user,
         "ADMIN",
         "DOCTOR",
         "OPTOMETRIST",
+        "OPTICIAN",
         "RECEPTIONIST",
         "NURSE",
     )
@@ -102,6 +104,7 @@ def permission_context(request):
         "can_access_admissions": can_access_admissions,
         "can_access_vitals": can_access_vitals,
         "can_access_eye_consultation": can_access_eye_consultation,
+        "can_access_optical_lab": can_access_optical_lab,
         "can_manage_eye_appointments": can_manage_eye_appointments,
         "can_delete_eye_appointments": can_delete_eye_appointments,
         "can_manage_eye_followups": can_manage_eye_followups,

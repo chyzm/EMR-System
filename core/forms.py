@@ -29,9 +29,9 @@ def _validate_unique_staff_identity(form, *, instance=None):
     if instance and instance.pk:
         qs = qs.exclude(pk=instance.pk)
     if email and qs.filter(email__iexact=email).exists():
-        form.add_error('email', 'A user with this email already exists.')
-    if username and primary_clinic and qs.filter(username__iexact=username, primary_clinic=primary_clinic).exists():
-        form.add_error('username', 'A user with this username already exists in this clinic.')
+        form.add_error('email', 'use another email')
+    if username and qs.filter(username__iexact=username).exists():
+        form.add_error('username', 'username not accepted')
     return primary_clinic
 
 
@@ -82,8 +82,14 @@ class CustomUserCreationForm(UserCreationForm):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if email and CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError('A user with this email already exists.')
+            raise forms.ValidationError('use another email')
         return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and CustomUser.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('username not accepted')
+        return username
 
 
 
@@ -172,7 +178,7 @@ class UserCreationWithRoleForm(UserCreationForm):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if email and CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError('A user with this email already exists.')
+            raise forms.ValidationError('use another email')
         return email
 
     def clean(self):
@@ -341,7 +347,7 @@ class UserEditForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if email and qs.exists():
-            raise forms.ValidationError('A user with this email already exists.')
+            raise forms.ValidationError('use another email')
         return email
 
     def clean(self):
@@ -374,6 +380,8 @@ class PatientForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         # Make fields optional if needed
+        self.fields['status'].required = False
+        self.fields['status'].initial = 'REGISTERED'
         self.fields['blood_group'].required = False
         self.fields['allergies'].required = True
         self.fields['emergency_contact_name'].required = False
@@ -425,12 +433,13 @@ class BillingForm(forms.ModelForm):
         model = Billing
         exclude = ['appointment', 'appointment_content_type', 'appointment_object_id',
                    'discount_applied_by', 'discount_applied_at', 'discount_amount', 'final_amount']
-        fields = ['patient', 'service_date', 'due_date', 'amount', 'paid_amount', 'description',
+        fields = ['patient', 'service_date', 'due_date', 'amount', 'paid_amount', 'description', 'notes',
                   'discount_type', 'discount_value', 'discount_reason']
         widgets = {
             'service_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'due_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'description': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'discount_type': forms.Select(attrs={'class': 'form-control', 'id': 'discount-type'}),
             'discount_value': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -869,8 +878,14 @@ class FacilityRegistrationForm(forms.Form):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if email and CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError('A user with this email already exists.')
+            raise forms.ValidationError('use another email')
         return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and CustomUser.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('username not accepted')
+        return username
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

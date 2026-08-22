@@ -1,86 +1,362 @@
 {% extends "base.html" %}
+
+{% block title %}Secure Access | DurielMedic+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .login-page {
+    --brand: #2563eb;
+    --brand-dark: #1e3a8a;
+    --brand-deep: #10245f;
+    --brand-soft: #dbeafe;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: minmax(360px, 42%) minmax(0, 1fr);
+    min-height: 100vh;
+    background: #f8fafc;
+    color: #0f172a;
+  }
+
+  .login-brand {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 48px 54px;
+    background:
+      linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px),
+      linear-gradient(145deg, var(--brand-deep), var(--brand-dark) 52%, #1d4ed8);
+    background-size: 32px 32px, 32px 32px, auto;
+    color: #fff;
+  }
+
+  .login-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .login-logo-plus {
+    color: #93c5fd;
+    font-weight: 900;
+  }
+
+  .login-copy {
+    position: relative;
+    z-index: 1;
+    max-width: 430px;
+  }
+
+  .login-copy-kicker {
+    margin-bottom: 8px;
+    color: #bfdbfe;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .login-copy h1 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(32px, 4vw, 46px);
+    line-height: 1.08;
+    font-weight: 800;
+  }
+
+  .login-copy p {
+    margin-top: 18px;
+    color: #dbeafe;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  .heartbeat {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 178px;
+    height: 76px;
+    color: #60a5fa;
+    opacity: .62;
+  }
+
+  .login-brand-footer {
+    position: relative;
+    z-index: 1;
+    color: #93c5fd;
+    font-size: 13px;
+  }
+
+  .login-form-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 28px;
+  }
+
+  .login-panel {
+    width: min(100%, 380px);
+  }
+
+  .login-panel h2 {
+    margin: 0;
+    color: #020617;
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 800;
+  }
+
+  .login-panel-subtitle {
+    margin: 8px 0 30px;
+    color: #475569;
+    font-size: 14px;
+  }
+
+  .login-field {
+    margin-bottom: 18px;
+  }
+
+  .login-field label {
+    display: block;
+    margin-bottom: 8px;
+    color: #020617;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .login-input {
+    width: 100%;
+    height: 46px;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 9px;
+    background: #fff;
+    padding: 0 14px;
+    color: #0f172a;
+    font-size: 14px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+
+  .login-input::placeholder {
+    color: #94a3b8;
+  }
+
+  .password-field {
+    position: relative;
+  }
+
+  .password-field .login-input {
+    padding-right: 64px;
+  }
+
+  .password-toggle {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .login-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 4px 0 26px;
+    color: #475569;
+    font-size: 13px;
+  }
+
+  .remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .remember input {
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
+    accent-color: var(--brand);
+  }
+
+  .login-link {
+    color: var(--brand);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .login-link:hover {
+    color: var(--brand-dark);
+  }
+
+  .login-button {
+    width: 100%;
+    height: 48px;
+    border-radius: 9px;
+    background: var(--brand);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    transition: background .18s ease, transform .18s ease;
+  }
+
+  .login-button:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+  }
+
+  .login-error {
+    margin-bottom: 20px;
+    border: 1px solid #fecaca;
+    border-radius: 9px;
+    background: #fef2f2;
+    padding: 12px 14px;
+    color: #b91c1c;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .login-footer-links {
+    margin-top: 26px;
+    text-align: center;
+    font-size: 13px;
+  }
+
+  .login-powered {
+    margin-top: 10px;
+    color: #94a3b8;
+  }
+
+  @media (max-width: 900px) {
+    .login-page {
+      display: block;
+      overflow-y: auto;
+    }
+
+    .login-brand {
+      min-height: 310px;
+      padding: 30px 24px 40px;
+    }
+
+    .login-copy {
+      margin-top: 72px;
+    }
+
+    .heartbeat {
+      bottom: 48px;
+    }
+
+    .login-form-wrap {
+      align-items: flex-start;
+      padding: 36px 22px 44px;
+      background: #f8fafc;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2 class="text-2xl font-semibold text-center mb-6">Login</h2>
+<section class="login-page">
+  <aside class="login-brand" aria-label="DurielMedic access overview">
+    <div class="login-logo">
+      <span>DURIELMEDIC</span>
+      <span class="login-logo-plus">+</span>
+    </div>
 
-<form method="post" class="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto space-y-5">
-  {% csrf_token %}
+    <div class="login-copy">
+      <div class="login-copy-kicker">Clinic Operations Workspace</div>
+      <h1>Built for teams that keep care moving.</h1>
+      <p>Access patient records, queues, billing, and clinical workflows from one protected workspace.</p>
+    </div>
 
-  <!-- Error Messages -->
-  {% if form.errors %}
-  <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-    {% if form.non_field_errors %}
-      {% for error in form.non_field_errors %}
-        <p>{{ error }}</p>
-      {% endfor %}
-    {% else %}
-      <p>Invalid username or password. Please try again.</p>
-    {% endif %}
+    <svg class="heartbeat" viewBox="0 0 760 100" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 58 H168 L190 20 L212 88 L236 58 H416 L438 25 L462 84 L486 58 H660 L682 16 L704 94 L728 58 H760" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+
+    <div class="login-brand-footer">EMR Systems | Clinic Workflows | Offline-ready Care Tools</div>
+  </aside>
+
+  <div class="login-form-wrap">
+    <div class="login-panel">
+      <h2>Welcome back</h2>
+      <p class="login-panel-subtitle">Sign in to continue your clinic session.</p>
+
+      <form method="post">
+        {% csrf_token %}
+
+        {% if form.errors %}
+        <div class="login-error">
+          {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+              <p>{{ error }}</p>
+            {% endfor %}
+          {% else %}
+            <p>We could not verify those details. Check them and try again.</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="login-field">
+          <label for="id_username">Username or email</label>
+          <input
+            type="text"
+            name="username"
+            id="id_username"
+            class="login-input"
+            value="{{ form.username.value|default:'' }}"
+            placeholder="Enter your staff ID or email"
+            autocomplete="username"
+            required
+          >
+        </div>
+
+        <div class="login-field" x-data="{ showPassword: false }">
+          <label for="id_password">Password</label>
+          <div class="password-field">
+            <input
+              :type="showPassword ? 'text' : 'password'"
+              name="password"
+              id="id_password"
+              class="login-input"
+              placeholder="Enter your secure password"
+              autocomplete="current-password"
+              required
+            >
+            <button
+              type="button"
+              class="password-toggle"
+              @click="showPassword = !showPassword"
+              x-text="showPassword ? 'Hide' : 'Show'"
+            ></button>
+          </div>
+        </div>
+
+        <div class="login-row">
+          <label class="remember">
+            <input type="checkbox" name="remember_me" value="1">
+            <span>Keep me signed in</span>
+          </label>
+          <a href="{% url 'core:password_reset' %}" class="login-link">Reset password</a>
+        </div>
+
+        <button type="submit" class="login-button">Access dashboard</button>
+      </form>
+
+      <div class="login-footer-links">
+        <a href="{% url 'core:home' %}" class="login-link">Back to DurielMedic home</a>
+        <p class="login-powered">Powered by Duriel Tech Solutions</p>
+      </div>
+    </div>
   </div>
-  {% endif %}
-
-  <!-- Username Field -->
-  <div>
-    <label for="id_username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-    <input
-      type="text"
-      name="username"
-      id="id_username"
-      class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      value="{{ form.username.value|default:'' }}"
-      required
-    >
-  </div>
-
-  <!-- Password Field -->
-  <div>
-    <label for="id_password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-    <input
-      type="password"
-      name="password"
-      id="id_password"
-      class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      required
-    >
-  </div>
-
-  <!-- Forgot Password Link -->
-  <div class="text-right">
-    <a href="{% url 'core:password_reset' %}" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
-      Forgot password?
-    </a>
-  </div>
-
- <!-- Clinic Type Selection -->
-{% comment %} <div>
-  <label for="clinic_type" class="block text-sm font-medium text-gray-700 mb-1">
-    Select Clinic Type
-  </label>
-  <select
-    name="clinic_type"
-    id="clinic_type"
-    class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-    required
-  >
-    <option value="">-- Select Clinic Type --</option>
-    {% for code, label in clinic_types %}
-      <option value="{{ code }}">{{ label }}</option>
-    {% endfor %}
-  </select>
-</div> {% endcomment %}
-
-
-  <!-- Submit Button -->
-  <button
-    type="submit"
-    class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
-  >
-    Login
-  </button>
-
-
-</form>
-   <a href="{% url 'core:home' %}" 
-        class="block px-4 py-2 text-center text-sm text-gray-700 hover:text-blue-700 transition-colors {% if 'core:home' in request.resolver_match.url_name %}bg-blue-50 font-medium{% endif %}" 
-        role="menuitem">Return to home</a>                    
-  <p class="text-center text-gray-500 text-sm mt-4s"> Powered by Duriel Tech Solutions</p>
+</section>
 {% endblock %}

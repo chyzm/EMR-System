@@ -16,9 +16,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from core.models import (
-    Clinic, Patient, Billing, BillingLineItem, Payment, ServicePriceList, Notification, ActionLog,
-    ServerSyncOutbox, ServerSyncState, ClinicMedication, Prescription, StockMovement, PatientEncounter,
+    Clinic, Patient, Billing, BillingLineItem, Payment, PaymentTransaction, PendingClinicRegistration, ServicePriceList, Notification, ActionLog,
+    ServerSyncChange, ServerSyncOutbox, ServerSyncState, ClinicMedication, Prescription, StockMovement, PatientEncounter,
 )
+from django.contrib.auth.hashers import make_password
 from core.utils import log_action
 from core.server_sync import (
     apply_change,
@@ -27,7 +28,149 @@ from core.server_sync import (
     serialize_instance,
     sync_worker_lock,
 )
+from core.payments import PaymentVerificationError, confirm_paystack_payment
 from DurielMedicApp.models import Admission, Appointment, FollowUp, NurseInstruction, PhysiotherapyReferral, Vitals
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, PAYSTACK_SECRET_KEY='sk_test_secret')
+class SubscriptionPaymentTests(TestCase):
+    def paystack_success(self, payment, *, amount=None, currency='NGN'):
+        response = Mock()
+        response.json.return_value = {
+            'status': True,
+            'data': {
+                'status': 'success',
+                'reference': payment.reference,
+                'amount': amount if amount is not None else int(payment.amount * 100),
+                'currency': currency,
+            },
+        }
+        return response
+
+    def test_confirm_registration_payment_creates_clinic_once(self):
+        payment = PaymentTransaction.objects.create(
+            reference='DM-REG-001',
+            email='owner@example.com',
+            plan_type='MONTHLY',
+            amount=Decimal('15000.00'),
+        )
+        PendingClinicRegistration.objects.create(
+            payment=payment,
+            clinic_name='Grace Clinic',
+            clinic_type='GENERAL',
+            clinic_address='1 Test Street',
+            clinic_phone='08000000000',
+            clinic_email='clinic@example.com',
+            username='owner',
+            email='owner@example.com',
+            password_hash=make_password('secret123'),
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        with patch('core.payments.requests.get', return_value=self.paystack_success(payment)):
+            confirmed = confirm_paystack_payment(payment.reference)
+            confirm_paystack_payment(payment.reference)
+
+        self.assertEqual(confirmed.status, 'PAID')
+        self.assertEqual(Clinic.objects.count(), 1)
+        self.assertEqual(get_user_model().objects.count(), 1)
+        clinic = Clinic.objects.get()
+        self.assertTrue(clinic.is_subscription_active)
+        self.assertEqual(clinic.subscription_type, 'MONTHLY')
+
+    def test_confirm_renewal_payment_extends_once(self):
+        clinic = Clinic.objects.create(
+            name='Renew Clinic',
+            clinic_type='GENERAL',
+            address='123 Main',
+            phone='08000000000',
+            email='clinic@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=10),
+            is_subscription_active=True,
+        )
+        payment = PaymentTransaction.objects.create(
+            reference='DM-REN-001',
+            clinic=clinic,
+            email='clinic@example.com',
+            plan_type='MONTHLY',
+            amount=Decimal('15000.00'),
+        )
+
+        with patch('core.payments.requests.get', return_value=self.paystack_success(payment)):
+            confirm_paystack_payment(payment.reference)
+            clinic.refresh_from_db()
+            first_end = clinic.subscription_end_date
+            confirm_paystack_payment(payment.reference)
+            clinic.refresh_from_db()
+
+        self.assertEqual(clinic.subscription_end_date, first_end)
+        self.assertEqual(PaymentTransaction.objects.get(pk=payment.pk).status, 'PAID')
+
+    def test_amount_mismatch_is_rejected(self):
+        payment = PaymentTransaction.objects.create(
+            reference='DM-BAD-AMOUNT',
+            email='owner@example.com',
+            plan_type='MONTHLY',
+            amount=Decimal('15000.00'),
+        )
+
+        with patch('core.payments.requests.get', return_value=self.paystack_success(payment, amount=1)):
+            with self.assertRaises(PaymentVerificationError):
+                confirm_paystack_payment(payment.reference)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, 'FAILED')
+        self.assertEqual(Clinic.objects.count(), 0)
+
+    def test_currency_mismatch_is_rejected(self):
+        payment = PaymentTransaction.objects.create(
+            reference='DM-BAD-CURRENCY',
+            email='owner@example.com',
+            plan_type='YEARLY',
+            amount=Decimal('150000.00'),
+        )
+
+        with patch('core.payments.requests.get', return_value=self.paystack_success(payment, currency='USD')):
+            with self.assertRaises(PaymentVerificationError):
+                confirm_paystack_payment(payment.reference)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, 'FAILED')
+
+    def test_webhook_rejects_invalid_signature(self):
+        response = self.client.post(
+            reverse('core:paystack_webhook'),
+            data=json.dumps({'event': 'charge.success'}),
+            content_type='application/json',
+            HTTP_X_PAYSTACK_SIGNATURE='bad',
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    @override_settings(SYNC_SERVER_ROLE='central')
+    def test_subscription_renewal_creates_sync_change_payload(self):
+        clinic = Clinic.objects.create(
+            name='Sync Renewal Clinic',
+            clinic_type='GENERAL',
+            address='123 Main',
+            phone='08000000000',
+            email='clinic@example.com',
+        )
+        ServerSyncChange.objects.all().delete()
+
+        clinic.set_subscription('MONTHLY')
+
+        change = ServerSyncChange.objects.filter(
+            model_label='core.Clinic',
+            record_sync_id=clinic.sync_id,
+        ).latest('id')
+        self.assertEqual(change.payload['subscription_type'], 'MONTHLY')
+        self.assertIsNotNone(change.payload['subscription_start_date'])
+        self.assertIsNotNone(change.payload['subscription_end_date'])
+        self.assertTrue(change.payload['is_subscription_active'])
+        self.assertEqual(change.payload['last_reminder_sent'], 'NONE')
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])

@@ -180,6 +180,7 @@ urlpatterns = [
     path('register/<str:plan_type>/', views.register_facility, name='register_facility'),
     path('paystack/payment/', views.paystack_payment, name='paystack_payment'),
     path('paystack/callback/', views.paystack_callback, name='paystack_callback'),
+    path('paystack/webhook/', views.paystack_webhook, name='paystack_webhook'),
     
     # Re-subscribe (renew) for existing clinics
     path('subscribe/<int:clinic_id>/<str:plan_type>/', views.start_renewal, name='start_renewal'),

@@ -139,21 +139,51 @@
     padding: 0 !important;
     background: white !important;
   }
-  body * {
-    visibility: hidden !important;
+  body {
+    min-height: 0 !important;
   }
-  .receipt-print-area,
-  .receipt-print-area * {
-    visibility: visible !important;
+  body > script,
+  body > link,
+  body > style,
+  #mobile-sidebar,
+  body > .flex > div:first-child,
+  .print\:hidden {
+    display: none !important;
+  }
+  body > .flex,
+  body > .flex > div,
+  main,
+  .receipt-page {
+    display: block !important;
+    width: 80mm !important;
+    min-width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+  body > .flex > div > :not(main),
+  main > :not(.receipt-page),
+  .receipt-page > :not(.receipt-print-area) {
+    display: none !important;
   }
   .receipt-print-area {
-    position: absolute !important;
+    display: block !important;
+    position: static !important;
     left: 0 !important;
     top: 0 !important;
     width: 80mm !important;
+    min-width: 80mm !important;
+    max-width: 80mm !important;
     margin: 0 !important;
     padding: 4mm !important;
     box-shadow: none !important;
+    border: 0 !important;
+    background: white !important;
+    color: black !important;
   }
 }
 </style>

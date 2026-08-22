@@ -13,6 +13,7 @@ from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
 import hashlib
+import json
 
 from .models import CustomUser, Patient, Billing, BillingLineItem, Clinic, Payment, Prescription, ServicePriceList, StockMovement
 from .forms import (CustomUserCreationForm, FacilityRegistrationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
@@ -32,6 +33,7 @@ from DurielMedicApp.models import Appointment, MedicalRecord, NurseInstruction, 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.db.models import Q, Count, Value, DecimalField
@@ -59,6 +61,19 @@ from django.db.models.functions import Coalesce
 from datetime import timedelta
 from django.core.mail import send_mail, BadHeaderError
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from core.payments import (
+    PaymentError,
+    PaymentInitializationError,
+    PaymentPendingError,
+    PaymentVerificationError,
+    confirm_paystack_payment,
+    create_registration_payment,
+    create_renewal_payment,
+    pay_amount_for_plan,
+    paystack_callback_url,
+    valid_paystack_signature,
+)
 
 
 BILLING_CHARGE_SOURCE_TYPES = ('PRESCRIPTION', 'LAB', 'OPTICAL')
@@ -4990,10 +5005,22 @@ def register_facility(request, plan_type):
     if request.method == 'POST':
         form = FacilityRegistrationForm(request.POST)
         if form.is_valid():
-            # Store valid form data + plan type in session
-            request.session['registration_data'] = form.cleaned_data
-            request.session['plan_type'] = plan_type  # ✅ save plan type
-            return redirect('core:paystack_payment')
+            if plan_type == 'TRIAL':
+                request.session['registration_data'] = form.cleaned_data
+                request.session['plan_type'] = plan_type
+                return redirect('core:paystack_payment')
+            try:
+                payment, authorization_url = create_registration_payment(
+                    registration_data=form.cleaned_data,
+                    plan_type=plan_type,
+                    callback_url=paystack_callback_url(request),
+                )
+            except (PaymentInitializationError, ValidationError) as exc:
+                messages.error(request, str(exc))
+                return redirect('core:select_plan')
+            request.session['payment_reference'] = payment.reference
+            request.session['plan_type'] = plan_type
+            return redirect(authorization_url)
     else:
         form = FacilityRegistrationForm(initial={
             'clinic_type': 'GENERAL',  # Default to GENERAL
@@ -5016,50 +5043,34 @@ def paystack_payment(request):
     if not reg_data and not renewal:
         return redirect('core:select_plan')
 
-    headers = {
-        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-        "Content-Type": "application/json"
-    }
-    callback_url = request.build_absolute_uri(reverse('core:paystack_callback'))
+    callback_url = paystack_callback_url(request)
+    try:
+        if reg_data:
+            payment, authorization_url = create_registration_payment(
+                registration_data=reg_data,
+                plan_type=plan_type,
+                callback_url=callback_url,
+            )
+            request.session.pop('registration_data', None)
+        else:
+            plan_type = renewal['plan_type']
+            clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
+            email = clinic.email or (request.user.email if request.user.is_authenticated else None)
+            if not email:
+                messages.error(request, "No email found to initialize payment.")
+                return redirect('core:select_plan')
+            payment, authorization_url = create_renewal_payment(
+                clinic=clinic,
+                plan_type=plan_type,
+                email=email,
+                callback_url=callback_url,
+            )
+    except (PaymentInitializationError, ValidationError) as exc:
+        messages.error(request, str(exc))
+        return redirect('core:select_plan')
 
-    if reg_data:
-        amount = int(reg_data['amount'])
-        email = reg_data['email']
-    else:
-        plan_type = renewal['plan_type']
-        clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
-        email = clinic.email or (request.user.email if request.user.is_authenticated else None)
-        amount = pay_amount_for_plan(plan_type)
-        if not email:
-            messages.error(request, "No email found to initialize payment.")
-            return redirect('core:select_plan')
-
-    payload = {
-        "email": email,
-        "amount": amount * 100,  # kobo
-        "callback_url": callback_url
-    }
-    response = requests.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers)
-    res_data = response.json()
-    if res_data.get('status'):
-        return redirect(res_data['data']['authorization_url'])
-
-    # Show actual Paystack error message for debugging
-    error_msg = res_data.get('message', 'Unknown error')
-    messages.error(request, f"Payment initialization failed: {error_msg}")
-    return redirect('core:select_plan')
-
-
-    
-    
-from django.core.mail import send_mail
-from django.conf import settings
-from django.shortcuts import redirect
-from django.contrib import messages
-import requests
-from .models import Clinic, CustomUser
-
-
+    request.session['payment_reference'] = payment.reference
+    return redirect(authorization_url)
 
 
 def paystack_callback(request):
@@ -5135,93 +5146,30 @@ def paystack_callback(request):
             messages.error(request, f"Could not start trial: {e}")
             return redirect('core:select_plan')
 
-    # ----- Paid flows (require Paystack verification) -----
-    reference = request.GET.get('reference')
-    if not reference:
-        messages.error(request, "Payment reference not found.")
+    reference = request.GET.get('reference') or request.session.get('payment_reference')
+    try:
+        payment = confirm_paystack_payment(reference)
+    except PaymentPendingError as exc:
+        messages.warning(request, str(exc))
+        return redirect('core:select_plan')
+    except PaymentVerificationError as exc:
+        messages.error(request, str(exc))
         return redirect('core:select_plan')
 
+    clinic = payment.clinic
     try:
-        verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
-        headers = {
-            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-            "Content-Type": "application/json"
-        }
-        response = requests.get(verify_url, headers=headers)
-        res_data = response.json()
-
-        if not (res_data.get('status') and res_data['data']['status'] == 'success'):
-            payment_message = res_data.get('message', 'Unknown error')
-            messages.error(request, f"Payment verification failed: {payment_message}")
-            return redirect('core:select_plan')
-
-        # Renewal flow (existing clinic)
         if request.session.get('renewal'):
-            renewal = request.session.pop('renewal')
-            plan_type = renewal['plan_type']
-            clinic = get_object_or_404(Clinic, id=renewal['clinic_id'])
-            clinic.set_subscription(plan_type)
-            try:
-                send_mail(
-                    "Subscription Renewed",
-                    f"{clinic.name} has renewed {plan_type}. Expires on {clinic.subscription_end_date}.",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [clinic.email, 'suavedef@gmail.com'],
-                    fail_silently=True
-                )
-            except Exception:
-                pass
-            messages.success(request, "Subscription renewed successfully.")
-            return redirect('core:admin_dashboard')
-
-        # Registration flow (new clinic + admin)
-        data = request.session.get('registration_data')
-        plan_type = request.session.get('plan_type', 'MONTHLY')
-        if not data:
-            messages.error(request, "Registration data not found. Please try again.")
-            return redirect('core:select_plan')
-
-        required_fields = ['clinic_name', 'username', 'email', 'password']
-        for field in required_fields:
-            if not data.get(field):
-                messages.error(request, f"Missing required information: {field}.")
-                return redirect('core:select_plan')
-
-        VALID_CLINIC_TYPES = ['GENERAL', 'EYE', 'DENTAL']
-        clinic_type = data.get('clinic_type')
-        if clinic_type not in VALID_CLINIC_TYPES:
-            clinic_type = 'GENERAL'
-
-        with transaction.atomic():
-            clinic = Clinic.objects.create(
-                name=data['clinic_name'],
-                clinic_type=clinic_type,
-                address=data.get('clinic_address', ''),
-                phone=data.get('clinic_phone', ''),
-                email=data.get('clinic_email', '') or data['email']
+            send_mail(
+                "Subscription Renewed",
+                f"{clinic.name} has renewed {payment.plan_type}. Expires on {clinic.subscription_end_date}.",
+                settings.DEFAULT_FROM_EMAIL,
+                [clinic.email, 'suavedef@gmail.com'],
+                fail_silently=True
             )
-            clinic.set_subscription(plan_type)
-
-            user = CustomUser.objects.create_user(
-                username=data['username'],
-                email=data['email'],
-                password=data['password'],
-                first_name=data.get('first_name', ''),
-                last_name=data.get('last_name', ''),
-                is_active=True,
-                role='ADMIN',
-                primary_clinic=clinic,
-            )
-            user.title = data.get('title', '')
-            user.phone = data.get('phone', '') or data.get('phone_number', '')
-            user.primary_clinic = clinic
-            user.save()
-            user.clinic.add(clinic)
-
-        try:
+        else:
             send_mail(
                 "New Clinic Activated",
-                f"Clinic '{clinic.name}' activated by {user.username}. Plan: {plan_type}. Expires on {clinic.subscription_end_date}.",
+                f"Clinic '{clinic.name}' activated. Plan: {payment.plan_type}. Expires on {clinic.subscription_end_date}.",
                 settings.DEFAULT_FROM_EMAIL,
                 ['suavedef@gmail.com'],
                 fail_silently=True
@@ -5229,31 +5177,49 @@ def paystack_callback(request):
             if clinic.email:
                 send_mail(
                     "Welcome to DurielMedic+",
-                    f"Your clinic '{clinic.name}' has been activated. Plan: {plan_type}. Expires on {clinic.subscription_end_date}.",
+                    f"Your clinic '{clinic.name}' has been activated. Plan: {payment.plan_type}. Expires on {clinic.subscription_end_date}.",
                     settings.DEFAULT_FROM_EMAIL,
                     [clinic.email],
                     fail_silently=True
                 )
-        except Exception:
+    except Exception:
+        pass
+
+    is_renewal = bool(request.session.get('renewal'))
+    request.session.pop('registration_data', None)
+    request.session.pop('renewal', None)
+    request.session.pop('plan_type', None)
+    request.session.pop('payment_reference', None)
+
+    if is_renewal:
+        messages.success(request, "Subscription renewed successfully.")
+        return redirect('core:admin_dashboard')
+
+    messages.success(request, "Payment successful! Your account is activated.")
+    return redirect('core:login')
+
+
+@csrf_exempt
+@require_POST
+def paystack_webhook(request):
+    if not valid_paystack_signature(request.body, request.headers.get('x-paystack-signature')):
+        return HttpResponse(status=400)
+
+    try:
+        event = json.loads(request.body.decode('utf-8'))
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return HttpResponse(status=400)
+
+    if event.get('event') == 'charge.success':
+        reference = (event.get('data') or {}).get('reference')
+        try:
+            confirm_paystack_payment(reference)
+        except PaymentPendingError:
+            return HttpResponse(status=503)
+        except PaymentError:
             pass
+    return HttpResponse(status=200)
 
-        # Cleanup
-        request.session.pop('registration_data', None)
-        request.session.pop('plan_type', None)
-
-        messages.success(request, "Payment successful! Your account is activated.")
-        return redirect('core:login')
-
-    except Exception as e:
-        messages.error(request, f"An error occurred during payment verification: {str(e)}")
-        return redirect('core:select_plan')
-
-    
-    
-    
-    
-def pay_amount_for_plan(plan_type: str) -> int:
-    return 15000 if plan_type == 'MONTHLY' else 150000
 
 @login_required
 def start_renewal(request, clinic_id, plan_type):

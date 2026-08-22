@@ -9,7 +9,8 @@ from .models import (
     Patient, Billing, ServicePriceList, Prescription,
     MedicationCategory, ClinicMedication, StockMovement,
     LabTestCategory, LabTest, LabTestOrder, LabTestResult,
-    ActionLog, Notification, NotificationRead
+    ActionLog, Notification, NotificationRead,
+    PaymentTransaction, PendingClinicRegistration,
 )
 
 
@@ -108,6 +109,24 @@ class ServicePriceListAdmin(admin.ModelAdmin):
     list_filter = ('clinic', 'is_active')
     search_fields = ('name',)
     ordering = ('clinic__name', 'name')
+
+
+@admin.register(PaymentTransaction)
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = ('reference', 'clinic', 'email', 'plan_type', 'amount', 'currency', 'provider', 'status', 'paid_at', 'created_at')
+    list_filter = ('status', 'provider', 'plan_type', 'currency', 'created_at')
+    search_fields = ('reference', 'email', 'clinic__name')
+    readonly_fields = ('reference', 'provider_response', 'paid_at', 'created_at', 'updated_at')
+    ordering = ('-created_at',)
+
+
+@admin.register(PendingClinicRegistration)
+class PendingClinicRegistrationAdmin(admin.ModelAdmin):
+    list_display = ('clinic_name', 'email', 'username', 'payment', 'expires_at', 'completed_at', 'created_at')
+    list_filter = ('clinic_type', 'completed_at', 'expires_at')
+    search_fields = ('clinic_name', 'email', 'username', 'payment__reference')
+    readonly_fields = ('payment', 'password_hash', 'registration_payload', 'created_at', 'updated_at')
+    ordering = ('-created_at',)
 
 
 @admin.register(Prescription)

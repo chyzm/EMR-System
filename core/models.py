@@ -535,6 +535,82 @@ class Payment(models.Model):
     
     class Meta:
         ordering = ['-payment_date']
+
+
+class PaymentTransaction(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('PROCESSING', 'Processing'),
+        ('PAID', 'Paid'),
+        ('FAILED', 'Failed'),
+        ('CANCELLED', 'Cancelled'),
+        ('REFUNDED', 'Refunded'),
+    )
+
+    reference = models.CharField(max_length=100, unique=True)
+    clinic = models.ForeignKey(
+        Clinic,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payment_transactions',
+    )
+    email = models.EmailField()
+    plan_type = models.CharField(max_length=20)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='NGN')
+    provider = models.CharField(max_length=30, default='PAYSTACK')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    provider_response = models.JSONField(default=dict, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at'], name='core_paytxn_status_created_idx'),
+            models.Index(fields=['email'], name='core_paytxn_email_idx'),
+            models.Index(fields=['clinic', 'status'], name='core_paytxn_clinic_status_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.reference} - {self.email} ({self.status})'
+
+
+class PendingClinicRegistration(models.Model):
+    payment = models.OneToOneField(
+        PaymentTransaction,
+        on_delete=models.CASCADE,
+        related_name='pending_registration',
+    )
+    clinic_name = models.CharField(max_length=255)
+    clinic_type = models.CharField(max_length=30)
+    clinic_address = models.TextField(blank=True)
+    clinic_phone = models.CharField(max_length=50, blank=True)
+    clinic_email = models.EmailField(blank=True)
+    title = models.CharField(max_length=20, blank=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    username = models.CharField(max_length=150)
+    email = models.EmailField()
+    password_hash = models.CharField(max_length=128)
+    registration_payload = models.JSONField(default=dict, blank=True)
+    expires_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email', 'completed_at'], name='core_pendingreg_email_done_idx'),
+            models.Index(fields=['expires_at'], name='core_pendingreg_expires_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.clinic_name} - {self.email}'
         
         
 class ServicePriceList(models.Model):

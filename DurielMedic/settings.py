@@ -127,6 +127,28 @@ CHANNEL_LAYERS = {
 }
 
 
+def sentry_before_send(event, hint):
+    """
+    Filter known bot/scanner noise before sending events to Sentry.
+    """
+    request = event.get("request", {})
+    url = request.get("url", "")
+
+    ignored_paths = (
+        "/curl/",
+        "/wp-admin",
+        "/wp-login.php",
+        "/phpmyadmin",
+        "/.env",
+        "/.git/",
+    )
+
+    if any(path in url for path in ignored_paths):
+        return None
+
+    return event
+
+
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 
 if SENTRY_DSN and sentry_sdk:
@@ -153,12 +175,12 @@ if SENTRY_DSN and sentry_sdk:
 #     }
 # }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 
 # Server-to-server clinic sync.
@@ -179,22 +201,22 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(1
 
 
 
-if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-    DATABASES = {
-        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-         "default": dj_database_url.config(conn_max_age=600)
-    }
-else:  # PythonAnywhere/MySQL
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
+# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+#     DATABASES = {
+#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+#          "default": dj_database_url.config(conn_max_age=600)
+#     }
+# else:  # PythonAnywhere/MySQL
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DB_ENGINE'),
+#             'NAME': os.getenv('DB_NAME'),
+#             'USER': os.getenv('DB_USER'),
+#             'PASSWORD': os.getenv('DB_PASSWORD'),
+#             'HOST': os.getenv('DB_HOST'),
+#             'PORT': os.getenv('DB_PORT'),
+#         }
+#     }
     
     
 

@@ -2388,6 +2388,37 @@ def create_bill(request, patient_id=None):
 def edit_bill(request, pk):
     clinic_id = request.session.get('clinic_id')
     bill = get_object_or_404(Billing, pk=pk, clinic_id=clinic_id)
+    patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
+    appointment = bill.appointment
+    selected_encounter = bill.encounter
+    billing_service_notes = build_billing_service_notes(
+        bill.patient,
+        clinic_id,
+        appointment,
+        selected_encounter,
+    ) if bill.patient_id else ''
+
+    def billing_form_context(form):
+        return {
+            'form': form,
+            'bill': bill,
+            'patient': bill.patient,
+            'patients_with_appointments': patients_with_appointments,
+            'appointment': appointment,
+            'appointment_type': billing_appointment_type(appointment),
+            'billing_clinical_summary': build_billing_clinical_summary(
+                bill.patient,
+                clinic_id,
+                appointment,
+                selected_encounter,
+            ) if bill.patient_id else {},
+            'billing_service_notes': billing_service_notes,
+            'billing_line_items': BillingLineItem.objects.none(),
+            'requested_line_item_ids': [],
+            'merge_mode': False,
+            'selected_patient_id': bill.patient_id,
+            'title': 'Edit Bill'
+        }
     
     if request.method == 'POST':
         form = BillingForm(request.POST, instance=bill, clinic_id=clinic_id)
@@ -2400,11 +2431,7 @@ def edit_bill(request, pk):
             manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
             if manual_service_cost < 0:
                 messages.error(request, "Manual service cost cannot be negative.")
-                return render(request, 'billing/billing_form.html', {
-                    'form': form,
-                    'bill': bill,
-                    'patients_with_appointments': Patient.objects.filter(clinic_id=clinic_id)
-                })
+                return render(request, 'billing/billing_form.html', billing_form_context(form))
             updated_bill.amount = service_total + manual_service_cost
             description_lines = [f"{service.name} - ₦{service.price}" for service in selected_services]
             if manual_service_name or manual_service_cost:
@@ -2418,11 +2445,7 @@ def edit_bill(request, pk):
 
             if updated_bill.paid_amount > effective_amount:
                 messages.error(request, "Paid amount cannot be greater than total amount after discount")
-                return render(request, 'billing/billing_form.html', {
-                    'form': form,
-                    'bill': bill,
-                    'patients_with_appointments': Patient.objects.filter(clinic_id=clinic_id)
-                })
+                return render(request, 'billing/billing_form.html', billing_form_context(form))
 
             if updated_bill.paid_amount >= effective_amount and effective_amount > 0:
                 updated_bill.status = 'PAID'
@@ -2447,15 +2470,8 @@ def edit_bill(request, pk):
         form = BillingForm(instance=bill, clinic_id=clinic_id)
         if bill.services.exists():
             form.initial['services'] = bill.services.all()
-    
-    patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
-    
-    return render(request, 'billing/billing_form.html', {
-        'form': form,
-        'bill': bill,
-        'patients_with_appointments': patients_with_appointments,
-        'title': 'Edit Bill'
-    })
+
+    return render(request, 'billing/billing_form.html', billing_form_context(form))
     
     
 

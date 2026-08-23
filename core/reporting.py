@@ -40,6 +40,15 @@ def _effective_amount_expr():
     )
 
 
+def _bills_in_period(clinic_id, start_date, end_date):
+    """Bills created or serviced in a report period for a clinic."""
+    return Billing.objects.filter(
+        Q(service_date__range=[start_date.date(), end_date.date()])
+        | Q(created_at__date__range=[start_date.date(), end_date.date()]),
+        clinic_id=clinic_id,
+    )
+
+
 def build_clinic_report_context(clinic_id, appointment_model, start_date, end_date,
                                 *, extra_attention_items=None):
     """Return the analytics-dashboard context shared by all clinic reports.
@@ -82,9 +91,10 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
     returning_patients = max(len(seen_patient_ids - new_patient_ids), 0)
 
     # ---- Financials (current + previous period) ----
-    bills_for_totals = Billing.objects.filter(
+    bills_for_totals = _bills_in_period(
         clinic_id=clinic_id,
-        service_date__range=[start_date.date(), end_date.date()],
+        start_date=start_date,
+        end_date=end_date,
     ).annotate(effective_amount=effective_amount_expr)
     financial_stats = bills_for_totals.aggregate(
         total_amount=Coalesce(Sum('effective_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
@@ -98,9 +108,10 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
     period_days = max((end_date.date() - start_date.date()).days + 1, 1)
     previous_end = start_date - timedelta(seconds=1)
     previous_start = previous_end - timedelta(days=period_days - 1)
-    previous_bills = Billing.objects.filter(
+    previous_bills = _bills_in_period(
         clinic_id=clinic_id,
-        service_date__range=[previous_start.date(), previous_end.date()],
+        start_date=previous_start,
+        end_date=previous_end,
     ).annotate(effective_amount=effective_amount_expr)
     previous_financial = previous_bills.aggregate(
         total_amount=Coalesce(Sum('effective_amount', output_field=DecimalField()), Value(0, output_field=DecimalField())),
@@ -328,9 +339,10 @@ def export_patient_report(start_date, end_date, clinic_id):
 def export_financial_report(start_date, end_date, clinic_id):
     """CSV of bills + totals in range for a clinic."""
     try:
-        bills = Billing.objects.filter(
+        bills = _bills_in_period(
             clinic_id=clinic_id,
-            service_date__range=[start_date.date(), end_date.date()],
+            start_date=start_date,
+            end_date=end_date,
         ).select_related('patient').order_by('service_date')
 
         totals = bills.aggregate(

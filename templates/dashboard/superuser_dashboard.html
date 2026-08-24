@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Superuser Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0b1220; color: #f8fafc; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .su-shell { background: #0b1220; min-height: 100vh; }
+  .su-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); min-height: 100vh; }
+  .su-sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .su-card { background: #111827; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.22); }
+  .su-card .metric-label { color: #e2e8f0; }
+  .su-card .metric-value { color: #ffffff; }
+  .su-card .metric-note { color: #cbd5e1; }
+  .su-nav a { display: flex; align-items: center; gap: .85rem; padding: 1rem; border-radius: 8px; color: #f8fafc; font-size: 1rem; font-weight: 700; }
+  .su-nav a i { width: 1.25rem; text-align: center; color: #f8fafc; }
+  .su-nav a:hover, .su-nav a.active { background: #2454db; color: #fff; }
+  .su-table-frame { min-height: 520px; }
+  .su-row { height: 64px; }
+  .su-page-link { border: 1px solid #475569; border-radius: 6px; color: #e2e8f0; display: inline-flex; min-width: 2.25rem; justify-content: center; padding: .45rem .7rem; }
+  .su-page-link:hover, .su-page-link.active { background: #2454db; border-color: #2454db; color: #fff; }
+  .su-page-link.disabled { opacity: .4; pointer-events: none; }
+  .su-filter-form { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto auto; gap: .75rem; align-items: end; }
+  .su-input { background: #fff; border: 1px solid #cbd5e1; color: #111827; }
+  .su-input::placeholder { color: #64748b; }
+  .su-input:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96, 165, 250, .22); outline: none; }
+  .sparkline { width: 100%; height: 44px; }
+  @media (max-width: 1023px) {
+    .su-layout { grid-template-columns: 1fr; }
+    .su-sidebar { position: static; height: auto; }
+  }
+  @media (max-width: 767px) {
+    .su-filter-form { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="su-shell text-slate-100">
+  <div class="su-layout">
+    <aside class="su-sidebar border-r border-zinc-800 bg-zinc-950 px-5 py-8">
+      <div class="mb-10">
+        <div class="text-xl font-bold text-white">DURIELMEDIC+</div>
+        <div class="mt-2 text-sm uppercase tracking-wide text-white">Superuser Console</div>
+      </div>
+      <nav class="su-nav space-y-5">
+        <a href="#overview" class="active"><i class="fas fa-chart-line w-4"></i> Overview</a>
+        <a href="#clients"><i class="fas fa-hospital w-4"></i> Clients</a>
+        <a href="#subscriptions"><i class="fas fa-credit-card w-4"></i> Subscriptions</a>
+        <a href="{% url 'core:superuser_users' %}"><i class="fas fa-users-cog w-4"></i> Users</a>
+        <a href="{% url 'core:add_clinic' %}"><i class="fas fa-plus w-4"></i> Add Clinic</a>
+        <a href="{% url 'core:superuser_users' %}"><i class="fas fa-user-shield w-4"></i> Manage Roles</a>
+      </nav>
+    </aside>
+
+    <main class="px-4 py-6 sm:px-6 lg:px-8">
+      <section id="overview" class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold text-white">App Metrics</h1>
+          <p class="mt-1 text-sm text-slate-200">Clients, subscriptions, revenue, renewals, and activity from {{ start_date|date:"M j, Y" }} to {{ end_date|date:"M j, Y" }}.</p>
+        </div>
+        <form method="get" class="su-filter-form">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-200">Start</label>
+            <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="su-input rounded-md px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-200">End</label>
+            <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="su-input rounded-md px-3 py-2 text-sm">
+          </div>
+          <button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500">Apply</button>
+          <button type="submit" name="export" value="csv" class="rounded-md border border-emerald-500 px-3 py-2 text-sm font-medium text-emerald-100 hover:bg-emerald-900">Export CSV</button>
+        </form>
+      </section>
+
+      <section class="mb-8 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>Active Trials</span><i class="fas fa-hourglass-half"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">{{ superuser_metrics.active_trials }}</div>
+          <div class="metric-note mt-1 text-xs">Active in selected period</div>
+          <svg class="sparkline mt-3" data-points="{{ active_trial_series_json }}" data-color="#f97316"></svg>
+        </div>
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>Active Subscriptions</span><i class="fas fa-calendar-check"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">{{ superuser_metrics.active_subscriptions }}</div>
+          <div class="metric-note mt-1 text-xs">Paid active clinics</div>
+          <svg class="sparkline mt-3" data-points="{{ active_subscription_series_json }}" data-color="#10b981"></svg>
+        </div>
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>MRR</span><i class="fas fa-link"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">₦{{ superuser_metrics.mrr|floatformat:0 }}</div>
+          <div class="metric-note mt-1 text-xs">Estimated recurring revenue</div>
+          <svg class="sparkline mt-3" data-points="{{ mrr_series_json }}" data-color="#10b981"></svg>
+        </div>
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>Revenue</span><i class="fas fa-naira-sign"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">₦{{ superuser_metrics.monthly_revenue|floatformat:0 }}</div>
+          <div class="metric-note mt-1 text-xs">Selected period</div>
+          <svg class="sparkline mt-3" data-points="{{ revenue_series_json }}" data-color="#22c55e"></svg>
+        </div>
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>New Customers</span><i class="fas fa-user-plus"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">{{ superuser_metrics.new_clients_28_days }}</div>
+          <div class="metric-note mt-1 text-xs">Selected period</div>
+          <svg class="sparkline mt-3" data-points="{{ new_customer_series_json }}" data-color="#6366f1"></svg>
+        </div>
+        <div class="su-card p-4">
+          <div class="metric-label flex items-center justify-between text-sm"><span>Active Customers</span><i class="fas fa-user-check"></i></div>
+          <div class="metric-value mt-3 text-3xl font-semibold">{{ superuser_metrics.active_customers }}</div>
+          <div class="metric-note mt-1 text-xs">{{ superuser_metrics.expired_subscriptions }} expired</div>
+          <svg class="sparkline mt-3" data-points="{{ active_customer_series_json }}" data-color="#6366f1"></svg>
+        </div>
+      </section>
+
+      <section id="subscriptions" class="mb-8 grid gap-3 md:grid-cols-4">
+        <div class="su-card p-4"><div class="metric-label text-sm">Total Clients</div><div class="metric-value mt-2 text-2xl font-semibold">{{ superuser_metrics.total_clients }}</div></div>
+        <div class="su-card p-4"><div class="metric-label text-sm">Renewals</div><div class="metric-value mt-2 text-2xl font-semibold">{{ superuser_metrics.renewals_28_days }}</div></div>
+        <div class="su-card p-4"><div class="metric-label text-sm">Pending Payments</div><div class="metric-value mt-2 text-2xl font-semibold">{{ superuser_metrics.pending_payments }}</div></div>
+        <div class="su-card p-4"><div class="metric-label text-sm">Paid Transactions</div><div class="metric-value mt-2 text-2xl font-semibold">{{ superuser_metrics.paid_transactions }}</div></div>
+      </section>
+
+      <section id="clients" class="mb-8 su-card overflow-hidden">
+        <div class="border-b border-zinc-800 px-5 py-4">
+          <form method="get" action="#clients" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 class="text-lg font-semibold text-white">Clients</h2>
+            <input type="hidden" name="user_search" value="{{ user_search }}">
+            <input type="hidden" name="user_clinic" value="{{ user_clinic }}">
+            <input type="hidden" name="user_page" value="{{ users.number }}">
+            <input type="text" name="clinic_search" value="{{ clinic_search }}" placeholder="Search clients" class="su-input rounded-md px-3 py-2 text-sm">
+          </form>
+        </div>
+        <div class="su-table-frame overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-zinc-900 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr><th class="px-5 py-3">Clinic</th><th class="px-5 py-3">Type</th><th class="px-5 py-3">Subscription</th><th class="px-5 py-3">Patients</th><th class="px-5 py-3">Staff</th><th class="px-5 py-3">Actions</th></tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800">
+              {% for stat in stats %}
+              <tr class="su-row">
+                <td class="px-5 py-3"><div class="font-medium text-white">{{ stat.clinic.name }}</div><div class="text-xs text-slate-500">ID {{ stat.clinic.id }}</div></td>
+                <td class="px-5 py-3 text-slate-300">{{ stat.clinic.get_clinic_type_display }}</td>
+                <td class="px-5 py-3 text-slate-300">{{ stat.clinic.subscription_type|default:"None" }} · {{ stat.clinic.subscription_end_date|default:"No expiry" }}</td>
+                <td class="px-5 py-3 text-slate-300">{{ stat.patients }}</td>
+                <td class="px-5 py-3 text-slate-300">{{ stat.staff }}</td>
+                <td class="px-5 py-3"><a href="{% url 'core:edit_clinic' stat.clinic.id %}" class="text-emerald-400 hover:text-emerald-300">Edit</a></td>
+              </tr>
+              {% empty %}
+              <tr class="su-row"><td colspan="6" class="px-5 py-8 text-center text-slate-300">No clients found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-col gap-3 border-t border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div class="text-sm text-slate-200">
+            Page {{ clinics.number }} of {{ clinics.paginator.num_pages }} · {{ clinics.paginator.count }} clients
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <a href="?clinic_page=1{% if clinic_pagination_query %}&{{ clinic_pagination_query }}{% endif %}#clients" class="su-page-link {% if not clinics.has_previous %}disabled{% endif %}">First</a>
+            <a href="?clinic_page={% if clinics.has_previous %}{{ clinics.previous_page_number }}{% else %}{{ clinics.number }}{% endif %}{% if clinic_pagination_query %}&{{ clinic_pagination_query }}{% endif %}#clients" class="su-page-link {% if not clinics.has_previous %}disabled{% endif %}">Prev</a>
+            {% for num in clinics.paginator.page_range %}
+              {% if num == clinics.number or num > clinics.number|add:'-3' and num < clinics.number|add:'3' %}
+              <a href="?clinic_page={{ num }}{% if clinic_pagination_query %}&{{ clinic_pagination_query }}{% endif %}#clients" class="su-page-link {% if clinics.number == num %}active{% endif %}">{{ num }}</a>
+              {% endif %}
+            {% endfor %}
+            <a href="?clinic_page={% if clinics.has_next %}{{ clinics.next_page_number }}{% else %}{{ clinics.number }}{% endif %}{% if clinic_pagination_query %}&{{ clinic_pagination_query }}{% endif %}#clients" class="su-page-link {% if not clinics.has_next %}disabled{% endif %}">Next</a>
+            <a href="?clinic_page={{ clinics.paginator.num_pages }}{% if clinic_pagination_query %}&{{ clinic_pagination_query }}{% endif %}#clients" class="su-page-link {% if not clinics.has_next %}disabled{% endif %}">Last</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+  if (!document.querySelector('link[href*="font-awesome"]')) {
+    const link = document.createElement('link');
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }
+  document.querySelectorAll('.sparkline').forEach((svg) => {
+    const points = JSON.parse(svg.dataset.points || '[]');
+    const color = svg.dataset.color || '#10b981';
+    const w = 280, h = 44, pad = 2;
+    const max = Math.max(...points, 1);
+    const step = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
+    const path = points.map((value, index) => {
+      const x = pad + index * step;
+      const y = h - pad - ((value / max) * (h - pad * 2));
+      return `${index ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`;
+    }).join(' ');
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"></path>`;
+  });
+</script>
+</body>
+</html>

@@ -100,17 +100,11 @@
 
                     <!-- Status and Permissions -->
                 <div class="col-span-2 border-t pt-4">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="flex items-center">
                             {{ form.is_active }}
                             <label for="{{ form.is_active.id_for_label }}" class="ml-2 text-sm font-medium text-gray-700">
                                 Active
-                            </label>
-                        </div>
-                        <div class="flex items-center">
-                            {{ form.is_staff }}
-                            <label for="{{ form.is_staff.id_for_label }}" class="ml-2 text-sm font-medium text-gray-700">
-                                Staff Member
                             </label>
                         </div>
                         {% if request.user.is_superuser %}

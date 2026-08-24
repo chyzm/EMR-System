@@ -102,6 +102,7 @@ urlpatterns = [
     
     # admin dashboard
     path('dashboard/', admin_dashboard, name='admin_dashboard'),
+    path('dashboard/users/', views.superuser_user_management, name='superuser_users'),
     path('activate-user/<int:user_id>/', activate_user, name='activate_user'),
     path('set-staff/<int:user_id>/', set_staff, name='set_staff'),
     path('set-superuser/<int:user_id>/', set_superuser, name='set_superuser'),

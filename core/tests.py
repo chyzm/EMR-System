@@ -10,6 +10,7 @@ from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core import mail
+from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -18,18 +19,23 @@ from django.utils import timezone
 from core.models import (
     Clinic, Patient, Billing, BillingLineItem, Payment, PaymentTransaction, PendingClinicRegistration, ServicePriceList, Notification, ActionLog,
     ServerSyncChange, ServerSyncOutbox, ServerSyncState, ClinicMedication, Prescription, StockMovement, PatientEncounter,
+    ReportExportJob,
 )
 from django.contrib.auth.hashers import make_password
 from core.utils import log_action
 from core.server_sync import (
     apply_change,
+    is_syncable_model,
     pull_remote_changes,
     push_pending_outbox,
     serialize_instance,
     sync_worker_lock,
 )
+from core.sync import SERVER_SYNC_SNAPSHOT_MODELS
 from core.payments import PaymentVerificationError, confirm_paystack_payment
 from DurielMedicApp.models import Admission, Appointment, FollowUp, NurseInstruction, PhysiotherapyReferral, Vitals
+from DurielEyeApp.models import EyeExam, OpticalDispense, OpticalPrescriptionRequest, OpticalProduct, OpticalStockMovement
+from DurielDentalApp.models import DentalProcedure
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, PAYSTACK_SECRET_KEY='sk_test_secret')
@@ -532,6 +538,115 @@ class SyncQueueTests(TestCase):
         notification = Notification.objects.create(clinic=self.clinic, message='New appointment')
         self.assertTrue(ServerSyncOutbox.objects.filter(record_sync_id=notification.sync_id).exists())
 
+    def test_workflow_models_that_drive_queues_and_inventory_are_syncable(self):
+        workflow_models = [
+            PatientEncounter,
+            BillingLineItem,
+            PhysiotherapyReferral,
+            OpticalProduct,
+            OpticalDispense,
+            OpticalPrescriptionRequest,
+            OpticalStockMovement,
+        ]
+
+        for model in workflow_models:
+            with self.subTest(model=model.__name__):
+                self.assertTrue(is_syncable_model(model))
+                label = f'{model._meta.app_label}.{model.__name__}'
+                self.assertIn(label, SERVER_SYNC_SNAPSHOT_MODELS)
+
+    def test_local_prescription_billing_line_item_is_queued_for_server_sync(self):
+        self.activate_local_sync()
+        medication = ClinicMedication.objects.create(
+            clinic=self.clinic,
+            name='Paracetamol',
+            strength='500mg',
+            quantity_in_stock=20,
+            selling_price=Decimal('200.00'),
+            added_by=self.user,
+        )
+        prescription = Prescription.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            prescribed_by=self.user,
+            clinic_medication=medication,
+            dosage='500mg',
+            frequency='bd',
+            duration='3 days',
+            quantity_prescribed=2,
+            stock_deducted=True,
+        )
+        source_ct = ContentType.objects.get_for_model(prescription)
+
+        item = BillingLineItem.objects.create(
+            clinic=self.clinic,
+            patient=self.patient,
+            source_type='PRESCRIPTION',
+            source_content_type=source_ct,
+            source_object_id=str(prescription.pk),
+            description='Paracetamol (500mg)',
+            quantity=2,
+            unit_price=Decimal('200.00'),
+            status='APPROVED',
+            created_by=self.user,
+            approved_by=self.user,
+            approved_at=timezone.now(),
+        )
+
+        queued = ServerSyncOutbox.objects.get(record_sync_id=item.sync_id)
+        self.assertEqual(queued.model_label, 'core.BillingLineItem')
+        self.assertEqual(queued.payload['_generic_source_model'], 'core.Prescription')
+        self.assertEqual(queued.payload['_generic_source_sync_id'], str(prescription.sync_id))
+
+    def test_apply_billing_line_item_restores_generic_prescription_source(self):
+        medication = ClinicMedication.objects.create(
+            clinic=self.clinic,
+            name='Amlodipine',
+            strength='5mg',
+            quantity_in_stock=20,
+            selling_price=Decimal('325.00'),
+            added_by=self.user,
+        )
+        prescription = Prescription.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            prescribed_by=self.user,
+            clinic_medication=medication,
+            dosage='5mg',
+            frequency='daily',
+            duration='7 days',
+            quantity_prescribed=2,
+            stock_deducted=True,
+        )
+        item = BillingLineItem.objects.create(
+            clinic=self.clinic,
+            patient=self.patient,
+            source_type='PRESCRIPTION',
+            source_content_type=ContentType.objects.get_for_model(prescription),
+            source_object_id=str(prescription.pk),
+            description='Amlodipine (5mg)',
+            quantity=2,
+            unit_price=Decimal('325.00'),
+            status='APPROVED',
+            created_by=self.user,
+        )
+        payload = serialize_instance(item)
+        item_sync_id = item.sync_id
+        item.delete()
+
+        apply_change({
+            'operation_id': str(uuid.uuid4()),
+            'model_label': 'core.BillingLineItem',
+            'action': 'update',
+            'record_sync_id': str(item_sync_id),
+            'payload': payload,
+        })
+
+        restored = BillingLineItem.objects.get(sync_id=item_sync_id)
+        self.assertEqual(restored.source_object, prescription)
+        self.assertEqual(restored.status, 'APPROVED')
+        self.assertEqual(restored.total_amount, Decimal('650.00'))
+
     def test_sync_worker_lock_prevents_overlapping_workers(self):
         with tempfile.TemporaryDirectory() as runtime_root, patch.dict(
             os.environ,
@@ -591,7 +706,7 @@ class SyncQueueTests(TestCase):
         self.assertEqual(request_get.call_args_list[0].kwargs['params']['bootstrap_offset'], 0)
         self.assertEqual(request_get.call_args_list[1].kwargs['params']['bootstrap_offset'], 25)
         state = ServerSyncState.objects.get(key='central_pull_cursor').value
-        self.assertEqual(state['bootstrap_version'], 3)
+        self.assertEqual(state['bootstrap_version'], settings.SYNC_BOOTSTRAP_VERSION)
 
     def test_patient_profile_picture_payload_contains_and_restores_file(self):
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
@@ -746,6 +861,65 @@ class SyncQueueTests(TestCase):
         self.assertIn('durielmedic-pages-v5', response.content.decode('utf-8'))
 
 
+class PatientIdPrefixTests(TestCase):
+    def test_clinics_with_same_first_three_letters_get_distinct_patient_prefixes(self):
+        first = Clinic.objects.create(
+            name='Unity Hospital',
+            clinic_type='GENERAL',
+            address='123 Main',
+            phone='08000000000',
+            email='unity@example.com',
+        )
+        second = Clinic.objects.create(
+            name='Universal Clinic',
+            clinic_type='GENERAL',
+            address='456 Main',
+            phone='08000000001',
+            email='universal@example.com',
+        )
+
+        self.assertEqual(first.patient_id_prefix, 'UNI')
+        self.assertEqual(second.patient_id_prefix, 'UNI1')
+
+        first_patient = Patient.objects.create(
+            clinic=first,
+            first_name='Ada',
+            last_name='Okafor',
+            date_of_birth='1990-01-01',
+            gender='F',
+            blood_group='O+',
+            contact='08012345678',
+            address='Test Address',
+            emergency_contact='08087654321',
+        )
+        second_patient = Patient.objects.create(
+            clinic=second,
+            first_name='Ben',
+            last_name='Okafor',
+            date_of_birth='1990-01-01',
+            gender='M',
+            blood_group='O+',
+            contact='08012345679',
+            address='Test Address',
+            emergency_contact='08087654322',
+        )
+        next_second_patient = Patient.objects.create(
+            clinic=second,
+            first_name='Chi',
+            last_name='Okafor',
+            date_of_birth='1990-01-01',
+            gender='F',
+            blood_group='O+',
+            contact='08012345670',
+            address='Test Address',
+            emergency_contact='08087654320',
+        )
+
+        self.assertEqual(first_patient.patient_id, 'UNI000001')
+        self.assertEqual(second_patient.patient_id, 'UNI1000001')
+        self.assertEqual(next_second_patient.patient_id, 'UNI1000002')
+
+
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
 class OperationalHealthTests(TestCase):
     def setUp(self):
@@ -792,6 +966,69 @@ class OperationalHealthTests(TestCase):
                 details='Superuser audit test',
             ).exists()
         )
+
+    def test_superuser_dashboard_renders_app_metrics(self):
+        self.client.force_login(self.superuser)
+        response = self.client.get(reverse('core:admin_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Superuser Console')
+        self.assertContains(response, 'App Metrics')
+        self.assertContains(response, 'Active Subscriptions')
+        self.assertContains(response, reverse('core:superuser_users'))
+
+    def test_superuser_user_management_uses_own_page(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse('core:superuser_users'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Manage Users')
+        self.assertContains(response, 'Superuser-wide user access')
+        self.assertContains(response, reverse('core:add_clinic'))
+
+    def test_superuser_dashboard_exports_metrics_csv(self):
+        PaymentTransaction.objects.create(
+            reference='SU-METRICS-001',
+            clinic=self.clinic,
+            email='metrics@example.com',
+            plan_type='MONTHLY',
+            amount=Decimal('15000.00'),
+            status='PAID',
+            paid_at=timezone.now(),
+        )
+        self.client.force_login(self.superuser)
+        today = timezone.localdate().isoformat()
+
+        response = self.client.get(reverse('core:admin_dashboard'), {
+            'start_date': today,
+            'end_date': today,
+            'export': 'csv',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('superuser_metrics_', response['Content-Disposition'])
+        self.assertContains(response, 'Date,Revenue,New Customers,Active Trials,Active Subscriptions,Active Customers,MRR')
+
+    def test_admin_without_staff_flag_can_open_staff_management(self):
+        admin = get_user_model().objects.create_user(
+            username='ops-admin',
+            email='ops-admin@example.com',
+            password='secret123',
+            role='ADMIN',
+            is_staff=False,
+        )
+        admin.clinic.add(self.clinic)
+        self.client.force_login(admin)
+        session = self.client.session
+        session['clinic_id'] = self.clinic.id
+        session['clinic_type'] = self.clinic.clinic_type
+        session['clinic_name'] = self.clinic.name
+        session.save()
+
+        response = self.client.get(reverse('core:staff_list'))
+
+        self.assertEqual(response.status_code, 200)
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
@@ -908,7 +1145,193 @@ class BillingAccessTests(TestCase):
         self.assertContains(response, 'Needs Attention')
         self.assertContains(response, 'Service Performance')
         self.assertContains(response, 'Charts')
+        self.assertContains(response, 'Export Consultations CSV')
+        self.assertContains(response, 'Export Medical Prescriptions CSV')
+        self.assertContains(response, 'Export Admissions CSV')
         self.assertNotContains(response, 'Report Chat')
+
+    def test_general_report_exports_consultations_admissions_and_medical_prescriptions(self):
+        self.select_clinic_as(self.admin)
+        appointment = Appointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            date=timezone.localdate(),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Headache',
+            status='COMPLETED',
+        )
+        PatientEncounter.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.doctor,
+            encounter_type='GENERAL_CONSULTATION',
+            status='COMPLETED',
+            appointment_content_type=ContentType.objects.get_for_model(appointment),
+            appointment_object_id=appointment.pk,
+            created_by=self.doctor,
+        )
+        medication = ClinicMedication.objects.create(
+            clinic=self.clinic,
+            name='Paracetamol',
+            strength='500mg',
+            quantity_in_stock=20,
+            selling_price=Decimal('200.00'),
+            added_by=self.admin,
+        )
+        Prescription.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            prescribed_by=self.admin,
+            clinic_medication=medication,
+            dosage='500mg',
+            frequency='bd',
+            duration='3 days',
+            quantity_prescribed=6,
+        )
+        Admission.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            ward='Male Ward',
+            bed='B2',
+            attending_doctor=self.doctor,
+            reason='Observation',
+        )
+
+        prescription_response = self.client.post(reverse('DurielMedicApp:generate_report'), {
+            'report_type': 'prescriptions',
+        })
+        consultation_response = self.client.post(reverse('DurielMedicApp:generate_report'), {
+            'report_type': 'consultations',
+        })
+        admission_response = self.client.post(reverse('DurielMedicApp:generate_report'), {
+            'report_type': 'admissions',
+        })
+
+        self.assertEqual(prescription_response.status_code, 302)
+        self.assertEqual(consultation_response.status_code, 302)
+        self.assertEqual(admission_response.status_code, 302)
+        self.assertTrue(ReportExportJob.objects.filter(clinic=self.clinic, report_scope='general', report_type='prescriptions').exists())
+        self.assertTrue(ReportExportJob.objects.filter(clinic=self.clinic, report_scope='general', report_type='consultations').exists())
+        self.assertTrue(ReportExportJob.objects.filter(clinic=self.clinic, report_scope='general', report_type='admissions').exists())
+
+        with tempfile.TemporaryDirectory() as tmpdir, self.settings(MEDIA_ROOT=tmpdir):
+            call_command('process_report_exports', limit=1)
+            job = ReportExportJob.objects.get(clinic=self.clinic, report_scope='general', report_type='prescriptions')
+            job.refresh_from_db()
+            self.assertEqual(job.status, 'COMPLETED')
+            with job.file.open('rb') as handle:
+                self.assertIn('Paracetamol (500mg)', handle.read().decode('utf-8'))
+
+    def test_eye_report_operations_include_optical_service_orders(self):
+        eye_clinic = Clinic.objects.create(
+            name='Eye Operations Clinic',
+            clinic_type='EYE',
+            address='1 Eye Road',
+            phone='08000000002',
+            email='eyeops@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.admin.clinic.add(eye_clinic)
+        patient = Patient.objects.create(
+            clinic=eye_clinic,
+            first_name='Eye',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='F',
+            contact='08012345671',
+            address='Eye Address',
+            emergency_contact='08087654323',
+            created_by=self.admin,
+        )
+        eye_exam = EyeExam.objects.create(
+            patient=patient,
+            created_by=self.admin,
+            lens_prescribed=True,
+            lens_prescription='Single vision lenses',
+        )
+        OpticalPrescriptionRequest.objects.create(
+            patient=patient,
+            clinic=eye_clinic,
+            eye_exam=eye_exam,
+            lens_prescription='Single vision lenses',
+            prescribed_by=self.admin,
+        )
+
+        self.select_clinic_as(self.admin)
+        session = self.client.session
+        session['clinic_id'] = eye_clinic.id
+        session['clinic_type'] = eye_clinic.clinic_type
+        session['clinic_name'] = eye_clinic.name
+        session.save()
+        response = self.client.get(reverse('DurielEyeApp:generate_report'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Optical service orders')
+        self.assertContains(response, 'Export Medical Prescriptions CSV')
+        self.assertContains(response, 'Export Optical Prescriptions CSV')
+        self.assertContains(response, '<span class="font-medium">1</span>', html=True)
+
+        export_response = self.client.post(reverse('DurielEyeApp:generate_report'), {
+            'report_type': 'optical_prescriptions',
+        })
+        self.assertEqual(export_response.status_code, 302)
+        self.assertTrue(ReportExportJob.objects.filter(clinic=eye_clinic, report_scope='eye', report_type='optical_prescriptions').exists())
+
+    def test_dental_report_operations_include_procedures(self):
+        dental_clinic = Clinic.objects.create(
+            name='Dental Operations Clinic',
+            clinic_type='DENTAL',
+            address='1 Dental Road',
+            phone='08000000003',
+            email='dentalops@example.com',
+            subscription_type='MONTHLY',
+            subscription_start_date=timezone.localdate(),
+            subscription_end_date=timezone.localdate() + timedelta(days=30),
+            is_subscription_active=True,
+        )
+        self.admin.clinic.add(dental_clinic)
+        patient = Patient.objects.create(
+            clinic=dental_clinic,
+            first_name='Dental',
+            last_name='Patient',
+            date_of_birth='1990-01-01',
+            gender='M',
+            contact='08012345672',
+            address='Dental Address',
+            emergency_contact='08087654324',
+            created_by=self.admin,
+        )
+        DentalProcedure.objects.create(
+            patient=patient,
+            clinic=dental_clinic,
+            procedure_name='Scaling and polishing',
+            performed_by=self.admin,
+        )
+
+        self.select_clinic_as(self.admin)
+        session = self.client.session
+        session['clinic_id'] = dental_clinic.id
+        session['clinic_type'] = dental_clinic.clinic_type
+        session['clinic_name'] = dental_clinic.name
+        session.save()
+        response = self.client.get(reverse('DurielDentalApp:generate_report'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Dental procedures')
+        self.assertContains(response, 'Export Medical Prescriptions CSV')
+        self.assertContains(response, 'Export Dental Procedures CSV')
+        self.assertContains(response, '<span class="font-medium">1</span>', html=True)
+
+        export_response = self.client.post(reverse('DurielDentalApp:generate_report'), {
+            'report_type': 'dental_procedures',
+        })
+        self.assertEqual(export_response.status_code, 302)
+        self.assertTrue(ReportExportJob.objects.filter(clinic=dental_clinic, report_scope='dental', report_type='dental_procedures').exists())
 
     def test_billing_queue_merges_items_from_same_appointment_flow(self):
         self.select_clinic_as(self.admin)
@@ -968,6 +1391,28 @@ class BillingAccessTests(TestCase):
         self.assertEqual(len(matching_groups), 1)
         self.assertEqual(len(matching_groups[0]['items']), 1)
         self.assertContains(response, 'FBC')
+
+    def test_create_bill_rejects_manual_cost_without_manual_name(self):
+        self.select_clinic_as(self.admin)
+
+        response = self.client.post(reverse('core:create_bill'), {
+            'patient': self.patient.patient_id,
+            'service_date': timezone.localdate().isoformat(),
+            'due_date': (timezone.localdate() + timedelta(days=7)).isoformat(),
+            'amount': '0',
+            'paid_amount': '0',
+            'description': '',
+            'notes': '',
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'manual_service_name': '',
+            'manual_service_cost': '10000.00',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Enter a manual service name when adding a manual cost')
+        self.assertFalse(Billing.objects.filter(patient=self.patient, amount=Decimal('10000.00')).exists())
 
     def test_admin_can_deactivate_billing_queue_entry(self):
         self.select_clinic_as(self.admin)
@@ -1074,6 +1519,169 @@ class BillingAccessTests(TestCase):
         ):
             response = self.client.get(reverse(url_name, args=[self.other_bill.pk]))
             self.assertEqual(response.status_code, 404, url_name)
+
+    def test_edit_bill_adds_selected_and_manual_services_to_existing_amount(self):
+        self.select_clinic_as(self.admin)
+        service = ServicePriceList.objects.create(
+            clinic=self.clinic,
+            name='Dressing',
+            price=Decimal('250.00'),
+            is_active=True,
+        )
+
+        response = self.client.post(reverse('core:edit_bill', args=[self.bill.pk]), {
+            'patient': self.patient.patient_id,
+            'service_date': self.bill.service_date.isoformat(),
+            'due_date': self.bill.due_date.isoformat(),
+            'amount': str(self.bill.amount),
+            'paid_amount': str(self.bill.paid_amount),
+            'description': self.bill.description,
+            'notes': self.bill.notes,
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'services': [str(service.pk)],
+            'manual_service_name': 'Gloves',
+            'manual_service_cost': '100.00',
+        })
+
+        self.assertRedirects(response, f"{reverse('core:view_bill', args=[self.bill.pk])}?updated=1", fetch_redirect_response=False)
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.amount, Decimal('1350.00'))
+        self.assertIn('Consultation', self.bill.description)
+        self.assertIn('Dressing', self.bill.description)
+        self.assertIn('Gloves', self.bill.description)
+        self.assertTrue(self.bill.services.filter(pk=service.pk).exists())
+
+    def test_edit_bill_rejects_manual_cost_without_manual_name(self):
+        self.select_clinic_as(self.admin)
+
+        response = self.client.post(reverse('core:edit_bill', args=[self.bill.pk]), {
+            'patient': self.patient.patient_id,
+            'service_date': self.bill.service_date.isoformat(),
+            'due_date': self.bill.due_date.isoformat(),
+            'amount': str(self.bill.amount),
+            'paid_amount': str(self.bill.paid_amount),
+            'description': self.bill.description,
+            'notes': self.bill.notes,
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'manual_service_name': '',
+            'manual_service_cost': '10000.00',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Enter a manual service name when adding a manual cost')
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.amount, Decimal('1000.00'))
+        self.assertNotIn(' - ₦10000.00', self.bill.description)
+
+    def test_edit_bill_does_not_duplicate_existing_manual_description_or_amount(self):
+        self.select_clinic_as(self.admin)
+        self.bill.amount = Decimal('23000.00')
+        self.bill.description = (
+            'Dentist Consultation - ₦10000.00\n'
+            ' - ₦10000.00\n'
+            'Examination - ₦12000.00'
+        )
+        self.bill.save(update_fields=['amount', 'description', 'updated_at'])
+
+        response = self.client.post(reverse('core:edit_bill', args=[self.bill.pk]), {
+            'patient': self.patient.patient_id,
+            'service_date': self.bill.service_date.isoformat(),
+            'due_date': self.bill.due_date.isoformat(),
+            'amount': str(self.bill.amount),
+            'paid_amount': str(self.bill.paid_amount),
+            'description': self.bill.description,
+            'notes': self.bill.notes,
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'manual_service_name': 'Examination',
+            'manual_service_cost': '12000.00',
+        })
+
+        self.assertRedirects(response, f"{reverse('core:view_bill', args=[self.bill.pk])}?updated=1", fetch_redirect_response=False)
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.amount, Decimal('23000.00'))
+        self.assertEqual(self.bill.description.count('Examination'), 1)
+        self.assertNotIn('- ₦10000.00', [line.strip() for line in self.bill.description.splitlines()])
+
+    def test_bill_detail_uses_cleaned_charge_description(self):
+        self.select_clinic_as(self.admin)
+        self.bill.description = (
+            'Dentist Consultation - ₦10000.00\n'
+            ' - ₦10000.00\n'
+            'Examination - ₦12000.00\n'
+            'Examination - ₦12000'
+        )
+        self.bill.save(update_fields=['description', 'updated_at'])
+
+        response = self.client.get(reverse('core:view_bill', args=[self.bill.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Dentist Consultation - ₦10000.00')
+        self.assertContains(response, 'Examination - ₦12000.00')
+        self.assertNotIn('- ₦10000.00', [line.strip() for line in response.context['bill_description'].splitlines()])
+        self.assertEqual(response.context['bill_description'].count('Examination'), 1)
+
+    def test_fully_paid_bill_requires_reason_before_editing(self):
+        self.select_clinic_as(self.admin)
+        self.bill.paid_amount = self.bill.amount
+        self.bill.status = 'PAID'
+        self.bill.save(update_fields=['paid_amount', 'status', 'updated_at'])
+
+        response = self.client.post(reverse('core:edit_bill', args=[self.bill.pk]), {
+            'patient': self.patient.patient_id,
+            'service_date': self.bill.service_date.isoformat(),
+            'due_date': self.bill.due_date.isoformat(),
+            'amount': '9999.00',
+            'paid_amount': str(self.bill.paid_amount),
+            'description': 'Should not save',
+            'notes': '',
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Enter a reason before editing a fully paid bill')
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.amount, Decimal('1000.00'))
+        self.assertEqual(self.bill.description, 'Consultation')
+
+    def test_fully_paid_bill_can_be_edited_with_reason_and_audit_log(self):
+        self.select_clinic_as(self.admin)
+        self.bill.paid_amount = self.bill.amount
+        self.bill.status = 'PAID'
+        self.bill.save(update_fields=['paid_amount', 'status', 'updated_at'])
+
+        response = self.client.post(reverse('core:edit_bill', args=[self.bill.pk]), {
+            'patient': self.patient.patient_id,
+            'service_date': self.bill.service_date.isoformat(),
+            'due_date': self.bill.due_date.isoformat(),
+            'amount': str(self.bill.amount),
+            'paid_amount': str(self.bill.paid_amount),
+            'description': self.bill.description,
+            'notes': '',
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'manual_service_name': 'Late correction',
+            'manual_service_cost': '100.00',
+            'paid_edit_reason': 'Correcting missed post-payment charge.',
+        })
+
+        self.assertRedirects(response, f"{reverse('core:view_bill', args=[self.bill.pk])}?updated=1", fetch_redirect_response=False)
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.amount, Decimal('1100.00'))
+        self.assertEqual(self.bill.status, 'PARTIAL')
+        self.assertTrue(ActionLog.objects.filter(
+            action='UPDATE',
+            object_id=str(self.bill.pk),
+            details__icontains='Correcting missed post-payment charge.',
+        ).exists())
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])

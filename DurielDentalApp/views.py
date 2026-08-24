@@ -20,7 +20,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from core.decorators import clinic_selected_required, role_required
 from core.utils import ensure_appointment_consultation_charge, ensure_billing_line_item, get_or_create_encounter_for_appointment
 from core.models import Billing, Patient
-from core.reporting import build_clinic_report_context, export_appointment_report, export_patient_report, export_financial_report
+from core.reporting import (
+    build_clinic_report_context,
+    queue_report_export,
+    recent_report_jobs,
+)
 from core.permissions import DENTAL_CLINICAL_ROLES
 from core.utils import log_action, notify_roles, notify_user_db, notify_role_handoff
 from DurielMedicApp.models import Vitals
@@ -714,12 +718,34 @@ def generate_dental_report(request):
 
     if request.method == 'POST':
         report_type = request.POST.get('report_type')
-        if report_type == 'appointments':
-            return export_appointment_report(DentalAppointment, start_date, end_date, clinic_id)
-        elif report_type == 'patients':
-            return export_patient_report(start_date, end_date, clinic_id)
-        elif report_type == 'financial':
-            return export_financial_report(start_date, end_date, clinic_id)
+        allowed_reports = {'appointments', 'patients', 'financial', 'prescriptions', 'consultations', 'dental_procedures'}
+        if report_type in allowed_reports:
+            queue_report_export(
+                request,
+                report_scope='dental',
+                report_type=report_type,
+                start_date=start_date,
+                end_date=end_date,
+                clinic_id=clinic_id,
+            )
+            messages.success(request, 'Report export queued. It will appear below when ready.')
+            return redirect(f"{request.path}?start_date={start_date.date()}&end_date={end_date.date()}")
 
-    context = build_clinic_report_context(clinic_id, DentalAppointment, start_date, end_date)
+    dental_procedure_count = DentalProcedure.objects.filter(
+        clinic_id=clinic_id,
+        performed_at__range=[start_date, end_date],
+    ).count()
+    context = build_clinic_report_context(
+        clinic_id,
+        DentalAppointment,
+        start_date,
+        end_date,
+        extra_operation_items=[
+            {'label': 'Dental procedures', 'count': dental_procedure_count},
+        ],
+        extra_export_items=[
+            {'label': 'Export Dental Procedures CSV', 'report_type': 'dental_procedures'},
+        ],
+    )
+    context['report_jobs'] = recent_report_jobs(request, clinic_id)
     return render(request, 'reports/generate_report.html', context)

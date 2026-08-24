@@ -13,6 +13,27 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 import uuid
 
 
+def clinic_patient_id_base(name):
+    compact_name = ''.join(str(name or '').upper().split())
+    alnum_name = ''.join(char for char in compact_name if char.isalnum())
+    return (alnum_name[:3] or 'CLI')
+
+
+def next_clinic_patient_id_prefix(name):
+    base = clinic_patient_id_base(name)
+    existing = set(
+        Clinic.objects.filter(patient_id_prefix__startswith=base)
+        .exclude(patient_id_prefix__isnull=True)
+        .values_list('patient_id_prefix', flat=True)
+    )
+    if base not in existing:
+        return base
+    suffix = 1
+    while f'{base}{suffix}' in existing:
+        suffix += 1
+    return f'{base}{suffix}'
+
+
 
 
 
@@ -26,6 +47,7 @@ class Clinic(models.Model):
     )
     
     name = models.CharField(max_length=100)
+    patient_id_prefix = models.CharField(max_length=8, unique=True, editable=False)
     clinic_type = models.CharField(max_length=10, choices=CLINIC_TYPES)
     address = models.TextField()
     phone = models.CharField(max_length=15)
@@ -46,11 +68,24 @@ class Clinic(models.Model):
         max_length=8,
         choices=(('NONE', 'None'), ('D14', '14 days'), ('D7', '7 days'), ('D0', 'Expiry day')),
         default='NONE'
-    ) 
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['is_subscription_active', 'subscription_type'], name='core_clinic_subact_idx'),
+            models.Index(fields=['subscription_start_date'], name='core_clinic_sub_start_idx'),
+            models.Index(fields=['subscription_end_date'], name='core_clinic_sub_end_idx'),
+            models.Index(fields=['created_at'], name='core_clinic_created_idx'),
+        ]
     
     
     def __str__(self):
         return f"{self.get_clinic_type_display()} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.patient_id_prefix:
+            self.patient_id_prefix = next_clinic_patient_id_prefix(self.name)
+        super().save(*args, **kwargs)
     
     def days_until_expiration(self):
         if not self.subscription_end_date:
@@ -159,7 +194,7 @@ class Patient(models.Model):
     
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='REGISTERED')
-    patient_id = models.CharField(max_length=10, primary_key=True, unique=True, editable=False)
+    patient_id = models.CharField(max_length=20, primary_key=True, unique=True, editable=False)
     # clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='patients')
     first_name = models.CharField(max_length=100)
@@ -177,6 +212,14 @@ class Patient(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_patients')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['clinic', 'created_at'], name='core_pat_clinic_created_idx'),
+            models.Index(fields=['clinic', 'updated_at'], name='core_pat_clinic_updated_idx'),
+            models.Index(fields=['clinic', 'last_name', 'first_name'], name='core_patient_clinic_name_idx'),
+            models.Index(fields=['clinic', 'status'], name='core_patient_clinic_status_idx'),
+        ]
     
     
     @property
@@ -199,13 +242,14 @@ class Patient(models.Model):
                 raise ValueError("Patient must be assigned to a clinic before saving")
             with transaction.atomic():
                 self.clinic = Clinic.objects.select_for_update().get(pk=self.clinic_id)
-                clinic_code = ''.join(self.clinic.name.upper().split())[:3]
+                clinic_code = self.clinic.patient_id_prefix or clinic_patient_id_base(self.clinic.name)
                 last_patient = Patient.objects.filter(
                     clinic=self.clinic,
                     patient_id__startswith=clinic_code
                 ).order_by('-created_at').first()
-                if last_patient and last_patient.patient_id[3:].isdigit():
-                    next_number = int(last_patient.patient_id[3:]) + 1
+                number_part = last_patient.patient_id[len(clinic_code):] if last_patient else ''
+                if number_part.isdigit():
+                    next_number = int(number_part) + 1
                 else:
                     next_number = 1
                 self.patient_id = f"{clinic_code}{next_number:06d}"
@@ -309,6 +353,14 @@ class Billing(models.Model):
         related_name='created_bills'
     )
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['clinic', 'status', '-created_at'], name='core_bill_clin_stat_cr_idx'),
+            models.Index(fields=['clinic', 'service_date'], name='core_bill_clinic_service_idx'),
+            models.Index(fields=['patient', 'status'], name='core_bill_patient_status_idx'),
+            models.Index(fields=['clinic', '-updated_at'], name='core_bill_clinic_updated_idx'),
+        ]
 
     def calculate_discount(self):
         """Calculate discount amount based on type and value"""
@@ -737,6 +789,8 @@ class ActionLog(models.Model):
         indexes = [
             models.Index(fields=['-timestamp']),
             models.Index(fields=['clinic']),
+            models.Index(fields=['clinic', '-timestamp'], name='core_actionlog_clinic_time_idx'),
+            models.Index(fields=['user', '-timestamp'], name='core_actionlog_user_time_idx'),
         ]
 
     def __str__(self):
@@ -889,6 +943,14 @@ class Prescription(models.Model):
     
     # Inventory tracking
     stock_deducted = models.BooleanField(default=False)  # Track if stock was deducted
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['clinic', 'date_prescribed'], name='core_rx_clinic_date_idx'),
+            models.Index(fields=['clinic', 'is_active'], name='core_rx_clinic_active_idx'),
+            models.Index(fields=['patient', 'date_prescribed'], name='core_rx_patient_date_idx'),
+            models.Index(fields=['clinic', 'stock_deducted'], name='core_rx_clinic_stock_idx'),
+        ]
     
     @property
     def medication_name(self):
@@ -1036,6 +1098,39 @@ class NotificationRead(models.Model):
 
     class Meta:
         unique_together = ('user', 'notification')
+
+
+class ReportExportJob(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending'),
+        ('RUNNING', 'Running'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+    )
+
+    report_scope = models.CharField(max_length=30, default='general')
+    report_type = models.CharField(max_length=50)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='report_export_jobs')
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='report_export_jobs')
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='PENDING')
+    file = models.FileField(upload_to='report_exports/', blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['clinic', 'status', '-created_at'], name='core_rjob_clin_stat_idx'),
+            models.Index(fields=['requested_by', '-created_at'], name='core_rjob_user_cr_idx'),
+            models.Index(fields=['report_scope', 'report_type'], name='core_reportjob_type_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.report_scope}:{self.report_type} for {self.clinic} ({self.status})"
 
 
 # ========================================

@@ -12,13 +12,16 @@ Nothing here writes to the database — these are read-only aggregations.
 """
 
 import csv
+import hashlib
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.db import models
 from django.db.models import Count, DecimalField, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import (
     Billing,
@@ -26,8 +29,13 @@ from core.models import (
     ClinicMedication,
     LabTestOrder,
     Patient,
+    PatientEncounter,
     Prescription,
+    ReportExportJob,
 )
+
+
+REPORT_DASHBOARD_CACHE_SECONDS = 60
 
 
 def _effective_amount_expr():
@@ -49,8 +57,13 @@ def _bills_in_period(clinic_id, start_date, end_date):
     )
 
 
+def _local_report_date(value):
+    return timezone.localtime(value).date() if hasattr(value, 'tzinfo') else value
+
+
 def build_clinic_report_context(clinic_id, appointment_model, start_date, end_date,
-                                *, extra_attention_items=None):
+                                *, extra_attention_items=None, extra_operation_items=None,
+                                extra_export_items=None):
     """Return the analytics-dashboard context shared by all clinic reports.
 
     Args:
@@ -60,7 +73,21 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
         extra_attention_items: optional list of ``{'label', 'count', 'url'}``
             dicts for clinic-specific queues (e.g. General physio/nurse/follow-up).
             They are merged with the universal attention items and re-sorted.
+        extra_operation_items: optional list of ``{'label', 'count'}`` dicts
+            for clinic-specific operational volumes shown in the Operations card.
+        extra_export_items: optional list of ``{'label', 'report_type'}`` dicts
+            for clinic-specific CSV exports shown beside the universal exports.
     """
+    key_payload = (
+        f"{clinic_id}:{appointment_model._meta.label_lower}:"
+        f"{start_date.isoformat()}:{end_date.isoformat()}:"
+        f"{repr(extra_attention_items)}:{repr(extra_operation_items)}:{repr(extra_export_items)}"
+    )
+    cache_key = f"clinic-report-context:{hashlib.sha256(key_payload.encode('utf-8')).hexdigest()}"
+    cached_context = cache.get(cache_key)
+    if cached_context is not None:
+        return cached_context
+
     effective_amount_expr = _effective_amount_expr()
 
     # ---- Appointments ----
@@ -189,8 +216,14 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
     ).values('status').annotate(count=Count('id')).order_by('status')
     prescription_count = Prescription.objects.filter(
         patient__clinic_id=clinic_id,
-        date_prescribed__range=[start_date, end_date],
+        date_prescribed__range=[_local_report_date(start_date), _local_report_date(end_date)],
     ).count()
+    operation_items = list(extra_operation_items or [])
+    export_items = [
+        {'label': 'Export Consultations CSV', 'report_type': 'consultations'},
+        {'label': 'Export Medical Prescriptions CSV', 'report_type': 'prescriptions'},
+        *list(extra_export_items or []),
+    ]
     try:
         from DurielMedicApp.models import Admission
         admission_stats = Admission.objects.filter(
@@ -250,7 +283,7 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
             'message': 'No urgent business exceptions were detected for this report period.',
         })
 
-    return {
+    context = {
         'start_date': start_date.date(),
         'end_date': end_date.date(),
         'appointment_stats': appointment_stats,
@@ -280,11 +313,33 @@ def build_clinic_report_context(clinic_id, appointment_model, start_date, end_da
         'provider_revenue': provider_revenue,
         'lab_stats': lab_stats,
         'prescription_count': prescription_count,
+        'operation_items': operation_items,
+        'export_items': export_items,
         'admission_stats': admission_stats,
         'recent_unpaid_bills': recent_unpaid_bills,
         'attention_items': attention_items,
         'insight_cards': insight_cards,
     }
+    cache.set(cache_key, context, REPORT_DASHBOARD_CACHE_SECONDS)
+    return context
+
+
+def queue_report_export(request, *, report_scope, report_type, start_date, end_date, clinic_id):
+    return ReportExportJob.objects.create(
+        report_scope=report_scope,
+        report_type=report_type,
+        clinic_id=clinic_id,
+        requested_by=request.user if request.user.is_authenticated else None,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+def recent_report_jobs(request, clinic_id, limit=8):
+    qs = ReportExportJob.objects.filter(clinic_id=clinic_id)
+    if not request.user.is_superuser:
+        qs = qs.filter(requested_by=request.user)
+    return qs.select_related('requested_by').order_by('-created_at')[:limit]
 
 
 def export_appointment_report(appointment_model, start_date, end_date, clinic_id):
@@ -386,3 +441,193 @@ def export_financial_report(start_date, end_date, clinic_id):
             content_type='text/plain',
             status=500,
         )
+
+
+def export_prescription_report(start_date, end_date, clinic_id):
+    """CSV of medical/pharmacy prescriptions in range for a clinic."""
+    prescriptions = Prescription.objects.filter(
+        clinic_id=clinic_id,
+        date_prescribed__range=[_local_report_date(start_date), _local_report_date(end_date)],
+    ).select_related('patient', 'prescribed_by', 'clinic_medication').order_by('date_prescribed', 'patient__last_name')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="prescriptions_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Date',
+        'Patient ID',
+        'Patient',
+        'Medication',
+        'Dosage',
+        'Frequency',
+        'Duration',
+        'Quantity',
+        'Prescribed By',
+        'Active',
+        'Instructions',
+    ])
+    for prescription in prescriptions:
+        prescribed_by = prescription.prescribed_by.get_full_name() if prescription.prescribed_by else ''
+        writer.writerow([
+            prescription.date_prescribed,
+            prescription.patient.patient_id if prescription.patient else '',
+            prescription.patient.full_name if prescription.patient else '',
+            prescription.medication_name or '',
+            prescription.dosage,
+            prescription.frequency,
+            prescription.duration,
+            prescription.quantity_prescribed,
+            prescribed_by,
+            'Yes' if prescription.is_active else 'No',
+            prescription.instructions or '',
+        ])
+    return response
+
+
+def export_consultation_report(start_date, end_date, clinic_id):
+    """CSV of consultation encounters in range for a clinic."""
+    consultations = PatientEncounter.objects.filter(
+        clinic_id=clinic_id,
+        encounter_type__in=['GENERAL_CONSULTATION', 'EYE_CONSULTATION', 'DENTAL_CONSULTATION'],
+        started_at__range=[start_date, end_date],
+    ).select_related('patient', 'provider', 'created_by', 'appointment_content_type').order_by('started_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="consultations_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Started At',
+        'Ended At',
+        'Patient ID',
+        'Patient',
+        'Consultation Type',
+        'Status',
+        'Provider',
+        'Appointment Date',
+        'Appointment Reason',
+        'Created By',
+    ])
+    for consultation in consultations:
+        appointment = consultation.appointment
+        provider = consultation.provider.get_full_name() if consultation.provider else ''
+        created_by = consultation.created_by.get_full_name() if consultation.created_by else ''
+        writer.writerow([
+            consultation.started_at.strftime('%Y-%m-%d %H:%M') if consultation.started_at else '',
+            consultation.ended_at.strftime('%Y-%m-%d %H:%M') if consultation.ended_at else '',
+            consultation.patient.patient_id if consultation.patient else '',
+            consultation.patient.full_name if consultation.patient else '',
+            consultation.get_encounter_type_display(),
+            consultation.get_status_display(),
+            provider,
+            getattr(appointment, 'date', '') if appointment else '',
+            (getattr(appointment, 'reason', '') or getattr(appointment, 'chief_complaint', '')) if appointment else '',
+            created_by,
+        ])
+    return response
+
+
+def export_admission_report(start_date, end_date, clinic_id):
+    """CSV of admissions in range for General clinics."""
+    from DurielMedicApp.models import Admission
+
+    admissions = Admission.objects.filter(
+        clinic_id=clinic_id,
+        date_admitted__range=[start_date, end_date],
+    ).select_related('patient', 'attending_doctor').order_by('date_admitted')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="admissions_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Admitted At', 'Patient ID', 'Patient', 'Doctor', 'Reason', 'Ward', 'Bed', 'Status', 'Discharged', 'Discharged At'])
+    for admission in admissions:
+        doctor = admission.attending_doctor.get_full_name() if admission.attending_doctor else ''
+        writer.writerow([
+            admission.date_admitted.strftime('%Y-%m-%d %H:%M') if admission.date_admitted else '',
+            admission.patient.patient_id if admission.patient else '',
+            admission.patient.full_name if admission.patient else '',
+            doctor,
+            admission.reason,
+            admission.ward,
+            admission.bed,
+            admission.get_status_display(),
+            'Yes' if admission.discharged else 'No',
+            admission.discharged_at.strftime('%Y-%m-%d %H:%M') if admission.discharged_at else '',
+        ])
+    return response
+
+
+def export_dental_procedure_report(start_date, end_date, clinic_id):
+    """CSV of dental procedures in range for Dental clinics."""
+    from DurielDentalApp.models import DentalProcedure
+
+    procedures = DentalProcedure.objects.filter(
+        clinic_id=clinic_id,
+        performed_at__range=[start_date, end_date],
+    ).select_related('patient', 'performed_by').order_by('performed_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="dental_procedures_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Performed At', 'Patient ID', 'Patient', 'Procedure', 'Tooth Numbers', 'Status', 'Performed By', 'Materials Used', 'Notes'])
+    for procedure in procedures:
+        performed_by = procedure.performed_by.get_full_name() if procedure.performed_by else ''
+        writer.writerow([
+            procedure.performed_at.strftime('%Y-%m-%d %H:%M') if procedure.performed_at else '',
+            procedure.patient.patient_id if procedure.patient else '',
+            procedure.patient.full_name if procedure.patient else '',
+            procedure.procedure_name,
+            procedure.tooth_numbers,
+            procedure.get_status_display(),
+            performed_by,
+            procedure.materials_used,
+            procedure.notes,
+        ])
+    return response
+
+
+def export_optical_prescription_report(start_date, end_date, clinic_id):
+    """CSV of optical frame/lens service orders in range for Eye clinics."""
+    from DurielEyeApp.models import OpticalPrescriptionRequest
+
+    requests = OpticalPrescriptionRequest.objects.filter(
+        clinic_id=clinic_id,
+        created_at__range=[start_date, end_date],
+    ).select_related('patient', 'prescribed_by', 'frame_product', 'lens_product').order_by('created_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="optical_prescriptions_report_{start_date.date()}_to_{end_date.date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Created At',
+        'Patient ID',
+        'Patient',
+        'Requested Items',
+        'Frame Product',
+        'Frame Prescription',
+        'Lens Product',
+        'Lens Prescription',
+        'Status',
+        'Prescribed By',
+        'Optician Note',
+    ])
+    for request_obj in requests:
+        prescribed_by = request_obj.prescribed_by.get_full_name() if request_obj.prescribed_by else ''
+        writer.writerow([
+            request_obj.created_at.strftime('%Y-%m-%d %H:%M') if request_obj.created_at else '',
+            request_obj.patient.patient_id if request_obj.patient else '',
+            request_obj.patient.full_name if request_obj.patient else '',
+            request_obj.requested_items,
+            request_obj.frame_product.display_name if request_obj.frame_product else '',
+            request_obj.frame_prescription or '',
+            request_obj.lens_product.display_name if request_obj.lens_product else '',
+            request_obj.lens_prescription or '',
+            request_obj.get_status_display(),
+            prescribed_by,
+            request_obj.optician_note or '',
+        ])
+    return response

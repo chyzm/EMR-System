@@ -195,7 +195,7 @@ SYNC_BATCH_SIZE = int(os.getenv('SYNC_BATCH_SIZE', '25'))
 SYNC_REQUEST_TIMEOUT_SECONDS = int(os.getenv('SYNC_REQUEST_TIMEOUT_SECONDS', '20'))
 SYNC_MAX_RETRY_ATTEMPTS = int(os.getenv('SYNC_MAX_RETRY_ATTEMPTS', '10'))
 SYNC_MAX_PAYLOAD_BYTES = int(os.getenv('SYNC_MAX_PAYLOAD_BYTES', str(9 * 1024 * 1024)))
-SYNC_BOOTSTRAP_VERSION = int(os.getenv('SYNC_BOOTSTRAP_VERSION', '3'))
+SYNC_BOOTSTRAP_VERSION = int(os.getenv('SYNC_BOOTSTRAP_VERSION', '4'))
 # A 5 MB clinical document grows to about 6.7 MB when safely embedded in JSON.
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(12 * 1024 * 1024)))
 
@@ -206,7 +206,7 @@ if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
          "default": dj_database_url.config(conn_max_age=600)
     }
-else:  # PythonAnywhere/MySQL
+else:  # PythonAnywhere/MySQLP
     DATABASES = {
         'default': {
             'ENGINE': os.getenv('DB_ENGINE'),

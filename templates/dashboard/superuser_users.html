@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage Users</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0b1220; color: #f8fafc; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  .su-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); min-height: 100vh; }
+  .su-sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .su-nav a { display: flex; align-items: center; gap: .85rem; padding: 1rem; border-radius: 8px; color: #f8fafc; font-size: 1rem; font-weight: 700; }
+  .su-nav a i { width: 1.25rem; text-align: center; color: #f8fafc; }
+  .su-nav a:hover, .su-nav a.active { background: #2454db; color: #fff; }
+  .su-card { background: #111827; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.22); }
+  .su-input { background: #fff; border: 1px solid #cbd5e1; color: #111827; }
+  .su-input::placeholder { color: #64748b; }
+  .su-input:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96, 165, 250, .22); outline: none; }
+  .su-table-frame { min-height: 780px; }
+  .su-row { height: 64px; }
+  .su-page-link { border: 1px solid #475569; border-radius: 6px; color: #e2e8f0; display: inline-flex; min-width: 2.25rem; justify-content: center; padding: .45rem .7rem; }
+  .su-page-link:hover, .su-page-link.active { background: #2454db; border-color: #2454db; color: #fff; }
+  .su-page-link.disabled { opacity: .4; pointer-events: none; }
+  .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; border-radius: 8px; border: 1px solid #334155; color: #e2e8f0; }
+  .icon-button:hover { background: #1e293b; color: #fff; }
+  @media (max-width: 1023px) {
+    .su-layout { grid-template-columns: 1fr; }
+    .su-sidebar { position: static; height: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="su-layout">
+  <aside class="su-sidebar border-r border-zinc-800 bg-zinc-950 px-5 py-8">
+    <div class="mb-10">
+      <div class="text-xl font-bold text-white">DURIELMEDIC+</div>
+      <div class="mt-2 text-sm uppercase tracking-wide text-white">Superuser Console</div>
+    </div>
+    <nav class="su-nav space-y-5">
+      <a href="{% url 'core:admin_dashboard' %}"><i class="fas fa-chart-line"></i> Overview</a>
+      <a href="{% url 'core:admin_dashboard' %}#clients"><i class="fas fa-hospital"></i> Clients</a>
+      <a href="{% url 'core:admin_dashboard' %}#subscriptions"><i class="fas fa-credit-card"></i> Subscriptions</a>
+      <a href="{% url 'core:superuser_users' %}" class="active"><i class="fas fa-users-cog"></i> Users</a>
+      <a href="{% url 'core:add_clinic' %}"><i class="fas fa-plus"></i> Add Clinic</a>
+      <a href="{% url 'core:manage_roles' %}"><i class="fas fa-user-shield"></i> Manage Roles</a>
+    </nav>
+  </aside>
+
+  <main class="px-4 py-6 sm:px-6 lg:px-8">
+    <section class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold text-white">Manage Users</h1>
+        <p class="mt-1 text-sm text-slate-200">Superuser-wide user access, verification, and privileges.</p>
+      </div>
+      <a href="{% url 'core:add_staff' %}" class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500">
+        <i class="fas fa-user-plus mr-2"></i>Add User
+      </a>
+    </section>
+
+    <section class="su-card overflow-hidden">
+      <div class="border-b border-zinc-800 px-5 py-4">
+        <form method="get" class="grid gap-3 md:grid-cols-5">
+          <input type="text" name="user_search" value="{{ user_search }}" placeholder="Search users" class="su-input rounded-md px-3 py-2 text-sm md:col-span-2">
+          <input type="text" name="user_clinic" value="{{ user_clinic }}" placeholder="Filter by clinic" class="su-input rounded-md px-3 py-2 text-sm">
+          <select name="role" class="su-input rounded-md px-3 py-2 text-sm">
+            <option value="">All roles</option>
+            {% for value, label in role_choices %}
+            <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <select name="status" class="su-input rounded-md px-3 py-2 text-sm">
+            <option value="">All statuses</option>
+            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+            <option value="verified" {% if status_filter == 'verified' %}selected{% endif %}>Verified</option>
+            <option value="unverified" {% if status_filter == 'unverified' %}selected{% endif %}>Unverified</option>
+          </select>
+          <button type="submit" class="rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-600 md:col-start-5">Search</button>
+        </form>
+      </div>
+
+      <div class="su-table-frame overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-zinc-900 text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr>
+              <th class="px-5 py-3">User</th>
+              <th class="px-5 py-3">Role</th>
+              <th class="px-5 py-3">Clinic</th>
+              <th class="px-5 py-3">Status</th>
+              <th class="px-5 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800">
+            {% for user_obj in users %}
+            <tr class="su-row">
+              <td class="px-5 py-3">
+                <div class="font-medium text-white">{{ user_obj.get_full_name|default:user_obj.username }}</div>
+                <div class="text-xs text-slate-400">{{ user_obj.email|default:user_obj.username }}</div>
+              </td>
+              <td class="px-5 py-3 text-slate-200">{{ user_obj.get_role_display|default:user_obj.role|default:"-" }}</td>
+              <td class="px-5 py-3 text-slate-200">{% for clinic in user_obj.clinic.all %}{{ clinic.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td>
+              <td class="px-5 py-3">
+                <div class="flex flex-wrap gap-2">
+                  {% if user_obj.is_active %}<span class="rounded-full bg-emerald-900 px-2 py-1 text-xs font-bold text-emerald-100">Active</span>{% else %}<span class="rounded-full bg-red-900 px-2 py-1 text-xs font-bold text-red-100">Inactive</span>{% endif %}
+                  {% if user_obj.verified %}<span class="rounded-full bg-blue-900 px-2 py-1 text-xs font-bold text-blue-100">Verified</span>{% endif %}
+                  {% if user_obj.is_superuser %}<span class="rounded-full bg-purple-900 px-2 py-1 text-xs font-bold text-purple-100">Superuser</span>{% endif %}
+                  {% if user_obj.is_staff %}<span class="rounded-full bg-slate-700 px-2 py-1 text-xs font-bold text-slate-100">Staff</span>{% endif %}
+                </div>
+              </td>
+              <td class="px-5 py-3">
+                <div class="flex flex-wrap gap-2">
+                  <a href="{% url 'core:edit_user_role' user_obj.id %}" class="icon-button" title="Edit user"><i class="fas fa-edit"></i></a>
+                  <form method="post" action="{% url 'core:toggle_verify' user_obj.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="icon-button" title="{% if user_obj.verified %}Unverify user{% else %}Verify user{% endif %}"><i class="fas {% if user_obj.verified %}fa-user-check{% else %}fa-user-clock{% endif %}"></i></button>
+                  </form>
+                  <form method="post" action="{% url 'core:toggle_staff' user_obj.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="icon-button" title="{% if user_obj.is_staff %}Remove staff privilege{% else %}Grant staff privilege{% endif %}"><i class="fas {% if user_obj.is_staff %}fa-user-minus{% else %}fa-user-plus{% endif %}"></i></button>
+                  </form>
+                  {% if user_obj.id != request.user.id %}
+                  <form method="post" action="{% url 'core:toggle_superuser' user_obj.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="icon-button" title="{% if user_obj.is_superuser %}Remove superuser{% else %}Make superuser{% endif %}"><i class="fas fa-star"></i></button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr class="su-row"><td colspan="5" class="px-5 py-8 text-center text-slate-300">No users found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex flex-col gap-3 border-t border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="text-sm text-slate-200">
+          Page {{ users.number }} of {{ users.paginator.num_pages }} · {{ users.paginator.count }} users
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="?page=1{% if pagination_query %}&{{ pagination_query }}{% endif %}" class="su-page-link {% if not users.has_previous %}disabled{% endif %}">First</a>
+          <a href="?page={% if users.has_previous %}{{ users.previous_page_number }}{% else %}{{ users.number }}{% endif %}{% if pagination_query %}&{{ pagination_query }}{% endif %}" class="su-page-link {% if not users.has_previous %}disabled{% endif %}">Prev</a>
+          {% for num in users.paginator.page_range %}
+            {% if num == users.number or num > users.number|add:'-3' and num < users.number|add:'3' %}
+            <a href="?page={{ num }}{% if pagination_query %}&{{ pagination_query }}{% endif %}" class="su-page-link {% if users.number == num %}active{% endif %}">{{ num }}</a>
+            {% endif %}
+          {% endfor %}
+          <a href="?page={% if users.has_next %}{{ users.next_page_number }}{% else %}{{ users.number }}{% endif %}{% if pagination_query %}&{{ pagination_query }}{% endif %}" class="su-page-link {% if not users.has_next %}disabled{% endif %}">Next</a>
+          <a href="?page={{ users.paginator.num_pages }}{% if pagination_query %}&{{ pagination_query }}{% endif %}" class="su-page-link {% if not users.has_next %}disabled{% endif %}">Last</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

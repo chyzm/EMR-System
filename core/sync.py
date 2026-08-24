@@ -591,6 +591,7 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'core.ServicePriceList',
     'core.MedicationCategory',
     'core.ClinicMedication',
+    'DurielEyeApp.OpticalProduct',
     'DurielMedicApp.Appointment',
     'DurielEyeApp.EyeAppointment',
     'DurielDentalApp.DentalAppointment',
@@ -601,8 +602,10 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'DurielEyeApp.EyeExam',
     'DurielDentalApp.DentalExam',
     'DurielMedicApp.Admission',
+    'core.PatientEncounter',
     'core.Prescription',
     'core.Billing',
+    'core.BillingLineItem',
     'core.StockMovement',
     'DurielMedicApp.MedicationAdministration',
     'DurielMedicApp.AdmissionHandover',
@@ -620,6 +623,10 @@ SERVER_SYNC_SNAPSHOT_MODELS = (
     'core.LabTestOrder',
     'core.LabTestResult',
     'DurielMedicApp.PhysiotherapyRecord',
+    'DurielMedicApp.PhysiotherapyReferral',
+    'DurielEyeApp.OpticalPrescriptionRequest',
+    'DurielEyeApp.OpticalDispense',
+    'DurielEyeApp.OpticalStockMovement',
 )
 
 
@@ -637,6 +644,8 @@ def _snapshot_queryset_for_clinic(model, clinic):
         return model.objects.filter(lab_test_order__clinic=clinic)
     if label == 'core.StockMovement':
         return model.objects.filter(medication__clinic=clinic)
+    if label == 'DurielEyeApp.OpticalStockMovement':
+        return model.objects.filter(product__clinic=clinic)
     if label in {'DurielMedicApp.AdmissionHandover', 'DurielMedicApp.MedicationAdministration'}:
         return model.objects.filter(patient__clinic=clinic)
     if hasattr(model, 'clinic'):

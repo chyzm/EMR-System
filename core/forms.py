@@ -137,7 +137,7 @@ class UserCreationWithRoleForm(UserCreationForm):
     class Meta:
         model = CustomUser
         fields = ['username', 'email', 'first_name', 'last_name', 'password1', 'password2', 
-                 'role', 'title', 'phone', 'clinic', 'is_active', 'is_staff', 'verified', 'is_superuser', 'profile_picture']
+                 'role', 'title', 'phone', 'clinic', 'is_active', 'verified', 'is_superuser', 'profile_picture']
         widgets = {
             # ... existing widget definitions ...
         }
@@ -268,7 +268,7 @@ class UserEditForm(forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = ['title', 'first_name', 'last_name', 'email', 'phone', 
-                 'is_active', 'is_staff', 'verified', 
+                 'is_active', 'verified', 
                  'is_superuser', 'clinic', 'role', 'profile_picture']
         widgets = {
             'title': forms.Select(attrs={
@@ -287,9 +287,6 @@ class UserEditForm(forms.ModelForm):
                 'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors'
             }),
             'is_active': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
-            }),
-            'is_staff': forms.CheckboxInput(attrs={
                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
             }),
             'is_superuser': forms.CheckboxInput(attrs={

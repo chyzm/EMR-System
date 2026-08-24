@@ -77,7 +77,8 @@ CustomUserAdmin.list_filter = ('role', ClinicListFilter)
 # Optional: make clinics manageable too
 @admin.register(Clinic)
 class ClinicAdmin(admin.ModelAdmin):
-    list_display = ('name', 'email', 'phone')
+    list_display = ('name', 'patient_id_prefix', 'email', 'phone')
+    readonly_fields = ('patient_id_prefix',)
     ordering = ('name',)
 
 

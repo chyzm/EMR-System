@@ -46,7 +46,9 @@ SYNCABLE_MODELS = {
     'DurielDentalApp.DentalProcedure',
     'DurielDentalApp.DentalFollowUp',
     'DurielDentalApp.DentalMedicalRecord',
+    'core.PatientEncounter',
     'core.Billing',
+    'core.BillingLineItem',
     'core.Payment',
     'core.Prescription',
     'core.ServicePriceList',
@@ -60,6 +62,11 @@ SYNCABLE_MODELS = {
     'core.LabTestOrder',
     'core.LabTestResult',
     'DurielMedicApp.PhysiotherapyRecord',
+    'DurielMedicApp.PhysiotherapyReferral',
+    'DurielEyeApp.OpticalProduct',
+    'DurielEyeApp.OpticalDispense',
+    'DurielEyeApp.OpticalPrescriptionRequest',
+    'DurielEyeApp.OpticalStockMovement',
 }
 
 _sync_context = contextvars.ContextVar('server_sync_context', default={})
@@ -404,6 +411,10 @@ def serialize_instance(instance, deleted=False):
     if generic_related is not None and hasattr(generic_related, 'sync_id'):
         payload['_generic_appointment_model'] = model_label(generic_related.__class__)
         payload['_generic_appointment_sync_id'] = str(generic_related.sync_id)
+    generic_source = getattr(instance, 'source_object', None)
+    if generic_source is not None and hasattr(generic_source, 'sync_id'):
+        payload['_generic_source_model'] = model_label(generic_source.__class__)
+        payload['_generic_source_sync_id'] = str(generic_source.sync_id)
     return payload
 
 
@@ -513,6 +524,18 @@ def _apply_generic_appointment(instance, payload):
         instance.appointment_object_id = appointment.pk
 
 
+def _apply_generic_source(instance, payload):
+    label = payload.get('_generic_source_model')
+    sync_id = payload.get('_generic_source_sync_id')
+    if not label or not sync_id or not hasattr(instance, 'source_content_type'):
+        return
+    source_model = _get_model(label)
+    source = source_model.objects.filter(sync_id=sync_id).first()
+    if source:
+        instance.source_content_type = ContentType.objects.get_for_model(source)
+        instance.source_object_id = str(source.pk)
+
+
 def _apply_many_to_many(instance, payload):
     for field in instance._meta.many_to_many:
         refs_key = f'{field.name}_refs'
@@ -573,6 +596,7 @@ def apply_change(item, origin_node_id=''):
                 setattr(instance, field.name, payload[field.name])
 
         _apply_generic_appointment(instance, payload)
+        _apply_generic_source(instance, payload)
         instance.save()
         _apply_many_to_many(instance, payload)
 

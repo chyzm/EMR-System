@@ -2,6 +2,7 @@ from django.conf import settings
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.cache import cache
 from django.db import transaction
 from django.db import models
 from django.utils import timezone
@@ -10,7 +11,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
 from core.models import Patient, Clinic, Billing, BillingLineItem, ClinicMedication, LabTestOrder, StockMovement
-from core.reporting import build_clinic_report_context
+from core.reporting import (
+    build_clinic_report_context,
+    queue_report_export,
+    recent_report_jobs,
+)
 from .models import (
     Appointment, Vitals, Admission, AdmissionHandover, MedicationAdministration, FollowUp,
     Prescription, MedicalRecord, NurseInstruction, PhysiotherapyRecord, PhysiotherapyReferral
@@ -67,7 +72,13 @@ User = get_user_model()
 
 
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN']
+    return user.is_authenticated and (
+        user.is_superuser or user.role in [
+            'ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST',
+            'OPTOMETRIST', 'OPTICIAN', 'PHYSIOTHERAPIST', 'RECEPTIONIST',
+            'LAB_TECHNICIAN'
+        ]
+    )
 
 def admin_check(user):
     return user.is_authenticated and user.role == 'ADMIN'
@@ -510,7 +521,12 @@ def vitals_queue_count(request):
     allowed_roles = {'ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST'}
     if request.user.role not in allowed_roles:
         return JsonResponse({'count': 0})
-    return JsonResponse({'count': len(_pending_vitals_items(request.clinic))})
+    cache_key = f"vitals:queue-count:{request.clinic.pk}:{request.user.role}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = len(_pending_vitals_items(request.clinic))
+        cache.set(cache_key, count, 15)
+    return JsonResponse({'count': count})
 
 
 @login_required
@@ -537,7 +553,12 @@ def nurse_instruction_queue(request):
 def nurse_instruction_count(request):
     if request.user.role not in {'DOCTOR', 'NURSE'}:
         return JsonResponse({'count': 0})
-    return JsonResponse({'count': NurseInstruction.objects.filter(clinic=request.clinic, status='OPEN').count()})
+    cache_key = f"nurse:instruction-count:{request.clinic.pk}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = NurseInstruction.objects.filter(clinic=request.clinic, status='OPEN').count()
+        cache.set(cache_key, count, 15)
+    return JsonResponse({'count': count})
 
 
 @login_required
@@ -829,7 +850,11 @@ def physiotherapy_queue_count(request):
         return JsonResponse({'count': 0})
     if request.user.role not in {'ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST'}:
         return JsonResponse({'count': 0})
-    count = _physiotherapy_referral_queryset(request).count() + _physiotherapy_appointment_queryset(request).count()
+    cache_key = f"physio:queue-count:{request.clinic.pk}:{request.user.role}:{request.user.pk}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = _physiotherapy_referral_queryset(request).count() + _physiotherapy_appointment_queryset(request).count()
+        cache.set(cache_key, count, 15)
     return JsonResponse({'count': count})
 
 
@@ -2351,14 +2376,18 @@ def generate_report(request):
 
     if request.method == 'POST':
         report_type = request.POST.get('report_type')
-
-        # Route to correct report
-        if report_type == 'appointments':
-            return generate_appointment_report(start_date, end_date, clinic_id)
-        elif report_type == 'patients':
-            return generate_patient_report(start_date, end_date, clinic_id)
-        elif report_type == 'financial':
-            return generate_financial_report(start_date, end_date, clinic_id)
+        allowed_reports = {'appointments', 'patients', 'financial', 'prescriptions', 'consultations', 'admissions'}
+        if report_type in allowed_reports:
+            queue_report_export(
+                request,
+                report_scope='general',
+                report_type=report_type,
+                start_date=start_date,
+                end_date=end_date,
+                clinic_id=clinic_id,
+            )
+            messages.success(request, 'Report export queued. It will appear below when ready.')
+            return redirect(f"{request.path}?start_date={start_date.date()}&end_date={end_date.date()}")
 
     # Dashboard, service, provider and financial analytics are shared across every
     # clinic type via core.reporting; General adds its own physio/nurse/follow-up
@@ -2381,7 +2410,11 @@ def generate_report(request):
     context = build_clinic_report_context(
         clinic_id, Appointment, start_date, end_date,
         extra_attention_items=extra_attention_items,
+        extra_export_items=[
+            {'label': 'Export Admissions CSV', 'report_type': 'admissions'},
+        ],
     )
+    context['report_jobs'] = recent_report_jobs(request, clinic_id)
     return render(request, 'reports/generate_report.html', context)
 
 

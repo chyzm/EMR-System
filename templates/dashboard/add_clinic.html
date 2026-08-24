@@ -1,39 +1,123 @@
-{% extends "base.html" %}
-{% block title %}Add Clinic{% endblock %}
-{% block content %}
-<div class="container mx-auto px-4 py-8 max-w-3xl">
-    <div class="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
-        <div class="bg-blue-600 px-6 py-4">
-            <h1 class="text-2xl font-semibold text-white">Add New Clinic</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Clinic</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0b1220;
+      color: #f8fafc;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .form-panel {
+      width: min(860px, 100%);
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+      overflow: hidden;
+    }
+    .field-wrap input,
+    .field-wrap select,
+    .field-wrap textarea {
+      width: 100%;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 8px;
+      padding: .75rem .85rem;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .field-wrap textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+    .field-wrap input:focus,
+    .field-wrap select:focus,
+    .field-wrap textarea:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, .22);
+      background: #111c31;
+    }
+    .field-wrap label {
+      color: #e2e8f0;
+      font-weight: 700;
+      font-size: .82rem;
+      letter-spacing: .02em;
+    }
+    .btn-secondary {
+      border: 1px solid #64748b;
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: .7rem 1rem;
+      font-weight: 700;
+    }
+    .btn-secondary:hover { background: #1e293b; }
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 8px;
+      padding: .75rem 1.15rem;
+      font-weight: 800;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <section class="form-panel">
+      <div class="border-b border-slate-700 bg-blue-600 px-6 py-5">
+        <div class="text-sm font-semibold uppercase tracking-wide text-blue-100">Superuser Console</div>
+        <h1 class="mt-1 text-2xl font-bold text-white">Add Clinic</h1>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="p-6">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="mb-5 rounded-lg border border-red-400 bg-red-900 bg-opacity-30 px-4 py-3 text-sm text-red-100">
+          {{ form.non_field_errors }}
         </div>
-        <div class="p-6">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {% for field in form %}
-                    <div class="col-span-1 md:col-span-{% if field.name == 'address' %}2{% else %}1{% endif %}">
-                        <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ field.label }}
-                            {% if field.field.required %}<span class="text-red-500">*</span>{% endif %}
-                        </label>
-                        {{ field }}
-                        {% if field.help_text %}
-                        <p class="mt-1 text-sm text-gray-500">{{ field.help_text }}</p>
-                        {% endif %}
-                        {% for error in field.errors %}
-                        <p class="mt-1 text-sm text-red-600">{{ error }}</p>
-                        {% endfor %}
-                    </div>
-                    {% endfor %}
-                </div>
-                <div class="mt-6 flex justify-end space-x-3">
-                    <a href="{% url 'core:admin_dashboard' %}" class="btn btn-gray">Cancel</a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save mr-2"></i>Save Clinic
-                    </button>
-                </div>
-            </form>
+        {% endif %}
+
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {% for field in form %}
+          <div class="field-wrap {% if field.name == 'address' %}md:col-span-2{% endif %}">
+            <label for="{{ field.id_for_label }}" class="mb-2 block">
+              {{ field.label }}{% if field.field.required %}<span class="text-red-300"> *</span>{% endif %}
+            </label>
+            {{ field }}
+            {% if field.help_text %}
+            <p class="mt-1 text-xs text-slate-300">{{ field.help_text }}</p>
+            {% endif %}
+            {% for error in field.errors %}
+            <p class="mt-1 text-sm font-medium text-red-300">{{ error }}</p>
+            {% endfor %}
+          </div>
+          {% endfor %}
         </div>
-    </div>
-</div>
-{% endblock %}
+
+        <div class="mt-7 flex flex-col-reverse gap-3 border-t border-slate-700 pt-5 sm:flex-row sm:justify-end">
+          <a href="{% url 'core:admin_dashboard' %}" class="btn-secondary text-center">Cancel</a>
+          <button type="submit" class="btn-primary">
+            <i class="fas fa-save mr-2"></i>Save Clinic
+          </button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

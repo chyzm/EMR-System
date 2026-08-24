@@ -8,14 +8,14 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, D
 from django.urls import reverse_lazy
 from django.utils import timezone
 from datetime import date, timedelta, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.http import Http404, HttpResponse
 import csv
 import hashlib
 import json
 
-from .models import CustomUser, Patient, Billing, BillingLineItem, Clinic, Payment, Prescription, ServicePriceList, StockMovement
+from .models import CustomUser, Patient, Billing, BillingLineItem, Clinic, Payment, PaymentTransaction, Prescription, ServicePriceList, StockMovement
 from .forms import (CustomUserCreationForm, FacilityRegistrationForm, PatientForm, BillingForm, UserCreationWithRoleForm, UserEditForm, PrescriptionForm,
 ServicePriceListForm)
 from DurielMedicApp.decorators import role_required
@@ -105,7 +105,7 @@ def staff_check(user):
     return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN']
 
 def admin_check(user):
-    return user.is_authenticated and user.role == 'ADMIN'
+    return user.is_authenticated and (user.is_superuser or user.role == 'ADMIN')
 
 
 def scoped_user_queryset_for_admin(request):
@@ -145,10 +145,12 @@ def logs_healthcheck(request):
 
 
 def clinic_dashboard_check(user):
-    return user.is_authenticated and getattr(user, 'role', None) in [
+    return user.is_authenticated and (
+        user.is_superuser or getattr(user, 'role', None) in [
         'ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST',
         'OPTOMETRIST', 'OPTICIAN', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN'
-    ]
+        ]
+    )
 
 
 def _dashboard_appointment_config(clinic_type):
@@ -1164,8 +1166,60 @@ class PatientDeleteView(DeleteView):
 @login_required
 @user_passes_test(admin_check)
 def staff_list(request):
-    staff = scoped_user_queryset_for_admin(request).filter(is_staff=True).exclude(role='ADMIN').order_by('last_name', 'first_name')
+    staff = scoped_user_queryset_for_admin(request).exclude(role='ADMIN').order_by('last_name', 'first_name')
     return render(request, 'staff/staff_list.html', {'staff': staff})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def superuser_user_management(request):
+    users_qs = CustomUser.objects.prefetch_related('clinic').order_by('last_name', 'first_name', 'username')
+    user_search = request.GET.get('user_search', '').strip()
+    user_clinic = request.GET.get('user_clinic', '').strip()
+    role_filter = request.GET.get('role', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+
+    if user_search:
+        users_qs = users_qs.filter(
+            Q(username__icontains=user_search) |
+            Q(first_name__icontains=user_search) |
+            Q(last_name__icontains=user_search) |
+            Q(email__icontains=user_search)
+        )
+    if user_clinic:
+        users_qs = users_qs.filter(clinic__name__icontains=user_clinic)
+    if role_filter:
+        users_qs = users_qs.filter(role=role_filter)
+    if status_filter == 'active':
+        users_qs = users_qs.filter(is_active=True)
+    elif status_filter == 'inactive':
+        users_qs = users_qs.filter(is_active=False)
+    elif status_filter == 'verified':
+        users_qs = users_qs.filter(verified=True)
+    elif status_filter == 'unverified':
+        users_qs = users_qs.filter(verified=False)
+
+    paginator = Paginator(users_qs.distinct(), 12)
+    page_number = request.GET.get('page')
+    try:
+        users = paginator.page(page_number)
+    except PageNotAnInteger:
+        users = paginator.page(1)
+    except EmptyPage:
+        users = paginator.page(paginator.num_pages)
+
+    pagination_params = request.GET.copy()
+    pagination_params.pop('page', None)
+
+    return render(request, 'dashboard/superuser_users.html', {
+        'users': users,
+        'user_search': user_search,
+        'user_clinic': user_clinic,
+        'role_filter': role_filter,
+        'status_filter': status_filter,
+        'pagination_query': pagination_params.urlencode(),
+        'role_choices': CustomUser.ROLES,
+    })
 
 
 class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -1175,9 +1229,7 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy('core:admin_dashboard')
 
     def test_func(self):
-        return self.request.user.is_superuser or (
-            self.request.user.role == 'ADMIN' and self.request.user.is_staff
-        )
+        return self.request.user.is_superuser or self.request.user.role == 'ADMIN'
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -1681,6 +1733,51 @@ def _billing_charge_items(queryset):
     return queryset.filter(source_type__in=BILLING_CHARGE_SOURCE_TYPES)
 
 
+def _billing_description_key(line):
+    line = (line or '').strip()
+    description, separator, amount = line.rpartition(' - ')
+    if not separator:
+        return line.lower()
+    amount_text = amount.strip().lstrip('₦Nn').replace(',', '').strip()
+    try:
+        amount_value = Decimal(amount_text)
+        amount_key = f"{amount_value:.2f}"
+    except (InvalidOperation, ValueError):
+        amount_key = amount_text.lower()
+    return f"{description.strip().lower()}|{amount_key}"
+
+
+def _clean_billing_description_lines(*line_groups):
+    cleaned = []
+    seen = set()
+    for group in line_groups:
+        if not group:
+            continue
+        if isinstance(group, str):
+            raw_lines = group.splitlines()
+        else:
+            raw_lines = group
+        for raw_line in raw_lines:
+            line = str(raw_line or '').strip()
+            if not line:
+                continue
+            if line.startswith('-') and line[1:].strip().startswith(('₦', 'N', 'n')):
+                continue
+            description, separator, amount = line.rpartition(' - ')
+            if separator and not description.strip() and amount.strip().startswith(('₦', 'N', 'n')):
+                continue
+            key = _billing_description_key(line)
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(line)
+    return cleaned
+
+
+def _clean_billing_description(*line_groups):
+    return "\n".join(_clean_billing_description_lines(*line_groups))
+
+
 def _ensure_prescription_billing_line_item(prescription, actor=None, auto_approve=None):
     if not prescription or not prescription.clinic_medication:
         return None
@@ -2150,6 +2247,23 @@ def create_bill(request, patient_id=None):
                     'selected_patient_id': selected_patient_id,
                     'title': 'Create New Bill'
                 })
+            if manual_service_cost and not manual_service_name:
+                messages.error(request, "Enter a manual service name when adding a manual cost.")
+                return render(request, 'billing/billing_form.html', {
+                    'form': form,
+                    'patient': patient,
+                    'patients_with_appointments': patients_with_appointments,
+                    'appointment': appointment,
+                    'appointment_type': billing_appointment_type(appointment),
+                    'patient_billing_activity': patient_billing_activity,
+                    'billing_clinical_summary': billing_clinical_summary,
+                    'billing_service_notes': billing_service_notes,
+                    'billing_line_items': billing_line_items,
+                    'requested_line_item_ids': requested_line_item_ids,
+                    'merge_mode': merge_mode,
+                    'selected_patient_id': selected_patient_id,
+                    'title': 'Create New Bill'
+                })
             bill.amount = service_total + line_item_total + manual_service_cost
             description_lines = []
             if selected_line_items.exists():
@@ -2159,10 +2273,10 @@ def create_bill(request, patient_id=None):
                 ])
             if selected_services:
                 description_lines.extend([f"{service.name} - ₦{service.price}" for service in selected_services])
-            if manual_service_name or manual_service_cost:
+            if manual_service_name and manual_service_cost:
                 description_lines.append(f"{manual_service_name} - ₦{manual_service_cost}")
             if description_lines:
-                bill.description = "\n".join(description_lines)
+                bill.description = _clean_billing_description(description_lines)
             bill.notes = request.POST.get('notes', '').strip() or billing_service_notes
 
             if not bill.paid_amount:
@@ -2388,6 +2502,10 @@ def create_bill(request, patient_id=None):
 def edit_bill(request, pk):
     clinic_id = request.session.get('clinic_id')
     bill = get_object_or_404(Billing, pk=pk, clinic_id=clinic_id)
+    is_fully_paid = bill.status == 'PAID' or (
+        bill.get_effective_amount() > 0 and bill.paid_amount >= bill.get_effective_amount()
+    )
+
     patients_with_appointments = Patient.objects.filter(clinic_id=clinic_id)
     appointment = bill.appointment
     selected_encounter = bill.encounter
@@ -2413,31 +2531,60 @@ def edit_bill(request, pk):
                 selected_encounter,
             ) if bill.patient_id else {},
             'billing_service_notes': billing_service_notes,
+            'clean_bill_description': _clean_billing_description(bill.description),
             'billing_line_items': BillingLineItem.objects.none(),
             'requested_line_item_ids': [],
             'merge_mode': False,
             'selected_patient_id': bill.patient_id,
+            'requires_paid_edit_reason': is_fully_paid,
             'title': 'Edit Bill'
         }
     
     if request.method == 'POST':
         form = BillingForm(request.POST, instance=bill, clinic_id=clinic_id)
         if form.is_valid():
+            paid_edit_reason = request.POST.get('paid_edit_reason', '').strip()
+            if is_fully_paid and not paid_edit_reason:
+                messages.error(request, "Enter a reason before editing a fully paid bill.")
+                return render(request, 'billing/billing_form.html', billing_form_context(form))
+
+            existing_amount = bill.amount or Decimal('0.00')
+            existing_description = bill.description or ''
             updated_bill = form.save(commit=False)
-            
+
             selected_services = form.cleaned_data.get('services', [])
-            service_total = sum(service.price for service in selected_services)
             manual_service_name = request.POST.get('manual_service_name', '').strip()
             manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
             if manual_service_cost < 0:
                 messages.error(request, "Manual service cost cannot be negative.")
                 return render(request, 'billing/billing_form.html', billing_form_context(form))
-            updated_bill.amount = service_total + manual_service_cost
-            description_lines = [f"{service.name} - ₦{service.price}" for service in selected_services]
-            if manual_service_name or manual_service_cost:
-                description_lines.append(f"{manual_service_name} - ₦{manual_service_cost}")
-            if description_lines:
-                updated_bill.description = "\n".join(description_lines)
+            if manual_service_cost and not manual_service_name:
+                messages.error(request, "Enter a manual service name when adding a manual cost.")
+                return render(request, 'billing/billing_form.html', billing_form_context(form))
+            existing_keys = {
+                _billing_description_key(line)
+                for line in _clean_billing_description_lines(existing_description)
+            }
+            description_lines = []
+            added_total = Decimal('0.00')
+            for service in selected_services:
+                line = f"{service.name} - ₦{service.price}"
+                if _billing_description_key(line) in existing_keys:
+                    continue
+                description_lines.append(line)
+                added_total += service.price
+            if manual_service_name and manual_service_cost:
+                line = f"{manual_service_name} - ₦{manual_service_cost}"
+                if _billing_description_key(line) not in existing_keys:
+                    description_lines.append(line)
+                    added_total += manual_service_cost
+            if added_total:
+                updated_bill.amount = existing_amount + added_total
+            else:
+                updated_bill.amount = form.cleaned_data.get('amount') or existing_amount
+            cleaned_description = _clean_billing_description(existing_description, description_lines)
+            if description_lines or cleaned_description != existing_description:
+                updated_bill.description = cleaned_description
             
             # Recalculate discounts/final amount before validating
             updated_bill.calculate_final_amount()
@@ -2453,15 +2600,21 @@ def edit_bill(request, pk):
                 updated_bill.status = 'PARTIAL'
             else:
                 updated_bill.status = 'PENDING'
-            
+
             updated_bill.save()
-            form.save_m2m()  # Save the many-to-many services
+            if selected_services:
+                updated_bill.services.add(*selected_services)
             
             log_action(
                 request,
                 'UPDATE',
                 updated_bill,
-                details=f"Updated bill #{updated_bill.id} for {updated_bill.patient.full_name}"
+                details=(
+                    f"Updated bill #{updated_bill.id} for {updated_bill.patient.full_name}. "
+                    f"Reason for editing paid bill: {paid_edit_reason}"
+                    if is_fully_paid else
+                    f"Updated bill #{updated_bill.id} for {updated_bill.patient.full_name}"
+                )
             )
             
             messages.success(request, f"Bill #{updated_bill.id} updated successfully.")
@@ -2544,6 +2697,7 @@ def view_bill(request, pk):
     )
     return render(request, 'billing/bill_detail.html', {
         'bill': bill,
+        'bill_description': _clean_billing_description(bill.description),
         'billing_clinical_summary': billing_clinical_summary,
     })
 
@@ -2631,7 +2785,7 @@ def generate_receipt(request, pk):
         or (getattr(getattr(request.user, 'primary_clinic', None), 'name', None) if request.user.is_authenticated else None)
         or 'Your Clinic'
     )
-    receipt_lines = [line.strip() for line in (bill.description or '').splitlines() if line.strip()]
+    receipt_lines = _clean_billing_description_lines(bill.description)
     if not receipt_lines:
         receipt_lines = [
             f"{item.description} x{item.quantity} - ₦{item.total_amount}"
@@ -2821,9 +2975,148 @@ from .forms import ClinicForm
 from django.core.paginator import Paginator
 from django.db.models import Q
 
+
+SUPERUSER_METRICS_CACHE_SECONDS = 60
+
+
+def _build_superuser_metrics_payload(start_date, end_date, today):
+    period_days = max((end_date - start_date).days + 1, 1)
+    active_clinics = Clinic.objects.filter(
+        is_subscription_active=True,
+        subscription_end_date__gte=today,
+    )
+    expired_clinics = Clinic.objects.filter(
+        Q(is_subscription_active=False) |
+        Q(subscription_end_date__lt=today)
+    )
+    paid_transactions = PaymentTransaction.objects.filter(status='PAID')
+    recent_paid_transactions = paid_transactions.filter(
+        paid_at__date__gte=start_date,
+        paid_at__date__lte=end_date,
+    )
+    renewals_in_period = recent_paid_transactions.filter(clinic__isnull=False).count()
+    new_clients_in_period = Clinic.objects.filter(created_at__date__range=[start_date, end_date]).count()
+    subscription_revenue_expr = models.Case(
+        models.When(subscription_type='MONTHLY', then=Value(pay_amount_for_plan('MONTHLY'))),
+        models.When(subscription_type='YEARLY', then=Value(pay_amount_for_plan('YEARLY'))),
+        default=Value(Decimal('0.00')),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+    subscription_mrr_expr = models.Case(
+        models.When(subscription_type='MONTHLY', then=Value(pay_amount_for_plan('MONTHLY'))),
+        models.When(subscription_type='YEARLY', then=Value(pay_amount_for_plan('YEARLY') / Decimal('12'))),
+        default=Value(Decimal('0.00')),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+
+    revenue_series = []
+    new_customer_series = []
+    active_customer_series = []
+    active_trial_series = []
+    active_subscription_series = []
+    mrr_series = []
+    daily_metric_rows = []
+
+    for offset in range(period_days):
+        day = start_date + timedelta(days=offset)
+        day_revenue = Clinic.objects.filter(
+            subscription_type__in=['MONTHLY', 'YEARLY'],
+            subscription_start_date=day,
+            is_subscription_active=True,
+        ).aggregate(
+            total=Coalesce(Sum(subscription_revenue_expr, output_field=DecimalField()), Value(0, output_field=DecimalField()))
+        )['total'] or 0
+        day_new_customers = Clinic.objects.filter(created_at__date=day).count()
+        day_active_trials = Clinic.objects.filter(
+            subscription_type='TRIAL',
+            subscription_start_date__lte=day,
+            subscription_end_date__gte=day,
+            is_subscription_active=True,
+        ).count()
+        day_active_subscriptions = Clinic.objects.filter(
+            subscription_type__in=['MONTHLY', 'YEARLY'],
+            subscription_start_date__lte=day,
+            subscription_end_date__gte=day,
+            is_subscription_active=True,
+        ).count()
+        day_active_customers = Clinic.objects.filter(
+            subscription_start_date__lte=day,
+            subscription_end_date__gte=day,
+            is_subscription_active=True,
+        ).count()
+        day_mrr = Clinic.objects.filter(
+            subscription_start_date__lte=day,
+            subscription_end_date__gte=day,
+            is_subscription_active=True,
+        ).aggregate(
+            total=Coalesce(Sum(subscription_mrr_expr, output_field=DecimalField()), Value(0, output_field=DecimalField()))
+        )['total'] or 0
+
+        revenue_series.append(float(day_revenue))
+        new_customer_series.append(day_new_customers)
+        active_customer_series.append(day_active_customers)
+        active_trial_series.append(day_active_trials)
+        active_subscription_series.append(day_active_subscriptions)
+        mrr_series.append(float(day_mrr))
+        daily_metric_rows.append({
+            'date': day,
+            'revenue': day_revenue,
+            'new_customers': day_new_customers,
+            'active_trials': day_active_trials,
+            'active_subscriptions': day_active_subscriptions,
+            'active_customers': day_active_customers,
+            'mrr': day_mrr,
+        })
+
+    monthly_revenue = Clinic.objects.filter(
+        subscription_type__in=['MONTHLY', 'YEARLY'],
+        subscription_start_date__range=[start_date, end_date],
+        is_subscription_active=True,
+    ).aggregate(
+        total=Coalesce(Sum(subscription_revenue_expr, output_field=DecimalField()), Value(0, output_field=DecimalField()))
+    )['total'] or 0
+    mrr = Decimal(str(mrr_series[-1])) if mrr_series else Decimal('0.00')
+    return {
+        'superuser_metrics': {
+            'total_clients': Clinic.objects.count(),
+            'active_subscriptions': active_clinics.exclude(subscription_type='TRIAL').count(),
+            'active_trials': active_clinics.filter(subscription_type='TRIAL').count(),
+            'expired_subscriptions': expired_clinics.count(),
+            'new_clients_28_days': new_clients_in_period,
+            'renewals_28_days': renewals_in_period,
+            'active_customers': active_clinics.count(),
+            'monthly_revenue': monthly_revenue,
+            'mrr': mrr,
+            'pending_payments': PaymentTransaction.objects.filter(status__in=['PENDING', 'PROCESSING']).count(),
+            'paid_transactions': paid_transactions.count(),
+        },
+        'revenue_series': revenue_series,
+        'new_customer_series': new_customer_series,
+        'active_customer_series': active_customer_series,
+        'active_trial_series': active_trial_series,
+        'active_subscription_series': active_subscription_series,
+        'mrr_series': mrr_series,
+        'daily_metric_rows': daily_metric_rows,
+    }
+
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def admin_dashboard(request):
+    today = timezone.localdate()
+    default_start = today - timedelta(days=27)
+    start_date = default_start
+    end_date = today
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    if start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+        except ValueError:
+            start_date = default_start
+            end_date = today
     # Clinics Management with search and pagination
     clinic_search = request.GET.get('clinic_search', '')
     clinic_page = request.GET.get('clinic_page', 1)
@@ -2871,7 +3164,7 @@ def admin_dashboard(request):
             Q(role__icontains=user_search)
         )
     if user_clinic:
-        users = users.filter(clinic__name__icontains=user_clinic).distinct()  
+        users = users.filter(clinic__name__icontains=user_clinic).distinct()
     
     user_paginator = Paginator(users, 10)  # Show 10 users per page
     try:
@@ -2880,7 +3173,59 @@ def admin_dashboard(request):
         user_page_obj = user_paginator.page(1)
     except EmptyPage:
         user_page_obj = user_paginator.page(user_paginator.num_pages)
-    
+
+    clinic_pagination_params = request.GET.copy()
+    clinic_pagination_params.pop('clinic_page', None)
+    user_pagination_params = request.GET.copy()
+    user_pagination_params.pop('user_page', None)
+
+    metrics_cache_key = f"superuser-dashboard-metrics:{start_date}:{end_date}:{today}"
+    metrics_payload = cache.get(metrics_cache_key)
+    if metrics_payload is None:
+        metrics_payload = _build_superuser_metrics_payload(start_date, end_date, today)
+        cache.set(metrics_cache_key, metrics_payload, SUPERUSER_METRICS_CACHE_SECONDS)
+
+    superuser_metrics = metrics_payload['superuser_metrics']
+    revenue_series = metrics_payload['revenue_series']
+    new_customer_series = metrics_payload['new_customer_series']
+    active_customer_series = metrics_payload['active_customer_series']
+    active_trial_series = metrics_payload['active_trial_series']
+    active_subscription_series = metrics_payload['active_subscription_series']
+    mrr_series = metrics_payload['mrr_series']
+    daily_metric_rows = metrics_payload['daily_metric_rows']
+
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="superuser_metrics_{start_date}_to_{end_date}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Start Date', start_date])
+        writer.writerow(['End Date', end_date])
+        writer.writerow([])
+        writer.writerow(['Metric', 'Value'])
+        writer.writerow(['Total Clients', superuser_metrics['total_clients']])
+        writer.writerow(['Active Subscriptions', superuser_metrics['active_subscriptions']])
+        writer.writerow(['Active Trials', superuser_metrics['active_trials']])
+        writer.writerow(['Expired Subscriptions', superuser_metrics['expired_subscriptions']])
+        writer.writerow(['New Customers', superuser_metrics['new_clients_28_days']])
+        writer.writerow(['Renewals', superuser_metrics['renewals_28_days']])
+        writer.writerow(['Revenue', superuser_metrics['monthly_revenue']])
+        writer.writerow(['MRR', superuser_metrics['mrr']])
+        writer.writerow(['Pending Payments', superuser_metrics['pending_payments']])
+        writer.writerow(['Paid Transactions', superuser_metrics['paid_transactions']])
+        writer.writerow([])
+        writer.writerow(['Date', 'Revenue', 'New Customers', 'Active Trials', 'Active Subscriptions', 'Active Customers', 'MRR'])
+        for row in daily_metric_rows:
+            writer.writerow([
+                row['date'],
+                row['revenue'],
+                row['new_customers'],
+                row['active_trials'],
+                row['active_subscriptions'],
+                row['active_customers'],
+                row['mrr'],
+            ])
+        return response
+
     context = {
         'stats': stats,
         'users': user_page_obj,
@@ -2888,7 +3233,20 @@ def admin_dashboard(request):
         'user_clinic': user_clinic,
         'clinic_search': clinic_search,
         'user_search': user_search,
+        'superuser_metrics': superuser_metrics,
+        'revenue_series_json': json.dumps(revenue_series),
+        'new_customer_series_json': json.dumps(new_customer_series),
+        'active_customer_series_json': json.dumps(active_customer_series),
+        'active_trial_series_json': json.dumps(active_trial_series),
+        'active_subscription_series_json': json.dumps(active_subscription_series),
+        'mrr_series_json': json.dumps(mrr_series),
+        'start_date': start_date,
+        'end_date': end_date,
+        'clinic_pagination_query': clinic_pagination_params.urlencode(),
+        'user_pagination_query': user_pagination_params.urlencode(),
     }
+    if request.user.is_superuser:
+        return render(request, 'dashboard/superuser_dashboard.html', context)
     return render(request, 'dashboard/admin_dashboard.html', context)
 
 
@@ -3016,7 +3374,14 @@ def verify_user(request, user_id):
     user.verified = not user.verified
     user.save()
     messages.success(request, f"{user.username} has been {'verified' if user.verified else 'unverified'}.")
-    return redirect('core:admin_dashboard')
+    return redirect(_safe_next_url(request, 'core:admin_dashboard'))
+
+
+def _safe_next_url(request, fallback_name):
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+        return next_url
+    return reverse(fallback_name)
 
 
 @login_required
@@ -3024,28 +3389,28 @@ def verify_user(request, user_id):
 def toggle_superuser(request, user_id):
     if request.user.id == user_id:
         messages.error(request, "You cannot change your own superuser status.")
-        return redirect('core:admin_dashboard')
+        return redirect(_safe_next_url(request, 'core:admin_dashboard'))
     
     user = get_object_or_404(CustomUser, pk=user_id)
     user.is_superuser = not user.is_superuser
     user.save()
     status = "granted superuser privileges" if user.is_superuser else "removed from superusers"
     messages.success(request, f"{user.username} has been {status}.")
-    return redirect('core:admin_dashboard')
+    return redirect(_safe_next_url(request, 'core:admin_dashboard'))
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
 def toggle_staff(request, user_id):
     if request.user.id == user_id and not request.user.is_superuser:
         messages.error(request, "You cannot change your own staff status.")
-        return redirect('core:admin_dashboard')
+        return redirect(_safe_next_url(request, 'core:admin_dashboard'))
     
     user = get_object_or_404(scoped_user_queryset_for_admin(request), pk=user_id)
     user.is_staff = not user.is_staff
     user.save()
     status = "added to staff" if user.is_staff else "removed from staff"
     messages.success(request, f"{user.username} has been {status}.")
-    return redirect('core:admin_dashboard')
+    return redirect(_safe_next_url(request, 'core:admin_dashboard'))
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser or u.role == 'ADMIN')
@@ -3055,7 +3420,7 @@ def toggle_verify(request, user_id):
     user.save()
     status = "verified" if user.verified else "unverified"
     messages.success(request, f"{user.username} has been {status}.")
-    return redirect('core:admin_dashboard')
+    return redirect(_safe_next_url(request, 'core:admin_dashboard'))
     
     
     
@@ -4809,6 +5174,10 @@ def unread_notifications_api(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0, 'notifications': []})
+    cache_key = f"notifications:unread:{clinic_id}:{request.user.pk}"
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return JsonResponse(cached_payload)
 
     read_global_ids = NotificationRead.objects.filter(
         user=request.user
@@ -4818,7 +5187,7 @@ def unread_notifications_api(request):
         is_read=False,
     ).exclude(id__in=read_global_ids).order_by('-created_at')[:10]
 
-    return JsonResponse({
+    payload = {
         'count': notifications.count(),
         'notifications': [
             {
@@ -4829,7 +5198,9 @@ def unread_notifications_api(request):
             }
             for notification in notifications
         ],
-    })
+    }
+    cache.set(cache_key, payload, 15)
+    return JsonResponse(payload)
 
 
 @login_required
@@ -4839,12 +5210,16 @@ def pharmacy_pending_count(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
-    count = Prescription.objects.filter(
-        clinic_id=clinic_id,
-        is_active=True,
-        stock_deducted=False,
-        clinic_medication__isnull=False,
-    ).count()
+    cache_key = f"pharmacy:pending-count:{clinic_id}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = Prescription.objects.filter(
+            clinic_id=clinic_id,
+            is_active=True,
+            stock_deducted=False,
+            clinic_medication__isnull=False,
+        ).count()
+        cache.set(cache_key, count, 15)
     return JsonResponse({'count': count})
 
 
@@ -4855,10 +5230,14 @@ def billing_due_count(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
-    count = _billing_charge_items(BillingLineItem.objects.filter(
-        clinic_id=clinic_id,
-        status__in=['DRAFT', 'APPROVED'],
-    )).count()
+    cache_key = f"billing:due-count:{clinic_id}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = _billing_charge_items(BillingLineItem.objects.filter(
+            clinic_id=clinic_id,
+            status__in=['DRAFT', 'APPROVED'],
+        )).count()
+        cache.set(cache_key, count, 15)
     return JsonResponse({'count': count})
 
 
@@ -5665,10 +6044,14 @@ def lab_queue_count(request):
     if not _general_clinic_only(request):
         return JsonResponse({'count': 0})
     clinic_id = request.session.get('clinic_id')
-    count = LabTestOrder.objects.filter(
-        clinic_id=clinic_id,
-        status='IN_QUEUE',
-    ).count()
+    cache_key = f"lab:queue-count:{clinic_id}"
+    count = cache.get(cache_key)
+    if count is None:
+        count = LabTestOrder.objects.filter(
+            clinic_id=clinic_id,
+            status='IN_QUEUE',
+        ).count()
+        cache.set(cache_key, count, 15)
     return JsonResponse({'count': count})
 
 

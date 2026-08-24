@@ -2112,6 +2112,9 @@ imported by:
  &#8226;   <a href="#DurielDentalApp.tests">DurielDentalApp.tests</a>
  &#8226;   <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
 
@@ -2602,7 +2605,10 @@ imported by:
  &#8226;   <a href="#DurielEyeApp.forms">DurielEyeApp.forms</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
 
@@ -3330,6 +3336,7 @@ imported by:
  &#8226;   <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.tests">core.tests</a>
@@ -3485,6 +3492,7 @@ imports:
  &#8226;   <a href="#django.contrib.auth.mixins">django.contrib.auth.mixins</a>
  &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
  &#8226;   <a href="#django.contrib.messages">django.contrib.messages</a>
+ &#8226;   <a href="#django.core.cache">django.core.cache</a>
  &#8226;   <a href="#django.core.mail">django.core.mail</a>
  &#8226;   <a href="#django.core.paginator">django.core.paginator</a>
  &#8226;   <a href="#django.db">django.db</a>
@@ -13241,6 +13249,7 @@ imported by:
 <span class="moduletype">Package</span>  <div class="import">
 imports:
     <a href="#core">core</a>
+ &#8226;   <a href="#core.views">core.views</a>
 
   </div>
   <div class="import">
@@ -13467,6 +13476,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
  &#8226;   <a href="#core.management.commands.local_update_config">core.management.commands.local_update_config</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.management.commands.sync_once">core.management.commands.sync_once</a>
  &#8226;   <a href="#core.management.commands.sync_worker">core.management.commands.sync_worker</a>
@@ -13594,6 +13604,33 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="core.management.commands.process_report_exports"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/management/commands/process_report_exports.py" type="text/plain"><tt>core.management.commands.process_report_exports</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+ &#8226;   <a href="#core.management.commands">core.management.commands</a>
+ &#8226;   <a href="#core.models">core.models</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
+ &#8226;   <a href="#django.core.files.base">django.core.files.base</a>
+ &#8226;   <a href="#django.core.management.base">django.core.management.base</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.transaction">django.db.transaction</a>
+ &#8226;   <a href="#django.utils">django.utils</a>
+ &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="core.management.commands.send_birthday_notifications"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/management/commands/send_birthday_notifications.py" type="text/plain"><tt>core.management.commands.send_birthday_notifications</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -13703,6 +13740,8 @@ imported by:
  &#8226;   <a href="#core.migrations.0015_billing_notes">core.migrations.0015_billing_notes</a>
  &#8226;   <a href="#core.migrations.0016_alter_customuser_options_and_more">core.migrations.0016_alter_customuser_options_and_more</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0018_clinic_patient_id_prefix">core.migrations.0018_clinic_patient_id_prefix</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -14060,6 +14099,46 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="core.migrations.0018_clinic_patient_id_prefix"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0018_clinic_patient_id_prefix.py" type="text/plain"><tt>core.migrations.0018_clinic_patient_id_prefix</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="core.migrations.0019_reportexportjob_and_more"></a>
+  <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/migrations/0019_reportexportjob_and_more.py" type="text/plain"><tt>core.migrations.0019_reportexportjob_and_more</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#core.migrations">core.migrations</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
+ &#8226;   <a href="#django.db">django.db</a>
+ &#8226;   <a href="#django.db.migrations">django.db.migrations</a>
+ &#8226;   <a href="#django.db.models">django.db.models</a>
+ &#8226;   <a href="#django.db.models.deletion">django.db.models.deletion</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#django">django</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="core.models"></a>
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/models.py" type="text/plain"><tt>core.models</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -14103,6 +14182,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
  &#8226;   <a href="#core.management.commands.backup_patients">core.management.commands.backup_patients</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.payments">core.payments</a>
@@ -14177,17 +14257,23 @@ imported by:
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/reporting.py" type="text/plain"><tt>core.reporting</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+    <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#csv">csv</a>
  &#8226;   <a href="#datetime">datetime</a>
+ &#8226;   <a href="#django.core.cache">django.core.cache</a>
  &#8226;   <a href="#django.db">django.db</a>
  &#8226;   <a href="#django.db.models">django.db.models</a>
  &#8226;   <a href="#django.db.models.DecimalField">django.db.models.DecimalField</a>
  &#8226;   <a href="#django.db.models.functions">django.db.models.functions</a>
  &#8226;   <a href="#django.http">django.http</a>
  &#8226;   <a href="#django.urls">django.urls</a>
+ &#8226;   <a href="#django.utils">django.utils</a>
+ &#8226;   <a href="#django.utils.timezone">django.utils.timezone</a>
+ &#8226;   <a href="#hashlib">hashlib</a>
 
   </div>
   <div class="import">
@@ -14195,6 +14281,7 @@ imported by:
     <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielEyeApp.views">DurielEyeApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#django">django</a>
 
   </div>
@@ -14338,6 +14425,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#DurielMedicApp.tests">DurielMedicApp.tests</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.urls">core.urls</a>
  &#8226;   <a href="#django">django</a>
 
@@ -14428,14 +14516,18 @@ imported by:
   <a target="code" href="//wsl.localhost/Ubuntu/home/somto90/emr/core/tests.py" type="text/plain"><tt>core.tests</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
+    <a href="#DurielDentalApp.models">DurielDentalApp.models</a>
+ &#8226;   <a href="#DurielEyeApp.models">DurielEyeApp.models</a>
+ &#8226;   <a href="#DurielMedicApp.models">DurielMedicApp.models</a>
  &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
+ &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.utils">core.utils</a>
  &#8226;   <a href="#datetime">datetime</a>
  &#8226;   <a href="#decimal">decimal</a>
+ &#8226;   <a href="#django.conf">django.conf</a>
  &#8226;   <a href="#django.contrib.auth">django.contrib.auth</a>
  &#8226;   <a href="#django.contrib.auth.hashers">django.contrib.auth.hashers</a>
  &#8226;   <a href="#django.contrib.contenttypes.models">django.contrib.contenttypes.models</a>
@@ -14585,6 +14677,7 @@ imports:
 imported by:
     <a href="#DurielMedicApp.urls">DurielMedicApp.urls</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core">core</a>
  &#8226;   <a href="#core.urls">core.urls</a>
  &#8226;   <a href="#django">django</a>
 
@@ -17294,6 +17387,7 @@ imports:
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
  &#8226;   <a href="#core.management.commands.local_update_config">core.management.commands.local_update_config</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.management.commands.sync_once">core.management.commands.sync_once</a>
  &#8226;   <a href="#core.management.commands.sync_worker">core.management.commands.sync_worker</a>
@@ -17316,6 +17410,8 @@ imports:
  &#8226;   <a href="#core.migrations.0015_billing_notes">core.migrations.0015_billing_notes</a>
  &#8226;   <a href="#core.migrations.0016_alter_customuser_options_and_more">core.migrations.0016_alter_customuser_options_and_more</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0018_clinic_patient_id_prefix">core.migrations.0018_clinic_patient_id_prefix</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
  &#8226;   <a href="#core.permissions">core.permissions</a>
@@ -18481,11 +18577,13 @@ imported by:
  &#8226;   <a href="#core.migrations.0006_prescription_admission">core.migrations.0006_prescription_admission</a>
  &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
  &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.signals">core.signals</a>
  &#8226;   <a href="#core.sync">core.sync</a>
+ &#8226;   <a href="#core.tests">core.tests</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#crispy_forms.templatetags.crispy_forms_field">crispy_forms.templatetags.crispy_forms_field</a>
  &#8226;   <a href="#crispy_forms.templatetags.crispy_forms_filters">crispy_forms.templatetags.crispy_forms_filters</a>
@@ -29717,7 +29815,9 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#core.views">core.views</a>
+    <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
+ &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.sessions.backends.cache">django.contrib.sessions.backends.cache</a>
  &#8226;   <a href="#django.contrib.sessions.backends.cached_db">django.contrib.sessions.backends.cached_db</a>
@@ -30608,6 +30708,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#core.management.commands.backup_patients">core.management.commands.backup_patients</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.staticfiles.storage">django.contrib.staticfiles.storage</a>
@@ -31459,6 +31560,7 @@ imported by:
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
  &#8226;   <a href="#core.management.commands.local_update_config">core.management.commands.local_update_config</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.management.commands.sync_once">core.management.commands.sync_once</a>
  &#8226;   <a href="#core.management.commands.sync_worker">core.management.commands.sync_worker</a>
@@ -32766,6 +32868,7 @@ imported by:
  &#8226;   <a href="#channels.db">channels.db</a>
  &#8226;   <a href="#core.admin">core.admin</a>
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0002_offline_sync_foundation">core.migrations.0002_offline_sync_foundation</a>
  &#8226;   <a href="#core.migrations.0003_server_sync">core.migrations.0003_server_sync</a>
@@ -32783,6 +32886,8 @@ imported by:
  &#8226;   <a href="#core.migrations.0015_billing_notes">core.migrations.0015_billing_notes</a>
  &#8226;   <a href="#core.migrations.0016_alter_customuser_options_and_more">core.migrations.0016_alter_customuser_options_and_more</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0018_clinic_patient_id_prefix">core.migrations.0018_clinic_patient_id_prefix</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
  &#8226;   <a href="#core.reporting">core.reporting</a>
@@ -34551,6 +34656,8 @@ imported by:
  &#8226;   <a href="#core.migrations.0015_billing_notes">core.migrations.0015_billing_notes</a>
  &#8226;   <a href="#core.migrations.0016_alter_customuser_options_and_more">core.migrations.0016_alter_customuser_options_and_more</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0018_clinic_patient_id_prefix">core.migrations.0018_clinic_patient_id_prefix</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0001_initial">django.contrib.admin.migrations.0001_initial</a>
  &#8226;   <a href="#django.contrib.admin.migrations.0002_logentry_remove_auto_add">django.contrib.admin.migrations.0002_logentry_remove_auto_add</a>
@@ -35189,6 +35296,8 @@ imported by:
  &#8226;   <a href="#core.migrations.0015_billing_notes">core.migrations.0015_billing_notes</a>
  &#8226;   <a href="#core.migrations.0016_alter_customuser_options_and_more">core.migrations.0016_alter_customuser_options_and_more</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0018_clinic_patient_id_prefix">core.migrations.0018_clinic_patient_id_prefix</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
@@ -35695,6 +35804,7 @@ imported by:
  &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
  &#8226;   <a href="#core.migrations.0010_billinglineitem">core.migrations.0010_billinglineitem</a>
  &#8226;   <a href="#core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more">core.migrations.0017_paymenttransaction_pendingclinicregistration_and_more</a>
+ &#8226;   <a href="#core.migrations.0019_reportexportjob_and_more">core.migrations.0019_reportexportjob_and_more</a>
  &#8226;   <a href="#django">django</a>
  &#8226;   <a href="#django.contrib.admin.utils">django.contrib.admin.utils</a>
  &#8226;   <a href="#django.contrib.contenttypes.management.commands.remove_stale_contenttypes">django.contrib.contenttypes.management.commands.remove_stale_contenttypes</a>
@@ -36939,6 +37049,7 @@ imported by:
     <a href="#DurielDentalApp.views">DurielDentalApp.views</a>
  &#8226;   <a href="#DurielMedicApp.views">DurielMedicApp.views</a>
  &#8226;   <a href="#core.management.commands.activate_local_clinic">core.management.commands.activate_local_clinic</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
@@ -39396,9 +39507,11 @@ imported by:
  &#8226;   <a href="#core.forms">core.forms</a>
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.templatetags.inventory_filters">core.templatetags.inventory_filters</a>
@@ -40831,11 +40944,13 @@ imported by:
  &#8226;   <a href="#core.forms">core.forms</a>
  &#8226;   <a href="#core.management.commands.check_overdue_bills">core.management.commands.check_overdue_bills</a>
  &#8226;   <a href="#core.management.commands.check_subscriptions">core.management.commands.check_subscriptions</a>
+ &#8226;   <a href="#core.management.commands.process_report_exports">core.management.commands.process_report_exports</a>
  &#8226;   <a href="#core.management.commands.send_birthday_notifications">core.management.commands.send_birthday_notifications</a>
  &#8226;   <a href="#core.migrations.0001_initial">core.migrations.0001_initial</a>
  &#8226;   <a href="#core.migrations.0009_patientencounter_billing_encounter_and_more">core.migrations.0009_patientencounter_billing_encounter_and_more</a>
  &#8226;   <a href="#core.models">core.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.sync">core.sync</a>
  &#8226;   <a href="#core.templatetags.inventory_filters">core.templatetags.inventory_filters</a>
@@ -51152,6 +51267,7 @@ imports:
 imported by:
     <a href="#charset_normalizer.models">charset_normalizer.models</a>
  &#8226;   <a href="#core.payments">core.payments</a>
+ &#8226;   <a href="#core.reporting">core.reporting</a>
  &#8226;   <a href="#core.server_sync">core.server_sync</a>
  &#8226;   <a href="#core.views">core.views</a>
  &#8226;   <a href="#cryptography.x509.extensions">cryptography.x509.extensions</a>

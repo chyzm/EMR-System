@@ -32,8 +32,55 @@
       <button name="report_type" value="appointments" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Appointments CSV</button>
       <button name="report_type" value="patients" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Patients CSV</button>
       <button name="report_type" value="financial" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">Export Financial CSV</button>
+      {% for item in export_items %}
+      <button name="report_type" value="{{ item.report_type }}" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-blue-700 hover:bg-blue-50">{{ item.label }}</button>
+      {% endfor %}
     </form>
   </div>
+
+  {% if report_jobs %}
+  <section class="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <h2 class="text-lg font-semibold text-gray-900">Queued Exports</h2>
+      <span class="text-xs text-gray-500">Processed by background task</span>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">Report</th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">Date Range</th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">Status</th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">Requested</th>
+            <th class="px-3 py-2 text-right font-medium text-gray-500">File</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for job in report_jobs %}
+          <tr>
+            <td class="px-3 py-2 text-gray-800">{{ job.report_type|title }}</td>
+            <td class="px-3 py-2 text-gray-600">{{ job.start_date|date:"M j, Y" }} - {{ job.end_date|date:"M j, Y" }}</td>
+            <td class="px-3 py-2">
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold {% if job.status == 'COMPLETED' %}bg-green-100 text-green-700{% elif job.status == 'FAILED' %}bg-red-100 text-red-700{% elif job.status == 'RUNNING' %}bg-blue-100 text-blue-700{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                {{ job.get_status_display }}
+              </span>
+              {% if job.error %}<div class="mt-1 max-w-md truncate text-xs text-red-600">{{ job.error }}</div>{% endif %}
+            </td>
+            <td class="px-3 py-2 text-gray-600">{{ job.created_at|date:"M j, H:i" }}</td>
+            <td class="px-3 py-2 text-right">
+              {% if job.status == 'COMPLETED' and job.file %}
+              <a href="{{ job.file.url }}" class="font-medium text-blue-700 hover:text-blue-900">Download</a>
+              {% else %}
+              <span class="text-gray-400">Not ready</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
 
   <div class="mb-6 grid gap-3 lg:grid-cols-2">
     {% for insight in insight_cards %}
@@ -160,6 +207,9 @@
           <h2 class="text-lg font-semibold text-gray-900">Operations</h2>
           <div class="mt-4 space-y-3 text-sm">
             <div class="flex justify-between"><span>Prescriptions written</span><span class="font-medium">{{ prescription_count }}</span></div>
+            {% for item in operation_items %}
+            <div class="flex justify-between"><span>{{ item.label }}</span><span class="font-medium">{{ item.count }}</span></div>
+            {% endfor %}
             <div class="flex justify-between"><span>Admissions</span><span class="font-medium">{{ admission_stats.total|default:0 }}</span></div>
             <div class="flex justify-between"><span>Discharges</span><span class="font-medium">{{ admission_stats.discharged|default:0 }}</span></div>
             {% for stat in lab_stats %}

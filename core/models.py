@@ -148,6 +148,7 @@ class CustomUser(AbstractUser):
         ('DENTIST', 'Dentist'),
         ('PHYSIOTHERAPIST', 'Physiotherapist'),
         ('RECEPTIONIST', 'Receptionist'),
+        ('ACCOUNTANT', 'Accountant'),
         ('LAB_TECHNICIAN', 'Lab Technician'),
     )
     

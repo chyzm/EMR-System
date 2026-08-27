@@ -34,7 +34,7 @@ from core.server_sync import (
 from core.sync import SERVER_SYNC_SNAPSHOT_MODELS
 from core.payments import PaymentVerificationError, confirm_paystack_payment
 from DurielMedicApp.models import Admission, Appointment, FollowUp, NurseInstruction, PhysiotherapyReferral, Vitals
-from DurielEyeApp.models import EyeExam, OpticalDispense, OpticalPrescriptionRequest, OpticalProduct, OpticalStockMovement
+from DurielEyeApp.models import EyeAppointment, EyeExam, OpticalDispense, OpticalPrescriptionRequest, OpticalProduct, OpticalStockMovement
 from DurielDentalApp.models import DentalProcedure
 
 
@@ -538,6 +538,36 @@ class SyncQueueTests(TestCase):
         notification = Notification.objects.create(clinic=self.clinic, message='New appointment')
         self.assertTrue(ServerSyncOutbox.objects.filter(record_sync_id=notification.sync_id).exists())
 
+    def test_generic_appointment_vitals_are_queued_for_server_sync(self):
+        self.activate_local_sync()
+        self.clinic.clinic_type = 'EYE'
+        self.clinic.save(update_fields=['clinic_type'])
+        appointment = EyeAppointment.objects.create(
+            patient=self.patient,
+            provider=self.user,
+            clinic=self.clinic,
+            date=timezone.localdate(),
+            start_time='09:00',
+            end_time='09:30',
+            reason='Eye vitals',
+            created_by=self.user,
+        )
+        vitals = Vitals.objects.create(
+            appointment_content_type=ContentType.objects.get_for_model(appointment),
+            appointment_object_id=appointment.pk,
+            blood_pressure='120/80',
+            pulse=72,
+            temperature=36.7,
+            weight=70,
+            category='CONSULT',
+        )
+
+        queued = ServerSyncOutbox.objects.get(record_sync_id=vitals.sync_id)
+        self.assertEqual(queued.clinic, self.clinic)
+        self.assertEqual(queued.model_label, 'DurielMedicApp.Vitals')
+        self.assertEqual(queued.payload['_generic_appointment_model'], 'DurielEyeApp.EyeAppointment')
+        self.assertEqual(queued.payload['_generic_appointment_sync_id'], str(appointment.sync_id))
+
     def test_workflow_models_that_drive_queues_and_inventory_are_syncable(self):
         workflow_models = [
             PatientEncounter,
@@ -1037,6 +1067,7 @@ class BillingAccessTests(TestCase):
         User = get_user_model()
         self.admin = User.objects.create_user(username='billing-admin', email='billing-admin@example.com', password='secret', role='ADMIN')
         self.receptionist = User.objects.create_user(username='billing-frontdesk', email='billing-frontdesk@example.com', password='secret', role='RECEPTIONIST')
+        self.accountant = User.objects.create_user(username='billing-accountant', email='billing-accountant@example.com', password='secret', role='ACCOUNTANT')
         self.doctor = User.objects.create_user(username='billing-doctor', email='billing-doctor@example.com', password='secret', role='DOCTOR')
         self.dentist = User.objects.create_user(username='billing-dentist', email='billing-dentist@example.com', password='secret', role='DENTIST')
         self.clinic = Clinic.objects.create(
@@ -1061,7 +1092,7 @@ class BillingAccessTests(TestCase):
             subscription_end_date=timezone.localdate() + timedelta(days=30),
             is_subscription_active=True,
         )
-        for user in (self.admin, self.receptionist, self.doctor, self.dentist):
+        for user in (self.admin, self.receptionist, self.accountant, self.doctor, self.dentist):
             user.clinic.add(self.clinic)
         self.patient = Patient.objects.create(
             clinic=self.clinic,
@@ -1122,8 +1153,8 @@ class BillingAccessTests(TestCase):
         session['clinic_name'] = self.clinic.name
         session.save()
 
-    def test_admin_and_receptionist_can_open_billing(self):
-        for user in (self.admin, self.receptionist):
+    def test_admin_receptionist_and_accountant_can_open_billing(self):
+        for user in (self.admin, self.receptionist, self.accountant):
             self.select_clinic_as(user)
             response = self.client.get(reverse('core:billing_list'))
             self.assertEqual(response.status_code, 200)
@@ -1414,6 +1445,60 @@ class BillingAccessTests(TestCase):
         self.assertContains(response, 'Enter a manual service name when adding a manual cost')
         self.assertFalse(Billing.objects.filter(patient=self.patient, amount=Decimal('10000.00')).exists())
 
+    def test_create_bill_accepts_multiple_manual_services(self):
+        self.select_clinic_as(self.admin)
+
+        response = self.client.post(reverse('core:create_bill'), {
+            'patient': self.patient.patient_id,
+            'service_date': timezone.localdate().isoformat(),
+            'due_date': (timezone.localdate() + timedelta(days=7)).isoformat(),
+            'amount': '0',
+            'paid_amount': '0',
+            'description': '',
+            'notes': '',
+            'discount_type': 'NONE',
+            'discount_value': '0',
+            'discount_reason': '',
+            'manual_service_name': ['Nebulization', 'Syringe'],
+            'manual_service_cost': ['1500.00', '250.00'],
+        })
+
+        bill = Billing.objects.get(patient=self.patient, amount=Decimal('1750.00'))
+        self.assertRedirects(response, reverse('core:view_bill', args=[bill.pk]), fetch_redirect_response=False)
+        self.assertIn('Nebulization', bill.description)
+        self.assertIn('Syringe', bill.description)
+
+    def test_create_bill_applies_discount_and_shows_reason(self):
+        self.select_clinic_as(self.admin)
+
+        response = self.client.post(reverse('core:create_bill'), {
+            'patient': self.patient.patient_id,
+            'service_date': timezone.localdate().isoformat(),
+            'due_date': (timezone.localdate() + timedelta(days=7)).isoformat(),
+            'amount': '1000.00',
+            'paid_amount': '0',
+            'description': 'Consultation',
+            'notes': '',
+            'discount_type': 'PERCENTAGE',
+            'discount_value': '10',
+            'discount_reason': 'Staff courtesy',
+        })
+
+        bill = Billing.objects.get(patient=self.patient, discount_reason='Staff courtesy')
+        self.assertRedirects(response, reverse('core:view_bill', args=[bill.pk]), fetch_redirect_response=False)
+        self.assertEqual(bill.amount, Decimal('1000.00'))
+        self.assertEqual(bill.discount_amount, Decimal('100.00'))
+        self.assertEqual(bill.final_amount, Decimal('900.00'))
+        self.assertEqual(bill.get_balance(), Decimal('900.00'))
+
+        detail_response = self.client.get(reverse('core:view_bill', args=[bill.pk]))
+        self.assertContains(detail_response, 'Discount reason:')
+        self.assertContains(detail_response, 'Staff courtesy')
+
+        list_response = self.client.get(reverse('core:billing_list'))
+        self.assertContains(list_response, '₦900.00')
+        self.assertContains(list_response, 'Discount -₦100.00')
+
     def test_admin_can_deactivate_billing_queue_entry(self):
         self.select_clinic_as(self.admin)
         item = BillingLineItem.objects.create(
@@ -1699,8 +1784,8 @@ class PrescriptionReconciliationTests(TestCase):
             subscription_end_date=timezone.now().date() + timedelta(days=30),
             is_subscription_active=True,
         )
-        self.pharmacist = User.objects.create_user(username='pharm', password='secret', role='PHARMACIST')
-        self.doctor = User.objects.create_user(username='rxdoctor', password='secret', role='DOCTOR')
+        self.pharmacist = User.objects.create_user(username='pharm', email='pharm-reconcile@example.com', password='secret', role='PHARMACIST')
+        self.doctor = User.objects.create_user(username='rxdoctor', email='rxdoctor-reconcile@example.com', password='secret', role='DOCTOR')
         self.pharmacist.clinic.add(self.clinic)
         self.doctor.clinic.add(self.clinic)
         self.patient = Patient.objects.create(
@@ -1735,6 +1820,30 @@ class PrescriptionReconciliationTests(TestCase):
             quantity_prescribed=1,
             stock_deducted=True,
         )
+        self.prescription_bill = Billing.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            service_date=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=7),
+            amount=Decimal('700.00'),
+            paid_amount=Decimal('700.00'),
+            status='PAID',
+            description='Paracetamol (500mg) x1 - ₦700.00',
+            created_by=self.pharmacist,
+        )
+        prescription_content_type = ContentType.objects.get_for_model(self.prescription)
+        self.prescription_line_item = BillingLineItem.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            bill=self.prescription_bill,
+            source_type='PRESCRIPTION',
+            source_content_type=prescription_content_type,
+            source_object_id=str(self.prescription.pk),
+            description='Paracetamol (500mg)',
+            quantity=1,
+            unit_price=Decimal('700.00'),
+            status='BILLED',
+        )
         self.client.force_login(self.pharmacist)
         session = self.client.session
         session['clinic_id'] = self.clinic.id
@@ -1752,6 +1861,8 @@ class PrescriptionReconciliationTests(TestCase):
         self.prescription.refresh_from_db()
         self.medication.refresh_from_db()
         self.assertFalse(self.prescription.stock_deducted)
+        self.assertFalse(self.prescription.is_active)
+        self.assertIsNotNone(self.prescription.deactivated_at)
         self.assertEqual(self.medication.quantity_in_stock, 6)
         self.assertTrue(StockMovement.objects.filter(
             medication=self.medication,
@@ -1759,15 +1870,23 @@ class PrescriptionReconciliationTests(TestCase):
             quantity=1,
             reference__contains='reconciliation',
         ).exists())
-        self.assertTrue(Billing.objects.filter(
-            patient=self.patient,
-            amount=Decimal('-700.00'),
-            description__icontains='Medication reconciliation credit',
-        ).exists())
+        self.assertFalse(Billing.objects.filter(patient=self.patient, amount__lt=0).exists())
+        self.prescription_bill.refresh_from_db()
+        self.prescription_line_item.refresh_from_db()
+        self.assertEqual(self.prescription_bill.amount, Decimal('0.00'))
+        self.assertEqual(self.prescription_bill.paid_amount, Decimal('0.00'))
+        self.assertEqual(self.prescription_bill.get_balance(), Decimal('0.00'))
+        self.assertEqual(self.prescription_bill.description, '')
+        self.assertEqual(self.prescription_line_item.status, 'VOIDED')
+        self.assertIsNone(self.prescription_line_item.bill_id)
         self.assertTrue(ActionLog.objects.filter(
             action='UPDATE',
             details__icontains='Patient returned unopened medication.',
         ).exists())
+
+        list_response = self.client.get(reverse('core:prescription_list'))
+        self.assertContains(list_response, 'Reconciled')
+        self.assertNotContains(list_response, f'href="{reverse("core:dispense_prescription", args=[self.prescription.pk])}"')
 
 
 @override_settings(SECURE_SSL_REDIRECT=False, ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])

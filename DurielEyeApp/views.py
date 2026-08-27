@@ -191,7 +191,53 @@ def staff_check(user):
     return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'NURSE', 'OPTOMETRIST', 'RECEPTIONIST']
 
 def admin_check(user):
-    return user.is_authenticated and user.role == 'ADMIN'
+    return user.is_authenticated and user.role in ('ADMIN', 'ACCOUNTANT')
+
+
+EYE_EXAM_SIDE_FIELD_ORDER = (
+    'visual_acuity',
+    'intraocular_pressure',
+    'pupil_size',
+    'pinhole',
+    'near_vision',
+    'cup_disc_ratio',
+    'sphere',
+    'cylinder',
+    'axis',
+    'keratometry',
+    'prism',
+    'base_direction',
+    'pachymetry',
+    'refraction',
+    'final_prescription',
+    'add',
+)
+
+EYE_EXAM_HIDDEN_SIDE_FIELDS = (
+    'objective_refraction_right',
+    'objective_refraction_left',
+    'visual_acuity_right_corrected',
+    'visual_acuity_left_corrected',
+)
+
+
+def eye_exam_layout_context(form):
+    right_names = [f'{name}_right' for name in EYE_EXAM_SIDE_FIELD_ORDER if f'{name}_right' in form.fields]
+    left_names = [f'{name}_left' for name in EYE_EXAM_SIDE_FIELD_ORDER if f'{name}_left' in form.fields]
+    ordered_side_names = set(right_names + left_names)
+    return {
+        'right_eye_fields': [form[name] for name in right_names],
+        'left_eye_fields': [form[name] for name in left_names],
+        'other_eye_fields': [
+            field for field in form
+            if ('right' in field.name or 'left' in field.name) and field.name not in ordered_side_names
+            and field.name not in EYE_EXAM_HIDDEN_SIDE_FIELDS
+        ],
+        'non_eye_fields': [
+            field for field in form
+            if 'right' not in field.name and 'left' not in field.name
+        ],
+    }
 
 
 # --------------------
@@ -857,6 +903,7 @@ def record_eye_exam(request, appointment_id):
         'form': form,
         'appointment': appointment
     }
+    context.update(eye_exam_layout_context(form))
     exams = EyeExam.objects.all().order_by('-created_at')  # show all exams
     return render(request, 'eye/exams/record_exam.html', context)
 
@@ -904,7 +951,12 @@ def edit_eye_exam(request, exam_id):
     else:
         form = EyeExamForm(instance=exam, clinic_id=clinic_id)
 
-    return render(request, 'eye/exams/edit_eye_exam.html', {'form': form, 'exam': exam})
+    context = {
+        'form': form,
+        'exam': exam,
+        **eye_exam_layout_context(form),
+    }
+    return render(request, 'eye/exams/edit_eye_exam.html', context)
 
 
 
@@ -1722,7 +1774,7 @@ def check_birthdays(clinic_id=None):
 # Optical Lab (dispensary) — inventory + dispensing to billing
 # ============================================================
 
-OPTICAL_MANAGE_ROLES = ('OPTICIAN',)
+OPTICAL_MANAGE_ROLES = ('ADMIN', 'OPTICIAN')
 
 
 @login_required

@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Record Eye Exam{% endblock %}
+{% block title %}Add Record and Exam{% endblock %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-6">
   <div class="max-w-4xl mx-auto">
     <div class="bg-white rounded-lg shadow-md p-6">
       <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Record Eye Exam</h1>
+        <h1 class="text-2xl font-bold text-gray-800">Add Record and Exam</h1>
         <a href="{% url 'DurielEyeApp:appointment_detail' appointment.pk %}" class="text-blue-600 hover:text-blue-800">
           <i class="fas fa-arrow-left mr-1"></i> Back to Consultation
         </a>
@@ -29,50 +29,166 @@
           </div>
         </div>
         
+        <!-- Clinical History and Findings -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div class="mb-4">
+            <label for="{{ form.appointment.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.appointment.label }}</label>
+            {{ form.appointment }}
+            {% if form.appointment.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.appointment.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.chief_complaint.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.chief_complaint.label }}</label>
+            {{ form.chief_complaint }}
+            {% if form.chief_complaint.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.chief_complaint.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.ocular_history.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.ocular_history.label }}</label>
+            {{ form.ocular_history }}
+            {% if form.ocular_history.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.ocular_history.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.systemic_risk_factors.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.systemic_risk_factors.label }}</label>
+            {{ form.systemic_risk_factors }}
+            {% if form.systemic_risk_factors.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.systemic_risk_factors.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.ocular_medications.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.ocular_medications.label }}</label>
+            {{ form.ocular_medications }}
+            {% if form.ocular_medications.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.ocular_medications.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.eye_allergies.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.eye_allergies.label }}</label>
+            {{ form.eye_allergies }}
+            {% if form.eye_allergies.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.eye_allergies.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.anterior_segment_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.anterior_segment_findings.label }}</label>
+            {{ form.anterior_segment_findings }}
+            {% if form.anterior_segment_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.anterior_segment_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.slit_lamp_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.slit_lamp_findings.label }}</label>
+            {{ form.slit_lamp_findings }}
+            {% if form.slit_lamp_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.slit_lamp_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.lens_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.lens_findings.label }}</label>
+            {{ form.lens_findings }}
+            {% if form.lens_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.lens_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.posterior_segment_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.posterior_segment_findings.label }}</label>
+            {{ form.posterior_segment_findings }}
+            {% if form.posterior_segment_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.posterior_segment_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.fundus_exam_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.fundus_exam_findings.label }}</label>
+            {{ form.fundus_exam_findings }}
+            {% if form.fundus_exam_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.fundus_exam_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.retina_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.retina_findings.label }}</label>
+            {{ form.retina_findings }}
+            {% if form.retina_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.retina_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.optic_disc_findings.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.optic_disc_findings.label }}</label>
+            {{ form.optic_disc_findings }}
+            {% if form.optic_disc_findings.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.optic_disc_findings.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.pupillary_distance.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pupillary_distance.label }}</label>
+            {{ form.pupillary_distance }}
+            {% if form.pupillary_distance.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.pupillary_distance.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.pupils_perrla.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pupils_perrla.label }}</label>
+            {{ form.pupils_perrla }}
+            {% if form.pupils_perrla.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.pupils_perrla.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.rapd_note.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.rapd_note.label }}</label>
+            {{ form.rapd_note }}
+            {% if form.rapd_note.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.rapd_note.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.extraocular_motility.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.extraocular_motility.label }}</label>
+            {{ form.extraocular_motility }}
+            {% if form.extraocular_motility.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.extraocular_motility.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.cover_test.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cover_test.label }}</label>
+            {{ form.cover_test }}
+            {% if form.cover_test.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.cover_test.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.confrontation_visual_fields.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.confrontation_visual_fields.label }}</label>
+            {{ form.confrontation_visual_fields }}
+            {% if form.confrontation_visual_fields.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.confrontation_visual_fields.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.colour_vision.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.colour_vision.label }}</label>
+            {{ form.colour_vision }}
+            {% if form.colour_vision.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.colour_vision.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.iop_method.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.iop_method.label }}</label>
+            {{ form.iop_method }}
+            {% if form.iop_method.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.iop_method.errors.as_text }}</p>
+            {% endif %}
+          </div>
+          <div class="mb-4">
+            <label for="{{ form.iop_time.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.iop_time.label }}</label>
+            {{ form.iop_time }}
+            {% if form.iop_time.errors %}
+              <p class="mt-1 text-sm text-red-600">{{ form.iop_time.errors.as_text }}</p>
+            {% endif %}
+          </div>
+        </div>
+
         <!-- Exam Form Fields -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <!-- Left Eye Fields -->
-          <div class="border border-gray-200 rounded-lg p-4">
-            <h3 class="text-lg font-medium text-gray-900 mb-4 text-center">Left Eye</h3>
-            
-            <div class="mb-4">
-              <label for="{{ form.visual_acuity_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Visual Acuity</label>
-              <input type="text" 
-                     name="{{ form.visual_acuity_left.name }}" 
-                     id="{{ form.visual_acuity_left.id_for_label }}" 
-                     value="{{ form.visual_acuity_left.value|default_if_none:'' }}" 
-                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-              {% if form.visual_acuity_left.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ form.visual_acuity_left.errors.as_text }}</p>
-              {% endif %}
-            </div>
-            
-            <div class="mb-4">
-              <label for="{{ form.intraocular_pressure_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Pressure (mmHg)</label>
-              <input type="number" 
-                     name="{{ form.intraocular_pressure_left.name }}" 
-                     id="{{ form.intraocular_pressure_left.id_for_label }}" 
-                     value="{{ form.intraocular_pressure_left.value|default_if_none:'' }}" 
-                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-              {% if form.intraocular_pressure_left.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ form.intraocular_pressure_left.errors.as_text }}</p>
-              {% endif %}
-            </div>
-
-            <!-- Additional Left Eye Fields -->
-            {% for field in form %}
-              {% if 'left' in field.name and field.name not in 'visual_acuity_left,intraocular_pressure_left' %}
-              <div class="mb-4">
-                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                  <p class="mt-1 text-sm text-red-600">{{ field.errors.as_text }}</p>
-                {% endif %}
-              </div>
-              {% endif %}
-            {% endfor %}
-          </div>
-          
           <!-- Right Eye Fields -->
           <div class="border border-gray-200 rounded-lg p-4">
             <h3 class="text-lg font-medium text-gray-900 mb-4 text-center">Right Eye</h3>
@@ -101,9 +217,108 @@
               {% endif %}
             </div>
 
+            <div class="mb-4">
+              <label for="{{ form.pupil_size_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pupil_size_right.label }}</label>
+              {{ form.pupil_size_right }}
+              {% if form.pupil_size_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pupil_size_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.pinhole_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pinhole_right.label }}</label>
+              {{ form.pinhole_right }}
+              {% if form.pinhole_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pinhole_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.near_vision_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.near_vision_right.label }}</label>
+              {{ form.near_vision_right }}
+              {% if form.near_vision_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.near_vision_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.cup_disc_ratio_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cup_disc_ratio_right.label }}</label>
+              {{ form.cup_disc_ratio_right }}
+              {% if form.cup_disc_ratio_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.cup_disc_ratio_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.sphere_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.sphere_right.label }}</label>
+              {{ form.sphere_right }}
+              {% if form.sphere_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.sphere_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.cylinder_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cylinder_right.label }}</label>
+              {{ form.cylinder_right }}
+              {% if form.cylinder_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.cylinder_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.axis_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.axis_right.label }}</label>
+              {{ form.axis_right }}
+              {% if form.axis_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.axis_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.keratometry_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.keratometry_right.label }}</label>
+              {{ form.keratometry_right }}
+              {% if form.keratometry_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.keratometry_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.prism_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.prism_right.label }}</label>
+              {{ form.prism_right }}
+              {% if form.prism_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.prism_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.base_direction_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.base_direction_right.label }}</label>
+              {{ form.base_direction_right }}
+              {% if form.base_direction_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.base_direction_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.pachymetry_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pachymetry_right.label }}</label>
+              {{ form.pachymetry_right }}
+              {% if form.pachymetry_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pachymetry_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.refraction_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.refraction_right.label }}</label>
+              {{ form.refraction_right }}
+              {% if form.refraction_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.refraction_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.final_prescription_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.final_prescription_right.label }}</label>
+              {{ form.final_prescription_right }}
+              {% if form.final_prescription_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.final_prescription_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.add_right.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.add_right.label }}</label>
+              {{ form.add_right }}
+              {% if form.add_right.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.add_right.errors.as_text }}</p>
+              {% endif %}
+            </div>
+
             <!-- Additional Right Eye Fields -->
             {% for field in form %}
-              {% if 'right' in field.name and field.name not in 'visual_acuity_right,intraocular_pressure_right' %}
+              {% if 'right' in field.name and field.name != 'visual_acuity_right' and field.name != 'visual_acuity_right_corrected' and field.name != 'intraocular_pressure_right' and field.name != 'pupil_size_right' and field.name != 'pinhole_right' and field.name != 'near_vision_right' and field.name != 'cup_disc_ratio_right' and field.name != 'sphere_right' and field.name != 'cylinder_right' and field.name != 'axis_right' and field.name != 'keratometry_right' and field.name != 'prism_right' and field.name != 'base_direction_right' and field.name != 'pachymetry_right' and field.name != 'refraction_right' and field.name != 'final_prescription_right' and field.name != 'add_right' and field.name != 'objective_refraction_right' %}
               <div class="mb-4">
                 <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
                 {{ field }}
@@ -114,6 +329,176 @@
               {% endif %}
             {% endfor %}
           </div>
+          
+          <!-- Left Eye Fields -->
+          <div class="border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4 text-center">Left Eye</h3>
+            
+            <div class="mb-4">
+              <label for="{{ form.visual_acuity_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Visual Acuity</label>
+              <input type="text" 
+                     name="{{ form.visual_acuity_left.name }}" 
+                     id="{{ form.visual_acuity_left.id_for_label }}" 
+                     value="{{ form.visual_acuity_left.value|default_if_none:'' }}" 
+                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              {% if form.visual_acuity_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.visual_acuity_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            
+            <div class="mb-4">
+              <label for="{{ form.intraocular_pressure_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Pressure (mmHg)</label>
+              <input type="number" 
+                     name="{{ form.intraocular_pressure_left.name }}" 
+                     id="{{ form.intraocular_pressure_left.id_for_label }}" 
+                     value="{{ form.intraocular_pressure_left.value|default_if_none:'' }}" 
+                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+              {% if form.intraocular_pressure_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.intraocular_pressure_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+
+            <div class="mb-4">
+              <label for="{{ form.pupil_size_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pupil_size_left.label }}</label>
+              {{ form.pupil_size_left }}
+              {% if form.pupil_size_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pupil_size_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.pinhole_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pinhole_left.label }}</label>
+              {{ form.pinhole_left }}
+              {% if form.pinhole_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pinhole_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.near_vision_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.near_vision_left.label }}</label>
+              {{ form.near_vision_left }}
+              {% if form.near_vision_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.near_vision_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.cup_disc_ratio_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cup_disc_ratio_left.label }}</label>
+              {{ form.cup_disc_ratio_left }}
+              {% if form.cup_disc_ratio_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.cup_disc_ratio_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.sphere_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.sphere_left.label }}</label>
+              {{ form.sphere_left }}
+              {% if form.sphere_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.sphere_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.cylinder_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.cylinder_left.label }}</label>
+              {{ form.cylinder_left }}
+              {% if form.cylinder_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.cylinder_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.axis_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.axis_left.label }}</label>
+              {{ form.axis_left }}
+              {% if form.axis_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.axis_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.keratometry_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.keratometry_left.label }}</label>
+              {{ form.keratometry_left }}
+              {% if form.keratometry_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.keratometry_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.prism_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.prism_left.label }}</label>
+              {{ form.prism_left }}
+              {% if form.prism_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.prism_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.base_direction_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.base_direction_left.label }}</label>
+              {{ form.base_direction_left }}
+              {% if form.base_direction_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.base_direction_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.pachymetry_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.pachymetry_left.label }}</label>
+              {{ form.pachymetry_left }}
+              {% if form.pachymetry_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.pachymetry_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.refraction_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.refraction_left.label }}</label>
+              {{ form.refraction_left }}
+              {% if form.refraction_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.refraction_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.final_prescription_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.final_prescription_left.label }}</label>
+              {{ form.final_prescription_left }}
+              {% if form.final_prescription_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.final_prescription_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            <div class="mb-4">
+              <label for="{{ form.add_left.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.add_left.label }}</label>
+              {{ form.add_left }}
+              {% if form.add_left.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.add_left.errors.as_text }}</p>
+              {% endif %}
+            </div>
+
+            <!-- Additional Left Eye Fields -->
+            {% for field in form %}
+              {% if 'left' in field.name and field.name != 'visual_acuity_left' and field.name != 'visual_acuity_left_corrected' and field.name != 'intraocular_pressure_left' and field.name != 'pupil_size_left' and field.name != 'pinhole_left' and field.name != 'near_vision_left' and field.name != 'cup_disc_ratio_left' and field.name != 'sphere_left' and field.name != 'cylinder_left' and field.name != 'axis_left' and field.name != 'keratometry_left' and field.name != 'prism_left' and field.name != 'base_direction_left' and field.name != 'pachymetry_left' and field.name != 'refraction_left' and field.name != 'final_prescription_left' and field.name != 'add_left' and field.name != 'objective_refraction_left' %}
+              <div class="mb-4">
+                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                  <p class="mt-1 text-sm text-red-600">{{ field.errors.as_text }}</p>
+                {% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        
+        
+        <!-- General Fields (not eye-specific) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {% for field in form %}
+            {% if 'left' not in field.name and 'right' not in field.name and field.name != 'appointment' and field.name != 'chief_complaint' and field.name != 'ocular_history' and field.name != 'systemic_risk_factors' and field.name != 'ocular_medications' and field.name != 'eye_allergies' and field.name != 'anterior_segment_findings' and field.name != 'slit_lamp_findings' and field.name != 'lens_findings' and field.name != 'posterior_segment_findings' and field.name != 'fundus_exam_findings' and field.name != 'retina_findings' and field.name != 'optic_disc_findings' and field.name != 'pupillary_distance' and field.name != 'pupils_perrla' and field.name != 'rapd_note' and field.name != 'extraocular_motility' and field.name != 'cover_test' and field.name != 'confrontation_visual_fields' and field.name != 'colour_vision' and field.name != 'iop_method' and field.name != 'iop_time' and field.name != 'notes' and field.name != 'frame_prescribed' and field.name != 'frame_product' and field.name != 'frame_prescription' and field.name != 'lens_prescribed' and field.name != 'lens_product' and field.name != 'lens_prescription' %}
+            <div class="mb-4">
+              <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ field.errors.as_text }}</p>
+              {% endif %}
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        
+        <!-- Notes Section - Full width below eye sections -->
+        <div class="mb-6">
+          <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Exam Notes</label>
+          <textarea name="{{ form.notes.name }}" 
+                    id="{{ form.notes.id_for_label }}" 
+                    rows="4"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">{{ form.notes.value|default_if_none:'' }}</textarea>
+          {% if form.notes.errors %}
+            <p class="mt-1 text-sm text-red-600">{{ form.notes.errors.as_text }}</p>
+          {% endif %}
         </div>
 
         <div class="border border-indigo-200 rounded-lg p-4 mb-6 bg-indigo-50">
@@ -154,45 +539,21 @@
           </div>
         </div>
         
-        <!-- General Fields (not eye-specific) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {% for field in form %}
-            {% if 'left' not in field.name and 'right' not in field.name and field.name != 'notes' and field.name != 'frame_prescribed' and field.name != 'frame_product' and field.name != 'frame_prescription' and field.name != 'lens_prescribed' and field.name != 'lens_product' and field.name != 'lens_prescription' %}
-            <div class="mb-4">
-              <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
-              {{ field }}
-              {% if field.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ field.errors.as_text }}</p>
-              {% endif %}
-            </div>
-            {% endif %}
-          {% endfor %}
-        </div>
-        
-        <!-- Notes Section - Full width below eye sections -->
-        <div class="mb-6">
-          <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Exam Notes</label>
-          <textarea name="{{ form.notes.name }}" 
-                    id="{{ form.notes.id_for_label }}" 
-                    rows="4"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">{{ form.notes.value|default_if_none:'' }}</textarea>
-          {% if form.notes.errors %}
-            <p class="mt-1 text-sm text-red-600">{{ form.notes.errors.as_text }}</p>
-          {% endif %}
-        </div>
-        
         <!-- Action Buttons - Centered below notes -->
         <div class="flex justify-center space-x-4 mt-8">
           <button type="reset" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg transition-colors">
             <i class="fas fa-undo mr-2"></i> Reset Form
           </button>
           <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
-            <i class="fas fa-save mr-2"></i> Save Exam
+            <i class="fas fa-save mr-2"></i> Save Record and Exam
           </button>
         </div>
       </form>
     </div>
+    
   </div>
+
+  
 </div>
 
 <style>

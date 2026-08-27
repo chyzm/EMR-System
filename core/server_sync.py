@@ -317,6 +317,10 @@ def clinic_for_instance(instance):
     if appointment:
         return appointment.clinic
 
+    appointment_object = getattr(instance, 'appointment_object', None)
+    if appointment_object:
+        return appointment_object.clinic
+
     billing = getattr(instance, 'billing', None)
     if billing:
         return billing.clinic
@@ -407,7 +411,7 @@ def serialize_instance(instance, deleted=False):
                 {'sync_id': str(item.sync_id)} if hasattr(item, 'sync_id') else {'pk': item.pk}
                 for item in getattr(instance, field.name).all()
             ]
-    generic_related = getattr(instance, 'appointment', None)
+    generic_related = getattr(instance, 'appointment_object', None) or getattr(instance, 'appointment', None)
     if generic_related is not None and hasattr(generic_related, 'sync_id'):
         payload['_generic_appointment_model'] = model_label(generic_related.__class__)
         payload['_generic_appointment_sync_id'] = str(generic_related.sync_id)

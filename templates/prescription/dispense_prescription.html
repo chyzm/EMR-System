@@ -8,7 +8,10 @@
   <p class="mb-4">
     Prescription: <strong>{{ prescription.clinic_medication.name }}</strong><br>
     Dosage: {{ prescription.dosage }}<br>
+    Frequency: {{ prescription.frequency }}<br>
+    Duration: {{ prescription.duration }}<br>
     Quantity: {{ prescription.quantity_prescribed }}<br>
+    {% if prescription.instructions %}Instructions: {{ prescription.instructions }}<br>{% endif %}
     Total Price: ₦{{ total_price }}
   </p>
 

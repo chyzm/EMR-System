@@ -28,7 +28,7 @@ from django.db.models import Sum
 from django.contrib.auth.views import LoginView
 from .models import Clinic
 from core.decorators import clinic_selected_required, clinic_subscription_is_expired
-from core.permissions import PRESCRIBER_ROLES, can_manage_patient_demographics, can_view_patient
+from core.permissions import BILLING_ROLES, PRESCRIBER_ROLES, can_manage_patient_demographics, can_view_patient
 from DurielMedicApp.models import Appointment, MedicalRecord, NurseInstruction, PhysiotherapyRecord, Admission  
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.admin.views.decorators import staff_member_required
@@ -303,7 +303,7 @@ def clinic_dashboard(request):
         'can_schedule_appointment': can_schedule_appointment,
         'can_create_patient': can_create_patient,
         'can_create_bill': request.user.role in ['ADMIN', 'RECEPTIONIST'],
-        'can_generate_report': request.user.role == 'ADMIN' and bool(config['report_url']),
+        'can_generate_report': request.user.role in ['ADMIN', 'ACCOUNTANT'] and bool(config['report_url']),
         'show_recent_patients': request.user.role in ['ADMIN', 'NURSE', 'RECEPTIONIST', 'DENTIST', 'OPTOMETRIST'],
         'specialty_metrics': specialty_metrics,
     }
@@ -1259,7 +1259,7 @@ class StaffCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def billing_list(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
@@ -1427,7 +1427,7 @@ def deactivate_billing_queue(request):
 
 # @login_required
 # @clinic_selected_required
-# @role_required('ADMIN', 'RECEPTIONIST')
+# @role_required(*BILLING_ROLES)
 # def create_bill(request, patient_id=None):
 #     clinic_id = request.session.get('clinic_id')
 #     if not clinic_id:
@@ -1778,6 +1778,30 @@ def _clean_billing_description(*line_groups):
     return "\n".join(_clean_billing_description_lines(*line_groups))
 
 
+def _manual_billing_services_from_post(post_data):
+    names = post_data.getlist('manual_service_name')
+    costs = post_data.getlist('manual_service_cost')
+    services = []
+    max_len = max(len(names), len(costs))
+    for index in range(max_len):
+        name = names[index].strip() if index < len(names) else ''
+        raw_cost = costs[index].strip() if index < len(costs) else ''
+        if not name and not raw_cost:
+            continue
+        try:
+            cost = Decimal(raw_cost or '0')
+        except (InvalidOperation, ValueError):
+            raise ValueError("Manual service cost must be a valid number.")
+        if cost < 0:
+            raise ValueError("Manual service cost cannot be negative.")
+        if cost and not name:
+            raise ValueError("Enter a manual service name when adding a manual cost.")
+        if name and not cost:
+            raise ValueError("Enter a manual service cost when adding a manual service.")
+        services.append((name, cost))
+    return services
+
+
 def _ensure_prescription_billing_line_item(prescription, actor=None, auto_approve=None):
     if not prescription or not prescription.clinic_medication:
         return None
@@ -1797,6 +1821,52 @@ def _ensure_prescription_billing_line_item(prescription, actor=None, auto_approv
         created_by=actor,
         auto_approve=auto_approve,
     )
+
+
+def _remove_prescription_from_billing(prescription, actor=None, reason=''):
+    source_type = ContentType.objects.get_for_model(prescription)
+    items = BillingLineItem.objects.select_related('bill').filter(
+        clinic=prescription.clinic,
+        patient=prescription.patient,
+        source_content_type=source_type,
+        source_object_id=str(prescription.pk),
+        source_type='PRESCRIPTION',
+    )
+    removed_amount = Decimal('0.00')
+    affected_bills = {}
+    removed_by_bill = {}
+    for item in items:
+        item_amount = item.total_amount or Decimal('0.00')
+        removed_amount += item_amount
+        if item.bill_id:
+            affected_bills[item.bill_id] = item.bill
+            removed_by_bill[item.bill_id] = removed_by_bill.get(item.bill_id, Decimal('0.00')) + item_amount
+        item.status = 'VOIDED'
+        item.bill = None
+        item.notes = _clean_billing_description(item.notes, f"Voided after prescription reconciliation. {reason}".strip())
+        item.save(update_fields=['status', 'bill', 'notes', 'total_amount', 'updated_at'])
+
+    for bill_id, bill in affected_bills.items():
+        bill.amount = max(Decimal('0.00'), (bill.amount or Decimal('0.00')) - removed_by_bill.get(bill_id, Decimal('0.00')))
+        description_lines = [
+            line for line in _clean_billing_description_lines(bill.description)
+            if 'medication reconciliation credit' not in line.lower()
+            and prescription.medication_name.lower() not in line.lower()
+        ]
+        bill.description = _clean_billing_description(description_lines)
+        bill.calculate_final_amount()
+        effective_amount = bill.get_effective_amount()
+        if bill.paid_amount > effective_amount:
+            bill.paid_amount = effective_amount
+        if bill.paid_amount >= effective_amount and effective_amount > 0:
+            bill.status = 'PAID'
+        elif bill.paid_amount > 0:
+            bill.status = 'PARTIAL'
+        else:
+            bill.status = 'PENDING'
+        bill.save()
+
+    return removed_amount
 
 
 def build_billing_service_notes(patient, clinic_id, appointment=None, encounter=None):
@@ -2068,7 +2138,7 @@ def sync_appointment_charge_items(patient, clinic_id, appointment=None, encounte
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def create_bill(request, patient_id=None):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:
@@ -2228,10 +2298,10 @@ def create_bill(request, patient_id=None):
             elif selected_encounter and not merge_mode and len(selected_line_item_ids) <= 1:
                 selected_line_items = selected_line_items.filter(encounter=selected_encounter)
             line_item_total = selected_line_items.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
-            manual_service_name = request.POST.get('manual_service_name', '').strip()
-            manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
-            if manual_service_cost < 0:
-                messages.error(request, "Manual service cost cannot be negative.")
+            try:
+                manual_services = _manual_billing_services_from_post(request.POST)
+            except ValueError as exc:
+                messages.error(request, str(exc))
                 return render(request, 'billing/billing_form.html', {
                     'form': form,
                     'patient': patient,
@@ -2247,24 +2317,9 @@ def create_bill(request, patient_id=None):
                     'selected_patient_id': selected_patient_id,
                     'title': 'Create New Bill'
                 })
-            if manual_service_cost and not manual_service_name:
-                messages.error(request, "Enter a manual service name when adding a manual cost.")
-                return render(request, 'billing/billing_form.html', {
-                    'form': form,
-                    'patient': patient,
-                    'patients_with_appointments': patients_with_appointments,
-                    'appointment': appointment,
-                    'appointment_type': billing_appointment_type(appointment),
-                    'patient_billing_activity': patient_billing_activity,
-                    'billing_clinical_summary': billing_clinical_summary,
-                    'billing_service_notes': billing_service_notes,
-                    'billing_line_items': billing_line_items,
-                    'requested_line_item_ids': requested_line_item_ids,
-                    'merge_mode': merge_mode,
-                    'selected_patient_id': selected_patient_id,
-                    'title': 'Create New Bill'
-                })
-            bill.amount = service_total + line_item_total + manual_service_cost
+            manual_service_total = sum((cost for _, cost in manual_services), Decimal('0.00'))
+            component_total = service_total + line_item_total + manual_service_total
+            bill.amount = component_total if component_total else (form.cleaned_data.get('amount') or Decimal('0.00'))
             description_lines = []
             if selected_line_items.exists():
                 description_lines.extend([
@@ -2273,8 +2328,10 @@ def create_bill(request, patient_id=None):
                 ])
             if selected_services:
                 description_lines.extend([f"{service.name} - ₦{service.price}" for service in selected_services])
-            if manual_service_name and manual_service_cost:
-                description_lines.append(f"{manual_service_name} - ₦{manual_service_cost}")
+            description_lines.extend([
+                f"{manual_service_name} - ₦{manual_service_cost}"
+                for manual_service_name, manual_service_cost in manual_services
+            ])
             if description_lines:
                 bill.description = _clean_billing_description(description_lines)
             bill.notes = request.POST.get('notes', '').strip() or billing_service_notes
@@ -2347,7 +2404,7 @@ def create_bill(request, patient_id=None):
 
 # @login_required
 # @clinic_selected_required
-# @role_required('ADMIN', 'RECEPTIONIST')
+# @role_required(*BILLING_ROLES)
 # def create_bill(request, patient_id=None):
 #     clinic_id = request.session.get('clinic_id')
 #     if not clinic_id:
@@ -2498,7 +2555,7 @@ def create_bill(request, patient_id=None):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def edit_bill(request, pk):
     clinic_id = request.session.get('clinic_id')
     bill = get_object_or_404(Billing, pk=pk, clinic_id=clinic_id)
@@ -2553,13 +2610,10 @@ def edit_bill(request, pk):
             updated_bill = form.save(commit=False)
 
             selected_services = form.cleaned_data.get('services', [])
-            manual_service_name = request.POST.get('manual_service_name', '').strip()
-            manual_service_cost = Decimal(request.POST.get('manual_service_cost') or '0')
-            if manual_service_cost < 0:
-                messages.error(request, "Manual service cost cannot be negative.")
-                return render(request, 'billing/billing_form.html', billing_form_context(form))
-            if manual_service_cost and not manual_service_name:
-                messages.error(request, "Enter a manual service name when adding a manual cost.")
+            try:
+                manual_services = _manual_billing_services_from_post(request.POST)
+            except ValueError as exc:
+                messages.error(request, str(exc))
                 return render(request, 'billing/billing_form.html', billing_form_context(form))
             existing_keys = {
                 _billing_description_key(line)
@@ -2573,7 +2627,7 @@ def edit_bill(request, pk):
                     continue
                 description_lines.append(line)
                 added_total += service.price
-            if manual_service_name and manual_service_cost:
+            for manual_service_name, manual_service_cost in manual_services:
                 line = f"{manual_service_name} - ₦{manual_service_cost}"
                 if _billing_description_key(line) not in existing_keys:
                     description_lines.append(line)
@@ -2631,7 +2685,7 @@ def edit_bill(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def record_payment(request, pk):
     bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     
@@ -2686,7 +2740,7 @@ def record_payment(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def view_bill(request, pk):
     bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     billing_clinical_summary = build_billing_clinical_summary(
@@ -2704,7 +2758,7 @@ def view_bill(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def delete_bill(request, pk):
     bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     if request.method == 'POST':
@@ -2748,7 +2802,7 @@ def patient_search_api(request):
 
 # @login_required
 # @clinic_selected_required
-# @role_required('ADMIN', 'RECEPTIONIST')
+# @role_required(*BILLING_ROLES)
 # def generate_receipt(request, pk):
 #     bill = get_object_or_404(Billing, pk=pk)
 #     payments = bill.payments.all().order_by('-payment_date')
@@ -2772,7 +2826,7 @@ def patient_search_api(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def generate_receipt(request, pk):
     bill = get_object_or_404(Billing.objects.prefetch_related('line_items'), pk=pk, clinic=request.clinic)
     payments = bill.payments.all().order_by('-payment_date')
@@ -2818,7 +2872,7 @@ def generate_receipt(request, pk):
 @require_POST
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def email_receipt(request, pk):
     bill = get_object_or_404(Billing, pk=pk, clinic=request.clinic)
     payment = bill.payments.order_by('-payment_date').first()
@@ -4486,6 +4540,10 @@ def dispense_prescription(request, pk):
         messages.info(request, "This prescription has already been dispensed.")
         return redirect('core:prescription_list')
 
+    if not prescription.is_active:
+        messages.info(request, "This prescription has been reconciled or deactivated and cannot be dispensed again.")
+        return redirect('core:prescription_list')
+
     if request.method == 'POST':
         # Deduct stock
         success = prescription.deduct_stock()
@@ -4667,27 +4725,18 @@ def reconcile_prescription(request, pk):
                 )
 
                 prescription.stock_deducted = False
-                update_fields = ['stock_deducted']
-                if reconcile_type == 'CHANGED':
-                    prescription.is_active = False
-                    prescription.deactivated_at = timezone.now()
-                    update_fields.extend(['is_active', 'deactivated_at'])
+                prescription.is_active = False
+                prescription.deactivated_at = timezone.now()
+                update_fields = ['stock_deducted', 'is_active', 'deactivated_at']
                 prescription.save(update_fields=update_fields)
 
                 unit_price = prescription.clinic_medication.selling_price or Decimal('0.00')
                 credit_amount = unit_price * prescription.quantity_prescribed
                 if credit_amount:
-                    Billing.objects.create(
-                        patient=patient,
-                        clinic=prescription.clinic,
-                        amount=-credit_amount,
-                        service_date=timezone.now().date(),
-                        due_date=timezone.now().date(),
-                        description=(
-                            f"Medication reconciliation credit: {prescription.medication_name} "
-                            f"x{prescription.quantity_prescribed} ({reconcile_type.title()})"
-                        ),
-                        created_by=request.user,
+                    _remove_prescription_from_billing(
+                        prescription,
+                        actor=request.user,
+                        reason=f"{reconcile_type.title()}: {reason}",
                     )
 
                 log_action(
@@ -4730,6 +4779,7 @@ def bulk_dispense(request):
             id__in=selected_ids,
             clinic=request.clinic,
             admission__isnull=True,
+            is_active=True,
             stock_deducted=False,
         )
         
@@ -4865,7 +4915,7 @@ def medication_detail(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def expiring_soon_report(request):
     """Report of medications expiring soon"""
     clinic_id = request.session.get('clinic_id')
@@ -5081,7 +5131,7 @@ def delete_medication(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def service_list(request):
     clinic_id = request.session.get('clinic_id')
     services = ServicePriceList.objects.filter(clinic_id=clinic_id).order_by('name')
@@ -5092,7 +5142,7 @@ def service_list(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def add_service(request):
     clinic_id = request.session.get('clinic_id')
     
@@ -5114,7 +5164,7 @@ def add_service(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def edit_service(request, pk):
     clinic_id = request.session.get('clinic_id')
     service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
@@ -5135,7 +5185,7 @@ def edit_service(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def delete_service(request, pk):
     clinic_id = request.session.get('clinic_id')
     service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
@@ -5153,7 +5203,7 @@ def delete_service(request, pk):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def toggle_service_status(request, pk):
     clinic_id = request.session.get('clinic_id')
     service = get_object_or_404(ServicePriceList, pk=pk, clinic_id=clinic_id)
@@ -5225,7 +5275,7 @@ def pharmacy_pending_count(request):
 
 @login_required
 @clinic_selected_required
-@role_required('ADMIN', 'RECEPTIONIST')
+@role_required(*BILLING_ROLES)
 def billing_due_count(request):
     clinic_id = request.session.get('clinic_id')
     if not clinic_id:

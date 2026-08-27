@@ -38,7 +38,7 @@
           <tr>
             <td class="px-3 py-4 whitespace-nowrap">
               <input type="checkbox" name="selected_prescriptions" value="{{ prescription.id }}" class="mx-auto"
-                     {% if prescription.stock_deducted or prescription.admission_id %}disabled{% endif %}>
+                     {% if not prescription.is_active or prescription.stock_deducted or prescription.admission_id %}disabled{% endif %}>
             </td>
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.patient.full_name }}</td>
             <td class="px-3 py-4 whitespace-nowrap">{{ prescription.prescribed_by.get_full_name }}</td>
@@ -58,6 +58,8 @@
               </div>
                 {% if prescription.stock_deducted %}
                   <span class="text-red-600 font-semibold ml-2">(DISPENSED)</span>
+                {% elif not prescription.is_active %}
+                  <span class="text-gray-500 font-semibold ml-2">(RECONCILED)</span>
                 {% endif %}
               </div>
             </td>
@@ -75,8 +77,10 @@
                   {% if request.user.is_superuser or request.user.role == 'ADMIN' or request.user.role == 'PHARMACIST' %}
                     <a href="{% url 'core:reconcile_prescription' prescription.id %}" class="text-blue-600 hover:text-blue-900 text-sm">Reconcile</a>
                   {% endif %}
-                {% elif not prescription.admission_id %}
+                {% elif prescription.is_active and not prescription.admission_id %}
                   <a href="{% url 'core:dispense_prescription' prescription.id %}" class="text-green-600 hover:text-green-900 text-sm">Dispense</a>
+                {% elif not prescription.is_active %}
+                  <span class="text-gray-500 text-sm">Reconciled</span>
                 {% endif %}
               </div>
             </td>

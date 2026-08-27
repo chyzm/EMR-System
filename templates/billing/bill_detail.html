@@ -53,7 +53,9 @@
           <span>-₦{{ bill.discount_amount|floatformat:2 }}</span>
         </div>
         {% if bill.discount_reason %}
-        <div class="text-xs text-gray-500 mb-1">Reason: {{ bill.discount_reason }}</div>
+        <div class="mt-2 rounded border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
+          <span class="font-medium">Discount reason:</span> {{ bill.discount_reason }}
+        </div>
         {% endif %}
         {% endif %}
         <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2">

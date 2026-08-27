@@ -102,7 +102,7 @@
 
         <!-- Consultation Options -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <!-- Record Eye Exam -->
+          <!-- Add Record and Exam -->
           {% if appointment %}
           <a href="{% url 'DurielEyeApp:record_eye_exam' appointment.pk %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
             <div class="flex items-center justify-center mb-4">
@@ -110,7 +110,7 @@
                 <i class="fas fa-eye text-xl"></i>
               </div>
             </div>
-            <h3 class="text-lg font-medium text-center text-gray-900 mb-2">Record Eye Exam</h3>
+            <h3 class="text-lg font-medium text-center text-gray-900 mb-2">Add Record and Exam</h3>
             <p class="text-sm text-center text-gray-500">Perform comprehensive eye examination</p>
           </a>
           {% else %}
@@ -120,7 +120,7 @@
                 <i class="fas fa-eye text-xl"></i>
               </div>
             </div>
-            <h3 class="text-lg font-medium text-center text-gray-500 mb-2">Record Eye Exam</h3>
+            <h3 class="text-lg font-medium text-center text-gray-500 mb-2">Add Record and Exam</h3>
             <p class="text-sm text-center text-gray-400">Schedule or open an appointment before recording an exam</p>
           </div>
           {% endif %}

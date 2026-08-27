@@ -168,17 +168,28 @@
                 <div id="selectedServices" class="flex flex-wrap gap-2 mb-4">
                     <!-- Selected services will appear here -->
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Manual Service</label>
-                        <input type="text" name="manual_service_name" id="manual_service_name"
-                               class="w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div id="manualServices" class="space-y-3">
+                        <div class="manual-service-row grid grid-cols-1 md:grid-cols-[1fr_180px_44px] gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Manual Service</label>
+                                <input type="text" name="manual_service_name"
+                                       class="manual-service-name w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Manual Cost (₦)</label>
+                                <input type="number" name="manual_service_cost" step="0.01" min="0"
+                                       class="manual-service-cost w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="button" class="remove-manual-service hidden h-10 w-10 rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100" title="Remove manual service">×</button>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Manual Cost (₦)</label>
-                        <input type="number" name="manual_service_cost" id="manual_service_cost" step="0.01" min="0"
-                               class="w-full px-3 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                    </div>
+                    <button type="button" id="addManualService"
+                            class="mt-3 inline-flex items-center px-3 py-2 rounded-md bg-blue-700 text-white text-sm hover:bg-blue-800">
+                        Add Manual Service
+                    </button>
                 </div>
             </div>
             
@@ -372,8 +383,17 @@ $(document).ready(function() {
     let baseDescription = $('#billingForm').data('edit-base-description') || '';
     let totalAmount = 0;
 
-    function manualCost() {
-        return parseFloat($('#manual_service_cost').val()) || 0;
+    function manualServices() {
+        return $('.manual-service-row').map(function() {
+            return {
+                name: $(this).find('.manual-service-name').val(),
+                amount: parseFloat($(this).find('.manual-service-cost').val()) || 0
+            };
+        }).get().filter(item => item.name || item.amount);
+    }
+
+    function updateManualRemoveButtons() {
+        $('.remove-manual-service').toggleClass('hidden', $('.manual-service-row').length <= 1);
     }
 
     function selectedLineItems() {
@@ -489,12 +509,12 @@ $(document).ready(function() {
             const line = `${service.name} - ₦${service.price.toFixed(2)}`;
             if (!existingKeys.has(descriptionKey(line))) additionalAmount += service.price;
         });
-        const manualName = $('#manual_service_name').val();
-        const manualAmount = manualCost();
-        const manualLine = `${manualName} - ₦${manualAmount.toFixed(2)}`;
-        if (manualName && manualAmount && !existingKeys.has(descriptionKey(manualLine))) {
-            additionalAmount += manualAmount;
-        }
+        manualServices().forEach(item => {
+            const manualLine = `${item.name} - ₦${item.amount.toFixed(2)}`;
+            if (item.name && item.amount && !existingKeys.has(descriptionKey(manualLine))) {
+                additionalAmount += item.amount;
+            }
+        });
         const nextAmount = baseAmount + additionalAmount;
         $('#id_amount').val(nextAmount.toFixed(2));
 
@@ -507,9 +527,12 @@ $(document).ready(function() {
             const line = `${service.name} - ₦${service.price.toFixed(2)}`;
             if (!existingKeys.has(descriptionKey(line))) lines.push(line);
         });
-        if (manualName && manualAmount && !existingKeys.has(descriptionKey(manualLine))) {
-            lines.push(manualLine);
-        }
+        manualServices().forEach(item => {
+            const manualLine = `${item.name} - ₦${item.amount.toFixed(2)}`;
+            if (item.name && item.amount && !existingKeys.has(descriptionKey(manualLine))) {
+                lines.push(manualLine);
+            }
+        });
         $('#id_description').val(lines.join('\n'));
 
         // Update all displays including discount
@@ -541,7 +564,21 @@ $(document).ready(function() {
         updateAllDisplays();
     });
 
-    $('#manual_service_name, #manual_service_cost').on('input', function() {
+    $('#manualServices').on('input', '.manual-service-name, .manual-service-cost', function() {
+        updateFormFields();
+    });
+
+    $('#addManualService').on('click', function() {
+        const $clone = $('.manual-service-row').first().clone();
+        $clone.find('input').val('');
+        $('#manualServices').append($clone);
+        updateManualRemoveButtons();
+    });
+
+    $('#manualServices').on('click', '.remove-manual-service', function() {
+        if ($('.manual-service-row').length <= 1) return;
+        $(this).closest('.manual-service-row').remove();
+        updateManualRemoveButtons();
         updateFormFields();
     });
 
@@ -550,6 +587,7 @@ $(document).ready(function() {
     });
 
     // Initialize displays on page load
+    updateManualRemoveButtons();
     updateFormFields();
 
     // Remove service function

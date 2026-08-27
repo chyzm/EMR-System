@@ -81,7 +81,7 @@ def staff_check(user):
     )
 
 def admin_check(user):
-    return user.is_authenticated and user.role == 'ADMIN'
+    return user.is_authenticated and user.role in ('ADMIN', 'ACCOUNTANT')
 
 
 

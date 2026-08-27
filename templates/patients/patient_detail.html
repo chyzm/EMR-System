@@ -355,7 +355,7 @@
                 <i class="fas fa-file-pdf mr-1"></i>Export PDF
             </a>
             <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded">
-                <i class="fas fa-plus mr-1"></i>Add Exam
+                <i class="fas fa-plus mr-1"></i>Add Record and Exam
             </a>
             {% endif %}
         {% endif %}
@@ -996,7 +996,7 @@ document.addEventListener('keydown', function(e) {
         <div class="bg-gray-800 text-white px-6 py-3 flex justify-between items-center">
             <h2 class="text-xl font-semibold"><i class="fas fa-eye mr-2"></i>Eye Exams</h2>
             {% if request.user.role in 'OPTOMETRIST' %}
-            <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="text-sm hover:underline">Add Exam</a>
+            <a href="{% url 'DurielEyeApp:begin_consultation' patient.pk %}" class="text-sm hover:underline">Add Record and Exam</a>
             {% endif %}
         </div>
         <div class="divide-y bg-gray-50">

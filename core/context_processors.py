@@ -1,5 +1,7 @@
 from core.models import Clinic  # adjust import
 from core.permissions import (
+    BILLING_ROLES,
+    REPORTING_ROLES,
     can_manage_patient_demographics,
     can_prescribe,
     can_view_patient,
@@ -22,18 +24,18 @@ def permission_context(request):
     can_access_patients = can_view_patient(user)
     can_create_patient = can_manage_patient_demographics(user)
     can_delete_patient = can_access_administration
-    can_view_billing_status = has_role(user, "ADMIN", "RECEPTIONIST")
-    can_manage_billing = has_role(user, "ADMIN", "RECEPTIONIST")
-    can_manage_services = has_role(user, "ADMIN", "RECEPTIONIST")
+    can_view_billing_status = has_role(user, *BILLING_ROLES)
+    can_manage_billing = has_role(user, *BILLING_ROLES)
+    can_manage_services = has_role(user, *BILLING_ROLES)
     can_access_pharmacy = has_role(user, "ADMIN", "PHARMACIST")
     can_access_lab_queue = has_role(user, "DOCTOR", "NURSE", "LAB_TECHNICIAN")
     can_manage_lab = has_role(user, "ADMIN")
-    can_view_reports = has_role(user, "ADMIN")
+    can_view_reports = has_role(user, *REPORTING_ROLES)
     can_access_settings = has_role(user, "ADMIN")
     can_access_admissions = has_role(user, "ADMIN", "DOCTOR", "NURSE") and is_general
     can_access_vitals = has_role(user, "ADMIN", "RECEPTIONIST", "NURSE", "DOCTOR", "OPTOMETRIST", "DENTIST")
     can_access_eye_consultation = is_eye and has_role(user, "DOCTOR", "OPTOMETRIST")
-    can_access_optical_lab = is_eye and has_role(user, "OPTICIAN")
+    can_access_optical_lab = is_eye and has_role(user, "ADMIN", "OPTICIAN")
     can_manage_eye_appointments = is_eye and has_role(
         user,
         "ADMIN",

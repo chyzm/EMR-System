@@ -635,7 +635,20 @@ def _snapshot_queryset_for_clinic(model, clinic):
     if label == 'core.Clinic':
         return model.objects.filter(pk=clinic.pk)
     if label == 'DurielMedicApp.Vitals':
-        return model.objects.filter(appointment__clinic=clinic)
+        appointment_filters = Q(appointment__clinic=clinic)
+        for appointment_label in (
+            'DurielMedicApp.Appointment',
+            'DurielEyeApp.EyeAppointment',
+            'DurielDentalApp.DentalAppointment',
+        ):
+            appointment_model = apps.get_model(appointment_label)
+            content_type = ContentType.objects.get_for_model(appointment_model)
+            appointment_ids = appointment_model.objects.filter(clinic=clinic).values_list('pk', flat=True)
+            appointment_filters |= Q(
+                appointment_content_type=content_type,
+                appointment_object_id__in=appointment_ids,
+            )
+        return model.objects.filter(appointment_filters)
     if label == 'core.Payment':
         return model.objects.filter(billing__clinic=clinic)
     if label == 'core.NotificationRead':

@@ -990,6 +990,45 @@ document.addEventListener('keydown', function(e) {
 {% endif %}
 {% endif %}
 
+    <!-- Prescription Services and Optical (only for EYE clinic) -->
+    {% if request.session.clinic_type == "EYE" and eye_exams %}
+    <div id="eye-prescription-services-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div class="bg-indigo-700 text-white px-6 py-3">
+            <h2 class="text-xl font-semibold"><i class="fas fa-glasses mr-2"></i>Prescription Services and Optical</h2>
+        </div>
+        <div class="divide-y bg-gray-50">
+            {% for exam in eye_exams %}
+                {% if exam.optical_services.exists or exam.optician_order %}
+                <div class="p-4">
+                    <div class="rounded-lg border border-gray-200 bg-white p-4">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="font-semibold text-gray-900">Eye Exam - {{ exam.created_at|date:"M j, Y" }}</h3>
+                            <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">View Exam</a>
+                        </div>
+                        {% if exam.optical_services.exists %}
+                        <div class="mb-3">
+                            <p class="text-sm font-medium text-gray-700">Services and Optical</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                {% for service in exam.optical_services.all %}
+                                <span class="rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">{{ service.name }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if exam.optician_order %}
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">Optician Order</p>
+                            <p class="mt-1 whitespace-pre-wrap text-sm text-gray-700">{{ exam.optician_order }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Eye Exams Section (only for EYE clinic) -->
     {% if request.session.clinic_type == "EYE" and eye_exams %}
 		    <div id="eye-exams-section" class="mt-8 bg-white rounded-lg shadow overflow-hidden">
@@ -1031,12 +1070,11 @@ document.addEventListener('keydown', function(e) {
                         <p class="text-xs text-gray-500">{{ exam.created_at|date:"M j, Y" }}</p>
 	                        <div class="flex items-center gap-3">
 	                            <a href="{% url 'DurielEyeApp:view_eye_exam' exam.id %}" class="text-sm font-medium text-gray-700 hover:text-gray-900">View</a>
-                                {% if exam.encounter_id %}
-                                <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}?encounter_id={{ exam.encounter_id }}" class="text-sm font-medium text-red-600 hover:text-red-800">PDF</a>
-                                {% elif exam.appointment_id %}
-                                <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}?appointment_id={{ exam.appointment_id }}" class="text-sm font-medium text-red-600 hover:text-red-800">PDF</a>
-                                {% endif %}
+                                <a href="{% url 'DurielEyeApp:export_patient_record_pdf' patient.patient_id %}?eye_exam_id={{ exam.id }}" class="text-sm font-medium text-red-600 hover:text-red-800">PDF</a>
 	                            {% if request.user.role in 'OPTOMETRIST' %}
+                            {% if exam.appointment_id %}
+                            <a href="{% url 'core:add_prescription' patient.patient_id %}?appointment_id={{ exam.appointment_id }}&appointment_type=eye" class="text-sm font-medium text-emerald-600 hover:text-emerald-800">Prescription</a>
+                            {% endif %}
                             <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">Edit</a>
                             <form action="{% url 'DurielEyeApp:delete_eye_exam' exam.id %}" method="post" class="inline">
                                 {% csrf_token %}

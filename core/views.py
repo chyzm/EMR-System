@@ -102,7 +102,7 @@ def privacy_view(request):
 
 # ---------- Role Checks ----------
 def staff_check(user):
-    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN']
+    return user.is_authenticated and user.role in ['ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST', 'OPTOMETRIST', 'OPTICIAN', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'ACCOUNTANT', 'LAB_TECHNICIAN']
 
 def admin_check(user):
     return user.is_authenticated and (user.is_superuser or user.role == 'ADMIN')
@@ -148,7 +148,7 @@ def clinic_dashboard_check(user):
     return user.is_authenticated and (
         user.is_superuser or getattr(user, 'role', None) in [
         'ADMIN', 'DOCTOR', 'DENTIST', 'NURSE', 'PHARMACIST',
-        'OPTOMETRIST', 'OPTICIAN', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'LAB_TECHNICIAN'
+        'OPTOMETRIST', 'OPTICIAN', 'PHYSIOTHERAPIST', 'RECEPTIONIST', 'ACCOUNTANT', 'LAB_TECHNICIAN'
         ]
     )
 
@@ -999,7 +999,7 @@ class PatientDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         if self.request.session.get('clinic_type') == 'EYE':
             eye_exams_list = patient.eye_exams.select_related(
                 'encounter', 'appointment', 'frame_product', 'lens_product'
-            ).order_by('-created_at')
+            ).prefetch_related('optical_services').order_by('-created_at')
             exams_paginator = Paginator(eye_exams_list, items_per_page)
             exams_page = self.request.GET.get('exams_page', 1)
             try:
@@ -1898,6 +1898,12 @@ def build_billing_service_notes(patient, clinic_id, appointment=None, encounter=
                 eye_exams = EyeExam.objects.none()
             for exam in eye_exams.order_by('created_at', 'id'):
                 notes.append('Eye Exam')
+                optical_services = [service.name for service in exam.optical_services.all()]
+                if optical_services:
+                    notes.append('Optical services requested: ' + ', '.join(optical_services))
+                optician_order_note = _short_service_note('Optician order', exam.optician_order)
+                if optician_order_note:
+                    notes.append(optician_order_note)
                 frame_note = _short_service_note('Manual frame prescription', exam.frame_prescription)
                 lens_note = _short_service_note('Manual lens prescription', exam.lens_prescription)
                 if frame_note:

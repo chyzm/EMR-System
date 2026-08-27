@@ -36,6 +36,14 @@
     return `<div><label class="block text-sm font-medium text-gray-700 mb-1">${label}</label><select name="${name}" ${attributes} class="w-full px-3 py-2 border border-gray-300 rounded-md">${options}</select></div>`;
   }
 
+  function multiSelectDropdown(label, name, records) {
+    const options = records.length ? records.map((record) => {
+      const serviceName = escapeHtml(value(record, 'name'));
+      return `<label class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-indigo-50"><input type="checkbox" name="${name}" value="${record.syncId}" class="h-4 w-4 rounded border-gray-300 text-indigo-600">${serviceName}</label>`;
+    }).join('') : '<p class="px-3 py-2 text-sm text-gray-500">No services available offline.</p>';
+    return `<div><label class="block text-sm font-medium text-gray-700 mb-1">${label}</label><details class="relative"><summary class="w-full cursor-pointer list-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm">Select services and optical</summary><div class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">${options}</div></details></div>`;
+  }
+
   function submit(label) {
     return `<div class="sticky bottom-0 -mx-5 mt-5 flex justify-end border-t border-gray-200 bg-white px-5 py-4"><button type="submit" class="px-5 py-2.5 bg-blue-600 text-white rounded-md font-medium shadow hover:bg-blue-700">${label}</button></div>`;
   }
@@ -50,21 +58,23 @@
       appointment: ['ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST'],
       vitals: ['ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'],
       medical: ['ADMIN', 'DOCTOR', 'NURSE'],
+      eye_exam: ['ADMIN', 'DOCTOR', 'OPTOMETRIST'],
       admission: ['ADMIN', 'DOCTOR', 'NURSE'],
       followup: ['ADMIN', 'DOCTOR'],
-      billing: ['ADMIN', 'RECEPTIONIST'],
-      payment: ['ADMIN', 'RECEPTIONIST'],
+      billing: ['ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'],
+      payment: ['ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'],
     })[action] || [];
   }
 
   function statusAfterAction(action) {
-    return ({ vitals: 'VITALS_TAKEN', medical: 'CONSULTATION_COMPLETE', admission: 'ADMITTED', followup: 'FOLLOW_UP' })[action];
+    return ({ vitals: 'VITALS_TAKEN', medical: 'CONSULTATION_COMPLETE', eye_exam: 'CONSULTATION_COMPLETE', admission: 'ADMITTED', followup: 'FOLLOW_UP' })[action];
   }
 
   function actionAllowedForStatus(action, status) {
     if (['appointment', 'billing', 'payment'].includes(action)) return true;
     if (action === 'vitals') return ['REGISTERED', 'INSURANCE'].includes(status);
     if (action === 'medical') return ['REGISTERED', 'INSURANCE', 'VITALS_TAKEN', 'IN_CONSULTATION'].includes(status);
+    if (action === 'eye_exam') return ['REGISTERED', 'INSURANCE', 'VITALS_TAKEN', 'IN_CONSULTATION'].includes(status);
     if (action === 'admission') return ['VITALS_TAKEN', 'CONSULTATION_COMPLETE'].includes(status);
     if (action === 'followup') return ['IN_CONSULTATION', 'CONSULTATION_COMPLETE'].includes(status);
     return false;
@@ -108,7 +118,7 @@
   }
 
   async function recordsForPatient() {
-    const types = ['appointment', 'vitals', 'medical_record', 'admission', 'follow_up', 'billing', 'payment'];
+    const types = ['appointment', 'vitals', 'medical_record', 'eye_exam', 'admission', 'follow_up', 'billing', 'payment'];
     const groups = await Promise.all(types.map((type) => window.offlineQueue.listRecords(type)));
     return groups.flat().filter((record) => {
       const patientSyncId = value(record, '_patient_sync_id') || value(record, 'patient_sync_id');
@@ -142,10 +152,12 @@
         <p><strong>Contact:</strong> ${escapeHtml(value(selectedPatient, 'contact'))}</p>
         <p><strong>Allergies:</strong> ${escapeHtml(value(selectedPatient, 'allergies') || 'None recorded')}</p>
       </div>`;
-    const actions = ['appointment', 'vitals', 'medical', 'admission', 'followup', 'billing', 'payment'];
+    const context = window.offlineQueue.getContext() || {};
+    const isEyeClinic = context.clinic && context.clinic.type === 'EYE';
+    const actions = ['appointment', 'vitals', isEyeClinic ? 'eye_exam' : 'medical', 'admission', 'followup', 'billing', 'payment'];
     const currentStatus = value(selectedPatient, 'status') || 'REGISTERED';
     const permitted = actions.filter((action) => allowedRoles(action).includes(contextRole()) && actionAllowedForStatus(action, currentStatus));
-    panel.querySelector('#local-workflow-actions').innerHTML = permitted.map((action) => `<button type="button" data-local-action="${action}" class="flex-none whitespace-nowrap rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-blue-600 hover:text-white">${action === 'medical' ? 'Patient Record' : action.charAt(0).toUpperCase() + action.slice(1)}</button>`).join('');
+    panel.querySelector('#local-workflow-actions').innerHTML = permitted.map((action) => `<button type="button" data-local-action="${action}" class="flex-none whitespace-nowrap rounded-md bg-gray-200 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-blue-600 hover:text-white">${action === 'medical' ? 'Patient Record' : action === 'eye_exam' ? 'Eye Exam' : action.charAt(0).toUpperCase() + action.slice(1)}</button>`).join('');
     panel.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     await renderActivity();
@@ -172,6 +184,11 @@
       form.innerHTML = appointments.length ? `${selectField('Appointment', '_appointment_sync_id', options, 'required')}<div class="grid gap-4 md:grid-cols-2">${field('Blood pressure', 'blood_pressure', 'text', 'required placeholder="120/80"')}${field('Pulse', 'pulse', 'number', 'required')}</div><div class="grid gap-4 md:grid-cols-2">${field('Temperature', 'temperature', 'number', 'required step="0.1"')}${field('Weight (kg)', 'weight', 'number', 'required step="0.1"')}</div>${selectField('Category', 'category', '<option value="CONSULT">Consultation</option><option value="FOLLOWUP">Follow-up</option>')}${textArea('Notes', 'notes')}${submit('Save Vitals')}` : '<p class="text-amber-700">Create an appointment for this patient before recording vitals.</p>';
     } else if (action === 'medical') {
       form.innerHTML = `${textArea('Chief complaint', 'chief_complaint')}${textArea('History of present illness', 'history_of_present_illness')}${textArea('Past medical history', 'past_medical_history')}${textArea('Diagnosis', 'diagnosis')}${textArea('Treatment plan', 'treatment_plan')}${textArea('Lab results', 'lab_results')}${textArea('Imaging results', 'imaging_results')}${textArea('Allergies', 'allergies')}${textArea('Procedures', 'procedures')}${textArea('Additional notes', 'additional_notes')}${submit('Save Patient Record')}`;
+    } else if (action === 'eye_exam') {
+      const appointments = await optionRecords('appointment', (record) => value(record, 'patient_sync_id') === selectedPatient.syncId || value(record, '_patient_sync_id') === selectedPatient.syncId);
+      const services = await optionRecords('service');
+      const appointmentOptions = appointments.map((appointment) => `<option value="${escapeHtml(appointment.syncId)}">${escapeHtml(value(appointment, 'date'))} ${escapeHtml(value(appointment, 'start_time'))} — ${escapeHtml(value(appointment, 'reason'))}</option>`).join('');
+      form.innerHTML = appointments.length ? `${selectField('Appointment', '_appointment_sync_id', appointmentOptions, 'required')}<div class="grid gap-4 md:grid-cols-2">${textArea('Chief complaint', 'chief_complaint')}${textArea('Ocular history', 'ocular_history')}${textArea('Systemic risk factors', 'systemic_risk_factors')}${textArea('Ocular medications', 'ocular_medications')}${textArea('Eye allergies', 'eye_allergies')}${field('Pupils / PERRLA', 'pupils_perrla')}${field('RAPD note', 'rapd_note')}${field('Extraocular motility', 'extraocular_motility')}${field('Cover test', 'cover_test')}${field('Confrontation visual fields', 'confrontation_visual_fields')}${field('Colour vision', 'colour_vision')}${field('IOP method', 'iop_method')}${field('IOP time', 'iop_time')}</div><div class="grid gap-4 md:grid-cols-2">${field('Right visual acuity', 'visual_acuity_right')}${field('Left visual acuity', 'visual_acuity_left')}${field('Right corrected acuity', 'visual_acuity_right_corrected')}${field('Left corrected acuity', 'visual_acuity_left_corrected')}${field('Right pinhole', 'pinhole_right')}${field('Left pinhole', 'pinhole_left')}${field('Right near vision', 'near_vision_right')}${field('Left near vision', 'near_vision_left')}${field('Right IOP', 'intraocular_pressure_right', 'number', 'step="0.01"')}${field('Left IOP', 'intraocular_pressure_left', 'number', 'step="0.01"')}${field('Right sphere', 'sphere_right')}${field('Left sphere', 'sphere_left')}${field('Right cylinder', 'cylinder_right')}${field('Left cylinder', 'cylinder_left')}${field('Right axis', 'axis_right')}${field('Left axis', 'axis_left')}${field('Right add', 'add_right')}${field('Left add', 'add_left')}${field('Right pupil size', 'pupil_size_right')}${field('Left pupil size', 'pupil_size_left')}${field('Right cup/disc ratio', 'cup_disc_ratio_right')}${field('Left cup/disc ratio', 'cup_disc_ratio_left')}${field('Right keratometry', 'keratometry_right')}${field('Left keratometry', 'keratometry_left')}${field('Right pachymetry', 'pachymetry_right')}${field('Left pachymetry', 'pachymetry_left')}${field('Right prism', 'prism_right')}${field('Left prism', 'prism_left')}${field('Right base direction', 'base_direction_right')}${field('Left base direction', 'base_direction_left')}</div>${textArea('Anterior segment findings', 'anterior_segment_findings')}${textArea('Slit lamp findings', 'slit_lamp_findings')}${textArea('Lens findings', 'lens_findings')}${textArea('Posterior segment findings', 'posterior_segment_findings')}${textArea('Fundus exam findings', 'fundus_exam_findings')}${textArea('Retina findings', 'retina_findings')}${textArea('Optic disc findings', 'optic_disc_findings')}${textArea('Right refraction', 'refraction_right')}${textArea('Left refraction', 'refraction_left')}${field('Right objective refraction', 'objective_refraction_right')}${field('Left objective refraction', 'objective_refraction_left')}${field('Right final prescription', 'final_prescription_right')}${field('Left final prescription', 'final_prescription_left')}${field('Pupillary distance', 'pupillary_distance')}${textArea('Diagnosis', 'diagnosis')}${textArea('Treatment plan', 'treatment_plan')}${textArea('Procedure notes', 'procedure_notes')}${textArea('Imaging results', 'imaging_results')}${textArea('Spectacle or contact lens plan', 'spectacle_or_contact_lens_plan')}${multiSelectDropdown('Services and Optical', 'optical_services', services)}${textArea('Optician order', 'optician_order')}${textArea('Follow-up plan', 'follow_up_plan')}${textArea('Notes', 'notes')}${submit('Save Eye Exam')}` : '<p class="text-amber-700">Create an eye appointment for this patient before recording an eye exam.</p>';
     } else if (action === 'admission') {
       const providers = await optionRecords('provider');
       const options = providers.map((provider) => `<option value="${escapeHtml(provider.syncId)}">${escapeHtml(value(provider, 'name') || value(provider, 'username'))}</option>`).join('');
@@ -203,7 +220,7 @@
     new FormData(form).forEach((fieldValue, key) => {
       payload[key] = Object.prototype.hasOwnProperty.call(payload, key) ? [].concat(payload[key], fieldValue) : fieldValue;
     });
-    const syncAction = ({ appointment: 'appointment_create', vitals: 'record_vitals', medical: 'add_medical_record', admission: 'admit_patient', followup: 'schedule_follow_up', billing: 'create_bill', payment: 'record_payment' })[action];
+    const syncAction = ({ appointment: 'appointment_create', vitals: 'record_vitals', medical: 'add_medical_record', eye_exam: 'record_eye_exam', admission: 'admit_patient', followup: 'schedule_follow_up', billing: 'create_bill', payment: 'record_payment' })[action];
     await window.offlineQueue.enqueue(syncAction, payload);
     const nextStatus = statusAfterAction(action);
     if (nextStatus) {

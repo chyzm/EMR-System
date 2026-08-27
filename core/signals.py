@@ -202,3 +202,19 @@ def capture_server_sync_many_to_many(sender, instance, action, **kwargs):
     if not should_capture_changes() or not is_syncable_model(instance.__class__):
         return
     record_change(instance, 'update')
+
+
+@receiver(post_save)
+@receiver(post_delete)
+def clear_vitals_queue_count_cache(sender, instance, **kwargs):
+    if sender.__name__ != 'Vitals':
+        return
+    clinic = getattr(instance, 'clinic', None)
+    appointment = getattr(instance, 'appointment_object', None) or getattr(instance, 'appointment', None)
+    if not clinic and appointment:
+        clinic = getattr(appointment, 'clinic', None)
+    if not clinic:
+        return
+    from django.core.cache import cache
+    for role in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST']:
+        cache.delete(f"vitals:queue-count:{clinic.pk}:{role}")

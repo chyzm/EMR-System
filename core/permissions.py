@@ -9,6 +9,19 @@ DENTAL_CLINICAL_ROLES = ('DENTIST',)
 PRESCRIBER_ROLES = ('DOCTOR', 'OPTOMETRIST', 'DENTIST')
 PHARMACY_ROLES = ('ADMIN', 'PHARMACIST')
 OPTICAL_ROLES = ('ADMIN', 'OPTOMETRIST', 'OPTICIAN', 'RECEPTIONIST')
+STAFF_ROLES = (
+    'ADMIN',
+    'DOCTOR',
+    'DENTIST',
+    'NURSE',
+    'PHARMACIST',
+    'OPTOMETRIST',
+    'OPTICIAN',
+    'PHYSIOTHERAPIST',
+    'RECEPTIONIST',
+    'ACCOUNTANT',
+    'LAB_TECHNICIAN',
+)
 
 
 def has_role(user, *roles):
@@ -37,6 +50,7 @@ def can_view_patient(user):
         'PHARMACIST',
         'RECEPTIONIST',
         'OPTOMETRIST',
+        'ACCOUNTANT',
         'PHYSIOTHERAPIST',
         'LAB_TECHNICIAN',
     )

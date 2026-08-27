@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core import signing
 from django.db import transaction
 from django.db.models import Q
@@ -20,10 +21,11 @@ from django.views.decorators.http import require_GET, require_POST
 
 from core.decorators import clinic_selected_required
 from core.forms import BillingForm, PatientForm
-from core.models import Billing, Clinic, Notification, Patient, Payment, ServerSyncChange, ServicePriceList, SyncOperation
+from core.models import Billing, BillingLineItem, Clinic, Notification, Patient, Payment, ServerSyncChange, ServicePriceList, SyncOperation
 from core.server_sync import apply_change, model_label, role, serialize_instance
-from core.utils import log_action
-from DurielEyeApp.models import EyeAppointment
+from core.utils import appointment_billing_filter, get_or_create_encounter_for_appointment, log_action
+from DurielEyeApp.forms import EyeExamForm
+from DurielEyeApp.models import EyeAppointment, EyeExam, OpticalProduct
 from DurielMedicApp.forms import (
     AdmissionForm,
     AppointmentForm,
@@ -100,13 +102,14 @@ def _patient_for_payload(data, clinic):
 
 def _appointment_for_payload(data, clinic):
     appointment_sync_id = data.get('_appointment_sync_id') or data.get('appointment_sync_id')
+    appointment_model = EyeAppointment if clinic.clinic_type == 'EYE' else Appointment
     if appointment_sync_id:
-        return Appointment.objects.get(sync_id=appointment_sync_id, clinic=clinic)
+        return appointment_model.objects.get(sync_id=appointment_sync_id, clinic=clinic)
 
     appointment_id = data.get('appointment') or data.get('appointment_id')
     if not appointment_id:
         raise SyncValidationError('No appointment selected')
-    return Appointment.objects.get(id=appointment_id, clinic=clinic)
+    return appointment_model.objects.get(id=appointment_id, clinic=clinic)
 
 
 def _bill_for_payload(data, clinic, lock=False):
@@ -191,6 +194,8 @@ def _sync_vitals(request, item, data):
     if patient.status in ['REGISTERED', 'INSURANCE']:
         patient.status = 'VITALS_TAKEN'
         patient.save(update_fields=['status'])
+    for role_name in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST']:
+        cache.delete(f"vitals:queue-count:{request.clinic.pk}:{role_name}")
     log_action(request, 'CREATE', vitals, details=f'Recorded vitals for {patient.full_name}')
     return {'recordId': str(vitals.sync_id), 'vitals_id': vitals.id, 'server_id': vitals.id}
 
@@ -210,6 +215,50 @@ def _sync_medical_record(request, item, data):
         patient.save(update_fields=['status'])
     log_action(request, 'CREATE', record, details=f'Added medical record for {patient.full_name}')
     return {'recordId': str(record.sync_id), 'record_id': record.id, 'server_id': record.id}
+
+
+def _sync_eye_exam(request, item, data):
+    appointment = _appointment_for_payload(data, request.clinic)
+    if not isinstance(appointment, EyeAppointment):
+        raise SyncValidationError('Eye exam requires an eye appointment')
+    form_data = _clean_payload(data)
+    form_data['appointment'] = appointment.id
+    form = EyeExamForm(form_data, clinic_id=request.clinic.id)
+    if not form.is_valid():
+        raise SyncValidationError(_form_error(form))
+    exam = form.save(commit=False)
+    exam.sync_id = _record_uuid(item, data)
+    exam.patient = appointment.patient
+    exam.appointment = appointment
+    exam.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
+    exam.created_by = request.user
+    exam.save()
+    form.save_m2m()
+    source_ct = ContentType.objects.get_for_model(exam)
+    for service in exam.optical_services.all():
+        item_obj, created = BillingLineItem.objects.get_or_create(
+            clinic=request.clinic,
+            patient=exam.patient,
+            source_type='OPTICAL',
+            source_content_type=source_ct,
+            source_object_id=f"{exam.sync_id}:service:{service.sync_id}",
+            defaults={
+                'service': service,
+                'description': service.name[:255],
+                'quantity': Decimal('1.00'),
+                'unit_price': service.price,
+                **appointment_billing_filter(appointment),
+                'encounter': exam.encounter,
+                'created_by': request.user,
+            },
+        )
+        if created:
+            item_obj.approve(request.user)
+    if appointment.patient.status in ['REGISTERED', 'INSURANCE', 'VITALS_TAKEN', 'IN_CONSULTATION']:
+        appointment.patient.status = 'CONSULTATION_COMPLETE'
+        appointment.patient.save(update_fields=['status'])
+    log_action(request, 'CREATE', exam, details=f'Recorded eye exam for {exam.patient.full_name}')
+    return {'recordId': str(exam.sync_id), 'eye_exam_id': exam.id, 'server_id': exam.id}
 
 
 def _sync_admission(request, item, data):
@@ -350,6 +399,7 @@ ACTION_HANDLERS = {
     'appointment_create': _sync_appointment,
     'record_vitals': _sync_vitals,
     'add_medical_record': _sync_medical_record,
+    'record_eye_exam': _sync_eye_exam,
     'admit_patient': _sync_admission,
     'schedule_follow_up': _sync_follow_up,
     'create_bill': _sync_bill,
@@ -361,10 +411,11 @@ ACTION_ROLES = {
     'appointment_create': {'ADMIN', 'DOCTOR', 'RECEPTIONIST', 'NURSE', 'OPTOMETRIST'},
     'record_vitals': {'ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE'},
     'add_medical_record': {'ADMIN', 'DOCTOR', 'NURSE'},
+    'record_eye_exam': {'ADMIN', 'DOCTOR', 'OPTOMETRIST'},
     'admit_patient': {'ADMIN', 'DOCTOR', 'NURSE'},
     'schedule_follow_up': {'ADMIN', 'DOCTOR'},
-    'create_bill': {'ADMIN', 'RECEPTIONIST'},
-    'record_payment': {'ADMIN', 'RECEPTIONIST'},
+    'create_bill': {'ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'},
+    'record_payment': {'ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'},
 }
 
 
@@ -426,11 +477,13 @@ def offline_bootstrap(request):
     ])
     has_more_patients = len(patient_batch) > patient_page_size
     patients = patient_batch[:patient_page_size]
-    appointments = Appointment.objects.none() if metadata_only else Appointment.objects.filter(
+    appointment_model = EyeAppointment if clinic.clinic_type == 'EYE' else Appointment
+    appointments = appointment_model.objects.none() if metadata_only else appointment_model.objects.filter(
         clinic=clinic,
         date__gte=recent_cutoff,
     ).select_related('patient', 'provider').order_by('date', 'start_time')[:500]
     services = ServicePriceList.objects.none() if metadata_only else ServicePriceList.objects.filter(clinic=clinic, is_active=True).order_by('name')
+    optical_products = OpticalProduct.objects.none() if metadata_only or clinic.clinic_type != 'EYE' else OpticalProduct.objects.filter(clinic=clinic, status='ACTIVE').order_by('product_type', 'brand', 'name')
     bills = Billing.objects.none() if metadata_only else Billing.objects.filter(clinic=clinic).exclude(status__in=['PAID', 'CANCELLED']).select_related('patient').order_by('-updated_at')[:500]
     providers = get_user_model().objects.none() if metadata_only else get_user_model().objects.filter(clinic=clinic, is_active=True).distinct().order_by('first_name', 'last_name')
 
@@ -475,6 +528,17 @@ def offline_bootstrap(request):
         'services': [
             {'id': service.id, 'name': service.name, 'description': service.description, 'price': str(service.price)}
             for service in services
+        ],
+        'optical_products': [
+            {
+                'id': product.id,
+                'product_type': product.product_type,
+                'name': product.name,
+                'brand': product.brand,
+                'model_code': product.model_code,
+                'quantity_in_stock': product.quantity_in_stock,
+            }
+            for product in optical_products
         ],
         'bills': [
             {

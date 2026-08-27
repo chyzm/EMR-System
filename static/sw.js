@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'durielmedic-static-v5';
-const PAGE_CACHE_PREFIX = 'durielmedic-pages-v5-';
+const STATIC_CACHE = 'durielmedic-static-v9';
+const PAGE_CACHE_PREFIX = 'durielmedic-pages-v9-';
 const CONTEXT_CACHE = 'durielmedic-worker-context-v1';
 const CONTEXT_URL = '/__durielmedic_worker_context__';
 const CORE_ASSETS = [

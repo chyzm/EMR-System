@@ -370,6 +370,7 @@ def record_vitals(request, patient_id):
             if patient.status == 'REGISTERED':
                 patient.status = 'VITALS_TAKEN'
                 patient.save(update_fields=['status'])
+            _clear_vitals_queue_count_cache(patient.clinic)
             notify_roles(
                 patient.clinic,
                 ['DOCTOR'],
@@ -409,6 +410,18 @@ def _vitals_redirect(request, patient):
     return redirect('core:patient_detail', pk=patient.patient_id)
 
 
+def _clear_vitals_queue_count_cache(clinic):
+    for role in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST']:
+        cache.delete(f"vitals:queue-count:{clinic.pk}:{role}")
+
+
+def _clear_physio_queue_count_cache(clinic):
+    User = get_user_model()
+    users = User.objects.filter(clinic=clinic, role__in=['ADMIN', 'DOCTOR', 'PHYSIOTHERAPIST'])
+    for user in users:
+        cache.delete(f"physio:queue-count:{clinic.pk}:{user.role}:{user.pk}")
+
+
 @require_POST
 @login_required
 @clinic_selected_required
@@ -428,6 +441,7 @@ def record_appointment_vitals(request, clinic_type, appointment_id):
         if patient.status == 'REGISTERED':
             patient.status = 'VITALS_TAKEN'
             patient.save(update_fields=['status'])
+        _clear_vitals_queue_count_cache(patient.clinic)
         next_roles = {
             'GENERAL': ['DOCTOR'],
             'EYE': ['DOCTOR', 'OPTOMETRIST'],
@@ -447,6 +461,7 @@ def record_appointment_vitals(request, clinic_type, appointment_id):
             object_id=patient.patient_id,
             actor=request.user,
             provider=getattr(appointment, 'provider', None),
+            provider_only=True,
         )
         messages.success(request, "Vitals recorded successfully!")
     else:
@@ -634,6 +649,7 @@ def refer_to_physiotherapy(request, patient_id):
             referral.appointment = appointment
             referral.referred_by = request.user
             referral.save()
+            _clear_physio_queue_count_cache(request.clinic)
             log_action(request, 'CREATE', referral, details=f"Referred {patient.full_name} to physiotherapy")
             notify_role_handoff(
                 request.clinic,
@@ -773,6 +789,7 @@ def update_physiotherapy_referral_status(request, referral_id, status):
     if normalized_status == 'COMPLETED':
         referral.completed_at = timezone.now()
     referral.save()
+    _clear_physio_queue_count_cache(request.clinic)
     log_action(request, 'UPDATE', referral, details=f"Physiotherapy referral marked {valid_statuses[normalized_status]} for {referral.patient.full_name}")
 
     if normalized_status == 'COMPLETED':
@@ -815,6 +832,7 @@ def complete_physiotherapy_consultation(request, appointment_id):
         appointment=appointment,
     )
     if completed_appointment or completed_referrals:
+        _clear_physio_queue_count_cache(request.clinic)
         ensure_appointment_consultation_charge(
             appointment,
             request.user,
@@ -1080,6 +1098,8 @@ def add_physiotherapy_record(request, patient_id):
                 patient,
                 appointment=appointment,
             )
+            if completed_appointment or completed_referrals:
+                _clear_physio_queue_count_cache(request.clinic)
             if completed_appointment:
                 ensure_appointment_consultation_charge(
                     completed_appointment,

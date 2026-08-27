@@ -50,6 +50,8 @@ from django.db import models
 def _sync_optical_prescription_request(exam, actor):
     has_optical_request = (
         exam.frame_prescribed or exam.lens_prescribed or
+        exam.optical_services.exists() or
+        bool(exam.optician_order) or
         bool(exam.frame_product) or bool(exam.lens_product) or
         bool(exam.frame_prescription) or bool(exam.lens_prescription)
     )
@@ -72,10 +74,63 @@ def _sync_optical_prescription_request(exam, actor):
                 exam.lens_prescription or
                 (exam.lens_product.display_name if exam.lens_product else '')
             ) if exam.lens_prescribed or exam.lens_product or exam.lens_prescription else '',
+            'optician_order': exam.optician_order or '',
             'prescribed_by': actor,
         },
     )
     return request_obj
+
+
+def _sync_eye_exam_optical_services_to_billing(exam, actor):
+    appointment = exam.appointment
+    encounter = exam.encounter or (get_or_create_encounter_for_appointment(appointment, actor) if appointment else None)
+    source_ct = ContentType.objects.get_for_model(exam)
+    selected_service_keys = [
+        f"{exam.sync_id}:service:{service.sync_id}"
+        for service in exam.optical_services.all()
+    ]
+
+    BillingLineItem.objects.filter(
+        clinic=exam.patient.clinic,
+        patient=exam.patient,
+        source_type='OPTICAL',
+        source_content_type=source_ct,
+        source_object_id__startswith=f"{exam.sync_id}:service:",
+        status__in=['DRAFT', 'APPROVED'],
+    ).exclude(source_object_id__in=selected_service_keys).update(status='VOIDED')
+
+    for service in exam.optical_services.all():
+        item, created = BillingLineItem.objects.get_or_create(
+            clinic=exam.patient.clinic,
+            patient=exam.patient,
+            source_type='OPTICAL',
+            source_content_type=source_ct,
+            source_object_id=f"{exam.sync_id}:service:{service.sync_id}",
+            defaults={
+                'service': service,
+                'description': service.name[:255],
+                'quantity': Decimal('1.00'),
+                'unit_price': service.price,
+                **appointment_billing_filter(appointment),
+                'encounter': encounter,
+                'created_by': actor,
+            },
+        )
+        if created:
+            item.approve(actor)
+        elif item.status in ['DRAFT', 'APPROVED']:
+            item.service = service
+            item.description = service.name[:255]
+            item.quantity = Decimal('1.00')
+            item.unit_price = service.price
+            item.appointment = appointment
+            item.encounter = encounter
+            item.save(update_fields=[
+                'service', 'description', 'quantity', 'unit_price', 'appointment_content_type',
+                'appointment_object_id', 'encounter', 'total_amount', 'updated_at',
+            ])
+            if item.status == 'DRAFT':
+                item.approve(actor)
 
 
 def _active_eye_appointment_for_patient(patient, clinic):
@@ -879,11 +934,13 @@ def record_eye_exam(request, appointment_id):
             exam.encounter = get_or_create_encounter_for_appointment(appointment, request.user)
             exam.created_by = request.user      # assign who created it
             exam.save()
+            form.save_m2m()
+            _sync_eye_exam_optical_services_to_billing(exam, request.user)
             optical_request = _sync_optical_prescription_request(exam, request.user)
             if optical_request:
                 notify_role_handoff(
                     appointment.clinic,
-                    ['OPTICIAN'],
+                    ['ADMIN', 'OPTICIAN'],
                     f"Optical prescription for {exam.patient.full_name}: {optical_request.requested_items}.",
                     link=reverse('DurielEyeApp:optical_prescription_queue'),
                     app_name='eye',
@@ -932,11 +989,12 @@ def edit_eye_exam(request, exam_id):
         form = EyeExamForm(request.POST, instance=exam, clinic_id=clinic_id)
         if form.is_valid():
             exam = form.save()
+            _sync_eye_exam_optical_services_to_billing(exam, request.user)
             optical_request = _sync_optical_prescription_request(exam, request.user)
             if optical_request:
                 notify_role_handoff(
                     exam.patient.clinic,
-                    ['OPTICIAN'],
+                    ['ADMIN', 'OPTICIAN'],
                     f"Optical prescription updated for {exam.patient.full_name}: {optical_request.requested_items}.",
                     link=reverse('DurielEyeApp:optical_prescription_queue'),
                     app_name='eye',
@@ -994,7 +1052,7 @@ def view_eye_medical_record(request, record_id):
 @clinic_selected_required
 @role_required('DOCTOR', 'OPTOMETRIST')
 def add_eye_medical_record(request, patient_id):
-    patient = get_object_or_404(Patient, pk=patient_id, clinic=request.clinic, clinic__clinic_type='EYE')
+    patient = get_object_or_404(Patient, patient_id=patient_id, clinic=request.clinic, clinic__clinic_type='EYE')
 
     if request.method == 'POST':
         form = EyeMedicalRecordForm(request.POST)
@@ -1087,6 +1145,18 @@ def export_eye_patient_record_pdf(request, patient_id):
     eye_appointment_type = ContentType.objects.get_for_model(EyeAppointment)
     encounter_id = request.GET.get('encounter_id')
     appointment_id = request.GET.get('appointment_id')
+    eye_exam_id = request.GET.get('eye_exam_id')
+    selected_exam = None
+    if eye_exam_id:
+        selected_exam = get_object_or_404(
+            EyeExam.objects.select_related('appointment', 'encounter', 'created_by').prefetch_related('optical_services'),
+            pk=eye_exam_id,
+            patient=patient,
+        )
+        if selected_exam.encounter_id:
+            encounter_id = selected_exam.encounter_id
+        elif selected_exam.appointment_id:
+            appointment_id = selected_exam.appointment_id
     encounter_filter = PatientEncounter.objects.filter(
         patient=patient,
         clinic=request.clinic,
@@ -1111,7 +1181,9 @@ def export_eye_patient_record_pdf(request, patient_id):
     eye_records = list(EyeMedicalRecord.objects.filter(patient=patient, clinic=request.clinic).select_related('created_by').order_by('-created_at'))
     eye_exams = list(EyeExam.objects.filter(patient=patient).select_related(
         'appointment', 'encounter', 'created_by', 'frame_product', 'lens_product'
-    ).order_by('-created_at'))
+    ).prefetch_related('optical_services').order_by('-created_at'))
+    if selected_exam:
+        eye_exams = [exam for exam in eye_exams if exam.pk == selected_exam.pk]
     prescriptions = list(Prescription.objects.filter(patient=patient, clinic=request.clinic).select_related(
         'clinic_medication', 'prescribed_by', 'encounter'
     ).order_by('-date_prescribed'))
@@ -1161,6 +1233,9 @@ def export_eye_patient_record_pdf(request, patient_id):
         add_text('Chief Complaint', exam.chief_complaint)
         add_text('Diagnosis', exam.diagnosis)
         add_text('Treatment Plan', exam.treatment_plan)
+        optical_services = ', '.join(service.name for service in exam.optical_services.all())
+        add_text('Services and Optical', optical_services)
+        add_text('Optician Order', exam.optician_order)
         if exam.frame_product or exam.frame_prescription:
             frame_text = exam.frame_prescription or exam.frame_product.display_name
             add_text('Frame Prescription', frame_text)
@@ -1193,6 +1268,11 @@ def export_eye_patient_record_pdf(request, patient_id):
                 prescription for prescription in prescriptions
                 if prescription.encounter_id == encounter.pk
             ]
+            if selected_exam:
+                visit_prescriptions = [
+                    prescription for prescription in visit_prescriptions
+                    if selected_exam.encounter_id and prescription.encounter_id == selected_exam.encounter_id
+                ]
             used_exam_ids.update(exam.pk for exam in visit_exams)
             used_prescription_ids.update(prescription.pk for prescription in visit_prescriptions)
 
@@ -1233,7 +1313,7 @@ def export_eye_patient_record_pdf(request, patient_id):
     else:
         story.append(Paragraph('No eye encounters recorded.', body_style))
 
-    include_unlinked = not encounters
+    include_unlinked = not encounters and not selected_exam
     unlinked_exams = [exam for exam in eye_exams if exam.pk not in used_exam_ids]
     unlinked_prescriptions = [prescription for prescription in prescriptions if prescription.pk not in used_prescription_ids]
     if include_unlinked and (unlinked_exams or unlinked_prescriptions or eye_records):
@@ -1340,21 +1420,6 @@ def complete_eye_consultation(request, patient_id):
     appointment = _active_eye_appointment_for_patient(patient, request.clinic)
     if appointment:
         ensure_appointment_consultation_charge(appointment, request.user, description='Consultation')
-        optical_dispenses = OpticalDispense.objects.filter(
-            patient=patient,
-            clinic=request.clinic,
-            unit_price__gt=0,
-        ).filter(
-            Q(appointment=appointment) |
-            Q(appointment__isnull=True, dispensed_at__date__gte=appointment.date)
-        )
-        synced_optical_items = [
-            item for item in (
-                _sync_optical_dispense_to_billing(dispense, appointment, request.user)
-                for dispense in optical_dispenses
-            )
-            if item
-        ]
         appointment.status = 'COMPLETED'
         appointment.save()
         # ✅ Add logging
@@ -1362,10 +1427,7 @@ def complete_eye_consultation(request, patient_id):
             request,
             'UPDATE',
             appointment,
-            details=(
-                f"Completed consultation for {patient.full_name}. "
-                f"Optical billing items synced: {len(synced_optical_items)}"
-            )
+            details=f"Completed consultation for {patient.full_name}."
         )
         notify_roles(
             patient.clinic,
@@ -1781,50 +1843,8 @@ OPTICAL_MANAGE_ROLES = ('ADMIN', 'OPTICIAN')
 @clinic_selected_required
 @role_required(*OPTICAL_MANAGE_ROLES)
 def optical_product_list(request):
-    """List optical inventory for the current eye clinic."""
-    clinic = request.clinic
-    products = OpticalProduct.objects.filter(clinic=clinic).order_by('name')
-
-    search = request.GET.get('search', '').strip()
-    type_filter = request.GET.get('product_type', '')
-    stock_filter = request.GET.get('stock_status', '')
-
-    if search:
-        products = products.filter(
-            Q(name__icontains=search) |
-            Q(brand__icontains=search) |
-            Q(model_code__icontains=search)
-        )
-    if type_filter:
-        products = products.filter(product_type=type_filter)
-    if stock_filter == 'out_of_stock':
-        products = products.filter(quantity_in_stock=0)
-    elif stock_filter == 'low_stock':
-        products = products.filter(
-            quantity_in_stock__lte=models.F('minimum_stock_level'),
-            quantity_in_stock__gt=0,
-        )
-    elif stock_filter == 'in_stock':
-        products = products.filter(quantity_in_stock__gt=models.F('minimum_stock_level'))
-
-    context = {
-        'products': products,
-        'search': search,
-        'type_filter': type_filter,
-        'stock_filter': stock_filter,
-        'product_types': OpticalProduct.PRODUCT_TYPES,
-        'clinic': clinic,
-        'low_stock_count': OpticalProduct.objects.filter(
-            clinic=clinic,
-            quantity_in_stock__lte=models.F('minimum_stock_level'),
-            quantity_in_stock__gt=0,
-        ).count(),
-        'pending_optical_requests': OpticalPrescriptionRequest.objects.filter(
-            clinic=clinic,
-            status__in=['PENDING', 'ACKNOWLEDGED', 'PROCESSED'],
-        ).count(),
-    }
-    return render(request, 'eye/optical/product_list.html', context)
+    """Show only optician prescription job orders on the optical lab landing page."""
+    return optical_prescription_queue(request)
 
 
 @login_required
@@ -1847,7 +1867,8 @@ def optical_prescription_queue(request):
     requests = (OpticalPrescriptionRequest.objects
                 .filter(clinic=clinic)
                 .select_related('patient', 'appointment', 'eye_exam', 'frame_product', 'lens_product', 'prescribed_by',
-                                'acknowledged_by', 'processed_by', 'dispensed_by'))
+                                'acknowledged_by', 'processed_by', 'dispensed_by')
+                .order_by('-created_at', '-pk'))
     if status_filter:
         requests = requests.filter(status=status_filter)
     return render(request, 'eye/optical/prescription_queue.html', {
@@ -1883,11 +1904,6 @@ def update_optical_prescription_status(request, pk, status):
     elif status == 'DISPENSED':
         optical_request.dispensed_by = request.user
         optical_request.dispensed_at = now
-        created_dispenses, skipped_products = _dispense_prescribed_optical_products(optical_request, request.user)
-        for product in skipped_products:
-            messages.error(request, f"Insufficient stock to dispense {product.display_name}.")
-        if skipped_products and not created_dispenses:
-            return redirect('DurielEyeApp:optical_prescription_queue')
     optical_request.status = status
     optical_request.save()
 
@@ -1898,8 +1914,6 @@ def update_optical_prescription_status(request, pk, status):
         details=f"Marked optical request for {optical_request.patient.full_name} as {optical_request.get_status_display()}",
     )
     messages.success(request, f"Optical request marked as {optical_request.get_status_display()}.")
-    if status == 'DISPENSED' and created_dispenses:
-        messages.success(request, f"{len(created_dispenses)} optical item(s) added to billing.")
     return redirect('DurielEyeApp:optical_prescription_queue')
 
 

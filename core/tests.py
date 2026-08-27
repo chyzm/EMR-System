@@ -577,6 +577,7 @@ class SyncQueueTests(TestCase):
             OpticalDispense,
             OpticalPrescriptionRequest,
             OpticalStockMovement,
+            EyeExam,
         ]
 
         for model in workflow_models:
@@ -584,6 +585,37 @@ class SyncQueueTests(TestCase):
                 self.assertTrue(is_syncable_model(model))
                 label = f'{model._meta.app_label}.{model.__name__}'
                 self.assertIn(label, SERVER_SYNC_SNAPSHOT_MODELS)
+
+    def test_eye_exam_optical_services_are_serialized_for_server_sync(self):
+        service = ServicePriceList.objects.create(
+            clinic=self.clinic,
+            name='Lens Transfer',
+            description='Move existing lenses into selected frame',
+            price=Decimal('1500.00'),
+        )
+        appointment = EyeAppointment.objects.create(
+            patient=self.patient,
+            clinic=self.clinic,
+            provider=self.user,
+            date=timezone.localdate(),
+            start_time='10:00',
+            end_time='10:30',
+            reason='Eye exam',
+        )
+        exam = EyeExam.objects.create(
+            patient=self.patient,
+            appointment=appointment,
+            created_by=self.user,
+            optician_order='Lens transfer',
+        )
+        exam.optical_services.add(service)
+
+        payload = serialize_instance(exam)
+
+        self.assertEqual(
+            payload['optical_services_refs'],
+            [{'sync_id': str(service.sync_id)}],
+        )
 
     def test_local_prescription_billing_line_item_is_queued_for_server_sync(self):
         self.activate_local_sync()
@@ -888,7 +920,7 @@ class SyncQueueTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Service-Worker-Allowed'], '/')
-        self.assertIn('durielmedic-pages-v5', response.content.decode('utf-8'))
+        self.assertIn('durielmedic-pages-v9', response.content.decode('utf-8'))
 
 
 class PatientIdPrefixTests(TestCase):

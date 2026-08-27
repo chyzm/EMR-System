@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from core.models import Patient, Clinic
+from core.models import Patient, Clinic, ServicePriceList
 import uuid
 
 class EyeMedicalRecord(models.Model):
@@ -198,6 +198,17 @@ class EyeExam(models.Model):
         limit_choices_to={'product_type__in': ['SPECTACLE_LENS', 'CONTACT_LENS']},
     )
     lens_prescription = models.TextField(blank=True, null=True)
+    optical_services = models.ManyToManyField(
+        ServicePriceList,
+        blank=True,
+        related_name='eye_exam_optical_requests',
+        help_text="Billable optical services selected from the clinic service list.",
+    )
+    optician_order = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Manual job order/instruction sent to the optician.",
+    )
     follow_up_plan = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
@@ -450,6 +461,7 @@ class OpticalPrescriptionRequest(models.Model):
         related_name='lens_prescription_requests',
     )
     lens_prescription = models.TextField(blank=True, null=True)
+    optician_order = models.TextField(blank=True, null=True)
     optician_note = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
 
@@ -492,6 +504,10 @@ class OpticalPrescriptionRequest(models.Model):
     @property
     def requested_items(self):
         items = []
+        service_names = list(self.eye_exam.optical_services.values_list('name', flat=True)) if self.eye_exam_id else []
+        items.extend(service_names)
+        if self.optician_order:
+            items.append('optician order')
         if self.frame_product or self.frame_prescription:
             items.append('frame')
         if self.lens_product or self.lens_prescription:

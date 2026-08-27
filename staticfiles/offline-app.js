@@ -145,6 +145,7 @@
       appointment_create: 'Appointment',
       record_vitals: 'Vitals entry',
       add_medical_record: 'Medical record',
+      record_eye_exam: 'Eye exam',
       admit_patient: 'Admission',
       schedule_follow_up: 'Follow-up',
       create_bill: 'Bill',
@@ -158,6 +159,7 @@
       appointment_create: 'appointment',
       record_vitals: 'vitals',
       add_medical_record: 'medical_record',
+      record_eye_exam: 'eye_exam',
       admit_patient: 'admission',
       schedule_follow_up: 'follow_up',
       create_bill: 'billing',
@@ -262,6 +264,14 @@
       syncId: String(service.id),
       status: 'synced',
       payload: service,
+      updatedAt: data.generatedAt,
+    }));
+    (data.optical_products || []).forEach((product) => records.push({
+      key: `optical_product:${product.id}`,
+      type: 'optical_product',
+      syncId: String(product.id),
+      status: 'synced',
+      payload: product,
       updatedAt: data.generatedAt,
     }));
     data.bills.forEach((bill) => records.push({

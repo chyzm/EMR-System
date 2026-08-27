@@ -91,7 +91,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'crum.CurrentRequestUserMiddleware',
     'core.middleware.ClinicMiddleware',
-  
+
 
 ]
 
@@ -109,7 +109,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                  'core.context_processors.clinic_context',
-                
+
             ],
         },
     },
@@ -217,8 +217,8 @@ else:  # PythonAnywhere/MySQLP
             'PORT': os.getenv('DB_PORT'),
         }
     }
-    
-    
+
+
 
 
 LOGIN_URL = '/login/'
@@ -414,7 +414,7 @@ DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <info@durielmedic.com.ng>'
 # EMAIL_PORT = 587
 # EMAIL_HOST_USER = 'suavedef@gmail.com'
 # EMAIL_HOST_PASSWORD = os.getenv('EMAIL_PASSWORD')
-# EMAIL_USE_TLS = True 
+# EMAIL_USE_TLS = True
 # DEFAULT_FROM_EMAIL = 'DurielMedic+ EMR <suavedef@gmail.com>'
 
 # AI Assist

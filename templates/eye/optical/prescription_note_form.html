@@ -14,16 +14,7 @@
     </div>
 
     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 text-sm text-gray-700">
-      {% if optical_request.frame_prescription %}
-        <div><span class="font-medium text-gray-900">Frame:</span> {{ optical_request.frame_prescription }}</div>
-      {% elif optical_request.frame_product %}
-        <div><span class="font-medium text-gray-900">Frame:</span> {{ optical_request.frame_product.display_name }}</div>
-      {% endif %}
-      {% if optical_request.lens_prescription %}
-        <div class="mt-2"><span class="font-medium text-gray-900">Lens:</span> {{ optical_request.lens_prescription }}</div>
-      {% elif optical_request.lens_product %}
-        <div class="mt-2"><span class="font-medium text-gray-900">Lens:</span> {{ optical_request.lens_product.display_name }}</div>
-      {% endif %}
+      <div><span class="font-medium text-gray-900">Order:</span> {{ optical_request.optician_order|default:"-" }}</div>
     </div>
 
     <form method="post">

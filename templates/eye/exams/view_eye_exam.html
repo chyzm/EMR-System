@@ -13,7 +13,11 @@
     </div>
     <div class="flex gap-2">
       <a href="{% url 'core:patient_detail' exam.patient.patient_id %}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Back</a>
+      <a href="{% url 'DurielEyeApp:export_patient_record_pdf' exam.patient.patient_id %}?eye_exam_id={{ exam.id }}" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">PDF</a>
       {% if request.user.role == 'OPTOMETRIST' %}
+      {% if exam.appointment_id %}
+      <a href="{% url 'core:add_prescription' exam.patient.patient_id %}?appointment_id={{ exam.appointment_id }}&appointment_type=eye" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">Prescription</a>
+      {% endif %}
       <a href="{% url 'DurielEyeApp:edit_eye_exam' exam.id %}" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Edit</a>
       {% endif %}
     </div>
@@ -93,6 +97,8 @@
       <div><h3 class="font-medium text-gray-700">Fundus Exam</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.fundus_exam_findings|default:"Not recorded" }}</p></div>
       <div><h3 class="font-medium text-gray-700">Treatment Plan</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.treatment_plan|default:"Not recorded" }}</p></div>
       <div><h3 class="font-medium text-gray-700">Follow-up Plan</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.follow_up_plan|default:"Not recorded" }}</p></div>
+      <div><h3 class="font-medium text-gray-700">Services and Optical</h3><p class="mt-1 text-gray-900">{% for service in exam.optical_services.all %}{{ service.name }}{% if not forloop.last %}, {% endif %}{% empty %}Not recorded{% endfor %}</p></div>
+      <div><h3 class="font-medium text-gray-700">Optician Order</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.optician_order|default:"Not recorded" }}</p></div>
       <div><h3 class="font-medium text-gray-700">Notes</h3><p class="mt-1 text-gray-900 whitespace-pre-wrap">{{ exam.notes|default:"Not recorded" }}</p></div>
     </div>
   </div>

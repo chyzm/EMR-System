@@ -1,5 +1,5 @@
 from django import forms
-from core.models import Patient, CustomUser
+from core.models import Patient, CustomUser, ServicePriceList
 from django.utils import timezone
 from .models import (EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam,
                      OpticalProduct, OpticalDispense, OpticalPrescriptionRequest)
@@ -125,6 +125,13 @@ class EyeFollowUpForm(forms.ModelForm):
 
 
 class EyeExamForm(forms.ModelForm):
+    optical_services = forms.ModelMultipleChoiceField(
+        queryset=ServicePriceList.objects.none(),
+        required=False,
+        label='Services and Optical',
+        widget=forms.SelectMultiple(attrs={'class': 'js-optical-services w-full', 'data-placeholder': 'Select services and optical'}),
+    )
+
     class Meta:
         model = EyeExam
         fields = [
@@ -173,12 +180,8 @@ class EyeExamForm(forms.ModelForm):
             'procedure_notes',
             'imaging_results',
             'spectacle_or_contact_lens_plan',
-            'frame_prescribed',
-            'frame_product',
-            'frame_prescription',
-            'lens_prescribed',
-            'lens_product',
-            'lens_prescription',
+            'optical_services',
+            'optician_order',
             'follow_up_plan',
             'notes',
             'sphere_right', 'cylinder_right', 'axis_right', 'add_right', 'pupil_size_right',
@@ -244,6 +247,7 @@ class EyeExamForm(forms.ModelForm):
             'lens_prescribed': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 border-gray-300 rounded'}),
             'lens_product': forms.Select(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'lens_prescription': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Lens type, coating, tint, material, or prescription notes'}),
+            'optician_order': forms.Textarea(attrs={'rows': 4, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg', 'placeholder': 'Manual optician job order or instruction, e.g. lens transfer'}),
             'follow_up_plan': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
             'sphere_right': forms.TextInput(attrs={'class': 'w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg'}),
@@ -262,25 +266,13 @@ class EyeExamForm(forms.ModelForm):
         clinic_id = kwargs.pop('clinic_id', None)
         super().__init__(*args, **kwargs)
         if clinic_id:
-            self.fields['frame_product'].queryset = OpticalProduct.objects.filter(
+            self.fields['optical_services'].queryset = ServicePriceList.objects.filter(
                 clinic_id=clinic_id,
-                product_type='FRAME',
-                status='ACTIVE',
-            ).order_by('brand', 'name', 'model_code')
-            self.fields['lens_product'].queryset = OpticalProduct.objects.filter(
-                clinic_id=clinic_id,
-                product_type__in=['SPECTACLE_LENS', 'CONTACT_LENS'],
-                status='ACTIVE',
-            ).order_by('product_type', 'brand', 'name', 'sphere', 'cylinder', 'axis')
+                is_active=True,
+            ).order_by('name')
         else:
-            self.fields['frame_product'].queryset = OpticalProduct.objects.none()
-            self.fields['lens_product'].queryset = OpticalProduct.objects.none()
-        self.fields['frame_product'].required = False
-        self.fields['lens_product'].required = False
-        self.fields['frame_product'].empty_label = 'Select frame from Optical Lab'
-        self.fields['lens_product'].empty_label = 'Select lens from Optical Lab'
-        self.fields['frame_product'].label_from_instance = lambda obj: f"{obj.display_name} - Stock: {obj.quantity_in_stock}"
-        self.fields['lens_product'].label_from_instance = lambda obj: f"{obj.display_name} - Stock: {obj.quantity_in_stock}"
+            self.fields['optical_services'].queryset = ServicePriceList.objects.none()
+        self.fields['optical_services'].label_from_instance = lambda obj: obj.name
 
     def clean(self):
         cleaned_data = super().clean()

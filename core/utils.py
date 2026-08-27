@@ -104,7 +104,28 @@ def notify_user_db(user, message, link=None, clinic=None, app_name='', object_id
     )
 
 
-def notify_role_handoff(clinic, roles, message, link=None, app_name='', object_id=None, actor=None, provider=None):
+def notify_role_handoff(
+    clinic,
+    roles,
+    message,
+    link=None,
+    app_name='',
+    object_id=None,
+    actor=None,
+    provider=None,
+    provider_only=False,
+):
+    if provider_only and provider and provider != actor:
+        notify_user_db(
+            provider,
+            message,
+            link=link,
+            clinic=clinic,
+            app_name=app_name,
+            object_id=object_id,
+        )
+        return 1
+
     created = notify_roles(
         clinic,
         roles,
@@ -114,16 +135,6 @@ def notify_role_handoff(clinic, roles, message, link=None, app_name='', object_i
         object_id=object_id,
         exclude_user=actor,
     )
-    if provider and provider != actor:
-        notify_user_db(
-            provider,
-            message,
-            link=link,
-            clinic=clinic,
-            app_name=app_name,
-            object_id=object_id,
-        )
-        created += 1
     return created
 
 

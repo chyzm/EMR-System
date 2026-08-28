@@ -5263,7 +5263,7 @@ def unread_notifications_api(request):
 @clinic_selected_required
 @role_required('ADMIN', 'PHARMACIST')
 def pharmacy_pending_count(request):
-    clinic_id = request.session.get('clinic_id')
+    clinic_id = getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
     cache_key = f"pharmacy:pending-count:{clinic_id}"
@@ -5283,7 +5283,7 @@ def pharmacy_pending_count(request):
 @clinic_selected_required
 @role_required(*BILLING_ROLES)
 def billing_due_count(request):
-    clinic_id = request.session.get('clinic_id')
+    clinic_id = getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
     cache_key = f"billing:due-count:{clinic_id}"
@@ -6099,7 +6099,9 @@ def lab_queue_count(request):
     """Return count of new/pending lab orders for polling badge."""
     if not _general_clinic_only(request):
         return JsonResponse({'count': 0})
-    clinic_id = request.session.get('clinic_id')
+    clinic_id = getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
+    if not clinic_id:
+        return JsonResponse({'count': 0})
     cache_key = f"lab:queue-count:{clinic_id}"
     count = cache.get(cache_key)
     if count is None:

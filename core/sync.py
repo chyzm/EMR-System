@@ -234,13 +234,12 @@ def _sync_eye_exam(request, item, data):
     exam.created_by = request.user
     exam.save()
     form.save_m2m()
-    source_ct = ContentType.objects.get_for_model(exam)
     for service in exam.optical_services.all():
         item_obj, created = BillingLineItem.objects.get_or_create(
             clinic=request.clinic,
             patient=exam.patient,
             source_type='OPTICAL',
-            source_content_type=source_ct,
+            source_content_type=None,
             source_object_id=f"{exam.sync_id}:service:{service.sync_id}",
             defaults={
                 'service': service,

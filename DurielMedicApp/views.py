@@ -220,9 +220,10 @@ class AppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR')
 def today_appointment_count(request):
-    clinic_id = request.session.get('clinic_id')
+    clinic_id = getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
 
@@ -231,6 +232,7 @@ def today_appointment_count(request):
         clinic_id=clinic_id,
         date=today,
         status='SCHEDULED',
+        provider=request.user,
     ).exclude(
         patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
     ).count()

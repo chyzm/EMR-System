@@ -51,7 +51,7 @@ DENTAL_FRONT_DESK_ROLES = ['ADMIN', 'RECEPTIONIST', 'NURSE']
 
 
 def _clinic_id(request):
-    return request.session.get('clinic_id')
+    return getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
 
 
 def _paginate(request, queryset, page_param, per_page=2):
@@ -295,6 +295,7 @@ def update_appointment_status(request, pk, status):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DENTIST')
 def today_appointment_count(request):
     clinic_id = _clinic_id(request)
@@ -304,6 +305,7 @@ def today_appointment_count(request):
             clinic_id=clinic_id,
             date=timezone.localdate(),
             status__in=['SCHEDULED', 'CHECKED_IN'],
+            provider=request.user,
         ).count()
     return JsonResponse({'count': count})
 

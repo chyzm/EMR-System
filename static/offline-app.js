@@ -196,6 +196,30 @@
     }
   }
 
+  function localDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  async function pendingAppointmentCountForCurrentProvider() {
+    const context = getContext();
+    if (!context || !context.user) return 0;
+
+    const today = localDateString();
+    const currentUserId = String(context.user.id);
+    const appointments = await listRecords('appointment');
+
+    return appointments.filter((record) => {
+      if (record.status === 'synced') return false;
+      const payload = record.payload || {};
+      const providerId = payload.provider || payload.provider_id;
+      const status = payload.status || 'SCHEDULED';
+      return String(providerId) === currentUserId && payload.date === today && status === 'SCHEDULED';
+    }).length;
+  }
+
   function updateQueueBadge(count) {
     const badge = document.getElementById('offline-queue-badge');
     const label = document.getElementById('offline-queue-label');
@@ -624,6 +648,7 @@
     lockDeviceData,
     getQueueSummary,
     getContext,
+    pendingAppointmentCountForCurrentProvider,
     listRecords,
     patchRecord,
     refreshBootstrap,

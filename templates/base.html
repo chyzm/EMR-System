@@ -1001,31 +1001,49 @@
       }
       if (!groups.size) return;
 
+      function applyAppointmentCount(badgeEls, count) {
+        badgeEls.forEach(el => {
+          if (count > 0) {
+            el.textContent = String(count);
+            el.classList.remove('hidden');
+          } else {
+            el.textContent = '';
+            el.classList.add('hidden');
+          }
+        });
+      }
+
+      async function localPendingAppointmentCount() {
+        if (!window.offlineQueue || !window.offlineQueue.pendingAppointmentCountForCurrentProvider) return 0;
+        try {
+          await window.offlineQueue.ready;
+          return await window.offlineQueue.pendingAppointmentCountForCurrentProvider();
+        } catch (e) {
+          return 0;
+        }
+      }
+
       async function refreshAppointmentCounts() {
+        const localCount = await localPendingAppointmentCount();
         for (const [url, badgeEls] of groups.entries()) {
           try {
             const res = await fetch(url, { credentials: 'same-origin' });
-            if (!res.ok) continue;
+            if (!res.ok) {
+              applyAppointmentCount(badgeEls, localCount);
+              continue;
+            }
             const data = await res.json();
-            const count = Number(data.count || 0);
-
-            badgeEls.forEach(el => {
-              if (count > 0) {
-                el.textContent = String(count);
-                el.classList.remove('hidden');
-              } else {
-                el.textContent = '';
-                el.classList.add('hidden');
-              }
-            });
+            const count = Number(data.count || 0) + localCount;
+            applyAppointmentCount(badgeEls, count);
           } catch (e) {
-            // ignore polling errors
+            applyAppointmentCount(badgeEls, localCount);
           }
         }
       }
 
       refreshAppointmentCounts();
       setInterval(refreshAppointmentCounts, 30000);
+      window.addEventListener('offlinequeuechange', refreshAppointmentCounts);
     });
      
     // Add Font Awesome if not already loaded

@@ -1,4 +1,5 @@
 from django import forms
+from django.http import QueryDict
 from core.models import Patient, CustomUser, ServicePriceList
 from django.utils import timezone
 from .models import (EyeAppointment, EyeMedicalRecord, EyeFollowUp, EyeExam,
@@ -264,6 +265,9 @@ class EyeExamForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
+        self.clinic_id = clinic_id
+        if args:
+            args = (self._normalized_data(args[0], clinic_id), *args[1:])
         super().__init__(*args, **kwargs)
         if clinic_id:
             self.fields['optical_services'].queryset = ServicePriceList.objects.filter(
@@ -273,6 +277,48 @@ class EyeExamForm(forms.ModelForm):
         else:
             self.fields['optical_services'].queryset = ServicePriceList.objects.none()
         self.fields['optical_services'].label_from_instance = lambda obj: obj.name
+
+    @staticmethod
+    def _normalized_data(data, clinic_id):
+        if hasattr(data, 'getlist'):
+            values = data.getlist('optical_services')
+        elif isinstance(data, dict):
+            raw_values = data.get('optical_services')
+            values = raw_values if isinstance(raw_values, list) else [raw_values] if raw_values else []
+        else:
+            return data
+
+        if not values:
+            return data
+
+        normalized = []
+        service_sync_ids = []
+        for value in values:
+            text = str(value)
+            if text.isdigit():
+                normalized.append(text)
+                continue
+            if ':service:' in text:
+                service_sync_ids.append(text.rsplit(':service:', 1)[1])
+
+        if service_sync_ids and clinic_id:
+            normalized.extend(
+                str(pk)
+                for pk in ServicePriceList.objects.filter(
+                    clinic_id=clinic_id,
+                    sync_id__in=service_sync_ids,
+                ).values_list('pk', flat=True)
+            )
+
+        if len(normalized) == len(values):
+            return data
+
+        next_data = data.copy() if isinstance(data, QueryDict) else data.copy()
+        if hasattr(next_data, 'setlist'):
+            next_data.setlist('optical_services', normalized)
+        else:
+            next_data['optical_services'] = normalized
+        return next_data
 
     def clean(self):
         cleaned_data = super().clean()

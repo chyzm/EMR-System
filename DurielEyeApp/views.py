@@ -84,7 +84,6 @@ def _sync_optical_prescription_request(exam, actor):
 def _sync_eye_exam_optical_services_to_billing(exam, actor):
     appointment = exam.appointment
     encounter = exam.encounter or (get_or_create_encounter_for_appointment(appointment, actor) if appointment else None)
-    source_ct = ContentType.objects.get_for_model(exam)
     selected_service_keys = [
         f"{exam.sync_id}:service:{service.sync_id}"
         for service in exam.optical_services.all()
@@ -94,7 +93,7 @@ def _sync_eye_exam_optical_services_to_billing(exam, actor):
         clinic=exam.patient.clinic,
         patient=exam.patient,
         source_type='OPTICAL',
-        source_content_type=source_ct,
+        source_content_type__isnull=True,
         source_object_id__startswith=f"{exam.sync_id}:service:",
         status__in=['DRAFT', 'APPROVED'],
     ).exclude(source_object_id__in=selected_service_keys).update(status='VOIDED')
@@ -104,7 +103,7 @@ def _sync_eye_exam_optical_services_to_billing(exam, actor):
             clinic=exam.patient.clinic,
             patient=exam.patient,
             source_type='OPTICAL',
-            source_content_type=source_ct,
+            source_content_type=None,
             source_object_id=f"{exam.sync_id}:service:{service.sync_id}",
             defaults={
                 'service': service,
@@ -600,9 +599,10 @@ class EyeAppointmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 
 @login_required
+@clinic_selected_required
 @role_required('DOCTOR', 'OPTOMETRIST')
 def today_appointment_count(request):
-    clinic_id = request.session.get('clinic_id')
+    clinic_id = getattr(getattr(request, 'clinic', None), 'id', None) or request.session.get('clinic_id')
     if not clinic_id:
         return JsonResponse({'count': 0})
 

@@ -175,6 +175,7 @@ class DentalFollowUp(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='dental_follow_ups')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='dental_follow_ups')
+    provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='dental_follow_ups')
     treatment_plan = models.ForeignKey(DentalTreatmentPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='follow_ups')
     reason = models.TextField()
     scheduled_date = models.DateField()

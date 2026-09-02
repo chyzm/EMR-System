@@ -10,7 +10,7 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 
-from core.models import Patient, Clinic, Billing, BillingLineItem, ClinicMedication, LabTestOrder, StockMovement
+from core.models import Patient, Clinic, Billing, BillingLineItem, ClinicMedication, LabTestOrder, PatientEncounter, StockMovement
 from core.reporting import (
     build_clinic_report_context,
     queue_report_export,
@@ -33,7 +33,9 @@ from core.utils import (
     ensure_billing_line_item,
     get_or_create_encounter_for_appointment,
     get_or_create_encounter_for_admission,
+    notify_roles,
     notify_role_handoff,
+    notify_user_db,
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
@@ -228,7 +230,7 @@ def today_appointment_count(request):
         return JsonResponse({'count': 0})
 
     today = timezone.localdate()
-    count = Appointment.objects.filter(
+    appointment_count = Appointment.objects.filter(
         clinic_id=clinic_id,
         date=today,
         status='SCHEDULED',
@@ -236,8 +238,16 @@ def today_appointment_count(request):
     ).exclude(
         patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
     ).count()
+    followup_count = FollowUp.objects.filter(
+        patient__clinic_id=clinic_id,
+        scheduled_date=today,
+        completed=False,
+        provider=request.user,
+    ).exclude(
+        patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
+    ).count()
 
-    return JsonResponse({'count': count})
+    return JsonResponse({'count': appointment_count + followup_count})
 
 
 
@@ -405,6 +415,33 @@ def _appointment_for_vitals(clinic_type, appointment_id, clinic):
     return get_object_or_404(Appointment, pk=appointment_id, clinic=clinic)
 
 
+def _follow_up_for_vitals(clinic_type, followup_id, clinic):
+    if clinic_type == 'EYE':
+        from DurielEyeApp.models import EyeFollowUp
+        return get_object_or_404(EyeFollowUp, pk=followup_id, clinic=clinic)
+    if clinic_type == 'DENTAL':
+        from DurielDentalApp.models import DentalFollowUp
+        return get_object_or_404(DentalFollowUp, pk=followup_id, clinic=clinic)
+    return get_object_or_404(FollowUp, pk=followup_id, patient__clinic=clinic)
+
+
+def _get_or_create_follow_up_vitals_encounter(follow_up, clinic, user):
+    content_type = ContentType.objects.get_for_model(follow_up.__class__)
+    encounter, created = PatientEncounter.objects.get_or_create(
+        appointment_content_type=content_type,
+        appointment_object_id=follow_up.pk,
+        defaults={
+            'patient': follow_up.patient,
+            'clinic': clinic,
+            'provider': getattr(follow_up, 'provider', None),
+            'encounter_type': 'FOLLOW_UP',
+            'status': 'OPEN',
+            'created_by': user,
+        },
+    )
+    return encounter
+
+
 def _vitals_redirect(request, patient):
     next_url = request.POST.get('next')
     if next_url:
@@ -415,6 +452,9 @@ def _vitals_redirect(request, patient):
 def _clear_vitals_queue_count_cache(clinic):
     for role in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST']:
         cache.delete(f"vitals:queue-count:{clinic.pk}:{role}")
+    User = get_user_model()
+    for user in User.objects.filter(clinic=clinic, role__in=['DOCTOR', 'OPTOMETRIST', 'DENTIST'], is_active=True).distinct():
+        cache.delete(f"vitals:queue-count:{clinic.pk}:{user.role}:{user.pk}")
 
 
 def _clear_physio_queue_count_cache(clinic):
@@ -471,7 +511,50 @@ def record_appointment_vitals(request, clinic_type, appointment_id):
     return _vitals_redirect(request, patient)
 
 
-def _pending_vitals_items(clinic):
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST')
+def record_follow_up_vitals(request, clinic_type, followup_id):
+    clinic_type = clinic_type.upper()
+    follow_up = _follow_up_for_vitals(clinic_type, followup_id, request.clinic)
+    patient = follow_up.patient
+    form = VitalsForm(request.POST)
+    if form.is_valid():
+        vitals = form.save(commit=False)
+        vitals.appointment_content_type = ContentType.objects.get_for_model(follow_up.__class__)
+        vitals.appointment_object_id = follow_up.pk
+        vitals.encounter = _get_or_create_follow_up_vitals_encounter(follow_up, request.clinic, request.user)
+        vitals.category = 'FOLLOWUP'
+        vitals.save()
+        log_action(request, 'CREATE', vitals, details=f"Recorded follow-up vitals for {patient.full_name}")
+        if patient.status == 'REGISTERED':
+            patient.status = 'VITALS_TAKEN'
+            patient.save(update_fields=['status'])
+        _clear_vitals_queue_count_cache(patient.clinic)
+        next_roles = {
+            'GENERAL': ['DOCTOR'],
+            'EYE': ['DOCTOR', 'OPTOMETRIST'],
+            'DENTAL': ['DENTIST'],
+        }.get(clinic_type, ['DOCTOR'])
+        notify_role_handoff(
+            patient.clinic,
+            next_roles,
+            f"Follow-up vitals recorded for {patient.full_name}. Ready for follow-up encounter.",
+            link=reverse('core:patient_detail', kwargs={'pk': patient.patient_id}),
+            app_name=clinic_type.lower(),
+            object_id=follow_up.pk,
+            actor=request.user,
+            provider=getattr(follow_up, 'provider', None),
+            provider_only=True,
+        )
+        messages.success(request, "Follow-up vitals recorded successfully!")
+    else:
+        messages.error(request, "Vitals were not saved. Please check the required fields.")
+    return _vitals_redirect(request, patient)
+
+
+def _pending_vitals_items(clinic, user=None):
     today = timezone.localdate()
     items = []
 
@@ -496,18 +579,48 @@ def _pending_vitals_items(clinic):
         for appointment in queryset:
             items.append({
                 'appointment': appointment,
+                'source': appointment,
+                'source_type': 'appointment',
                 'clinic_type': clinic_type,
                 'detail_url': reverse(detail_name, kwargs={'pk': appointment.pk}),
             })
 
+    def extend_for_followups(model, clinic_type, detail_name):
+        followup_type = ContentType.objects.get_for_model(model)
+        if clinic_type == 'GENERAL':
+            queryset = model.objects.filter(patient__clinic=clinic, scheduled_date=today, completed=False)
+        else:
+            queryset = model.objects.filter(clinic=clinic, scheduled_date=today, completed=False)
+        if user and user.role in ['DOCTOR', 'OPTOMETRIST', 'DENTIST']:
+            queryset = queryset.filter(provider=user)
+        queryset = queryset.select_related('patient', 'provider').annotate(
+            has_vitals=models.Exists(
+                Vitals.objects.filter(
+                    appointment_content_type=followup_type,
+                    appointment_object_id=models.OuterRef('pk'),
+                )
+            )
+        ).filter(has_vitals=False).order_by('scheduled_date', 'scheduled_time')
+        for followup in queryset:
+            items.append({
+                'followup': followup,
+                'source': followup,
+                'source_type': 'followup',
+                'clinic_type': clinic_type,
+                'detail_url': reverse(detail_name),
+            })
+
     if clinic.clinic_type == 'EYE':
-        from DurielEyeApp.models import EyeAppointment
+        from DurielEyeApp.models import EyeAppointment, EyeFollowUp
         extend_for(EyeAppointment, 'EYE', 'DurielEyeApp:appointment_detail')
+        extend_for_followups(EyeFollowUp, 'EYE', 'DurielEyeApp:followup_list')
     elif clinic.clinic_type == 'DENTAL':
-        from DurielDentalApp.models import DentalAppointment
+        from DurielDentalApp.models import DentalAppointment, DentalFollowUp
         extend_for(DentalAppointment, 'DENTAL', 'DurielDentalApp:appointment_detail')
+        extend_for_followups(DentalFollowUp, 'DENTAL', 'DurielDentalApp:followup_list')
     else:
         extend_for(Appointment, 'GENERAL', 'DurielMedicApp:appointment_detail')
+        extend_for_followups(FollowUp, 'GENERAL', 'DurielMedicApp:followup_list')
 
     return items
 
@@ -516,7 +629,7 @@ def _pending_vitals_items(clinic):
 @clinic_selected_required
 @role_required('ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST')
 def vitals_queue(request):
-    items = _pending_vitals_items(request.clinic)
+    items = _pending_vitals_items(request.clinic, request.user)
     paginator = Paginator(items, 10)
     page = request.GET.get('page', 1)
     try:
@@ -538,10 +651,10 @@ def vitals_queue_count(request):
     allowed_roles = {'ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST'}
     if request.user.role not in allowed_roles:
         return JsonResponse({'count': 0})
-    cache_key = f"vitals:queue-count:{request.clinic.pk}:{request.user.role}"
+    cache_key = f"vitals:queue-count:{request.clinic.pk}:{request.user.role}:{request.user.pk}"
     count = cache.get(cache_key)
     if count is None:
-        count = len(_pending_vitals_items(request.clinic))
+        count = len(_pending_vitals_items(request.clinic, request.user))
         cache.set(cache_key, count, 15)
     return JsonResponse({'count': count})
 
@@ -1386,14 +1499,14 @@ class FollowUpListView(LoginRequiredMixin, ListView):
     paginate_by = 10
     
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(patient__clinic=self.request.clinic).select_related('patient', 'provider')
         user = self.request.user
 
         if not user.is_superuser:
             role = getattr(user, 'role', None)
 
             if role == 'DOCTOR':
-                queryset = queryset.filter(created_by=user)
+                queryset = queryset.filter(Q(provider=user) | Q(created_by=user))
             elif role == 'NURSE':
                 # Change this logic based on your actual nurse-followup link
                 # For now, allow nurse to see all follow-ups
@@ -1401,20 +1514,78 @@ class FollowUpListView(LoginRequiredMixin, ListView):
 
         return queryset.order_by('scheduled_date', 'scheduled_time')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        followup_ids = [followup.pk for followup in context['followups']]
+        encounters = {
+            encounter.appointment_object_id: encounter
+            for encounter in PatientEncounter.objects.filter(
+                clinic=self.request.clinic,
+                appointment_content_type=ContentType.objects.get_for_model(FollowUp),
+                appointment_object_id__in=followup_ids,
+            )
+        }
+        for followup in context['followups']:
+            followup.encounter_status = getattr(encounters.get(followup.pk), 'status', None)
+            followup.can_run_encounter = (
+                self.request.user.role in ['ADMIN', 'DOCTOR']
+                and not followup.completed
+                and (not followup.provider_id or followup.provider_id == self.request.user.id or self.request.user.role == 'ADMIN')
+            )
+        return context
+
 
 class FollowUpCreateView(LoginRequiredMixin, CreateView):
     model = FollowUp
     template_name = 'follow_up/schedule_follow_up.html'
-    fields = ['patient', 'reason', 'scheduled_date', 'scheduled_time', 'notes']
-    
+    form_class = FollowUpForm
+    success_url = reverse_lazy('DurielMedicApp:followup_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['clinic'] = self.request.clinic
+        return kwargs
+
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        return super().form_valid(form)
+        followup = form.save()
+        notify_user_db(
+            followup.provider,
+            f"New follow-up for {followup.patient.full_name} on {followup.scheduled_date}",
+            link=reverse('DurielMedicApp:followup_list'),
+            clinic=followup.patient.clinic,
+            app_name='medic',
+            object_id=followup.pk,
+        )
+        messages.success(self.request, "Follow-up scheduled successfully!")
+        return redirect(self.success_url)
 
 class FollowUpUpdateView(LoginRequiredMixin, UpdateView):
     model = FollowUp
     template_name = 'followup_form.html'
-    fields = ['reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
+    form_class = FollowUpForm
+    success_url = reverse_lazy('DurielMedicApp:followup_list')
+
+    def get_queryset(self):
+        return FollowUp.objects.filter(patient__clinic=self.request.clinic)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['clinic'] = self.request.clinic
+        return kwargs
+
+    def form_valid(self, form):
+        followup = form.save()
+        notify_user_db(
+            followup.provider,
+            f"Updated follow-up for {followup.patient.full_name} on {followup.scheduled_date}",
+            link=reverse('DurielMedicApp:followup_list'),
+            clinic=followup.patient.clinic,
+            app_name='medic',
+            object_id=followup.pk,
+        )
+        messages.success(self.request, "Follow-up updated successfully!")
+        return redirect(self.success_url)
 
     
     
@@ -2321,12 +2492,20 @@ def schedule_follow_up(request, patient_id):
         return redirect('core:patient_detail', pk=patient_id)
     
     if request.method == 'POST':
-        form = FollowUpForm(request.POST)
+        form = FollowUpForm(request.POST, clinic=request.clinic, patient=patient)
         if form.is_valid():
             follow_up = form.save(commit=False)
             follow_up.patient = patient
             follow_up.created_by = request.user
             follow_up.save()
+            notify_user_db(
+                follow_up.provider,
+                f"New follow-up for {follow_up.patient.full_name} on {follow_up.scheduled_date}",
+                link=reverse('DurielMedicApp:followup_list'),
+                clinic=follow_up.patient.clinic,
+                app_name='medic',
+                object_id=follow_up.pk,
+            )
             
             patient.status = 'FOLLOW_UP'
             patient.save()
@@ -2334,15 +2513,91 @@ def schedule_follow_up(request, patient_id):
             messages.success(request, "Follow-up scheduled successfully!")
             return redirect('core:patient_detail', pk=patient_id)
     else:
-        form = FollowUpForm()
+        form = FollowUpForm(clinic=request.clinic, patient=patient)
     
     return render(request, 'follow_up/schedule_follow_up.html', {
         'form': form,
         'patient': patient,
         'from_consultation': patient.status == 'IN_CONSULTATION'
     })
-    
-    
+
+
+def _get_or_create_general_follow_up_encounter(follow_up, user):
+    content_type = ContentType.objects.get_for_model(FollowUp)
+    encounter, created = PatientEncounter.objects.get_or_create(
+        appointment_content_type=content_type,
+        appointment_object_id=follow_up.pk,
+        defaults={
+            'patient': follow_up.patient,
+            'clinic': follow_up.patient.clinic,
+            'provider': follow_up.provider,
+            'encounter_type': 'FOLLOW_UP',
+            'status': 'OPEN',
+            'created_by': user,
+        },
+    )
+    return encounter
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR')
+def start_follow_up_encounter(request, pk):
+    follow_up = get_object_or_404(FollowUp, pk=pk, patient__clinic=request.clinic)
+    if follow_up.completed:
+        messages.info(request, "This follow-up is already completed.")
+        return redirect('DurielMedicApp:followup_list')
+    if follow_up.provider_id and follow_up.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, "Only the assigned provider can start this follow-up.")
+        return redirect('DurielMedicApp:followup_list')
+
+    encounter = _get_or_create_general_follow_up_encounter(follow_up, request.user)
+    if encounter.status != 'IN_PROGRESS':
+        encounter.status = 'IN_PROGRESS'
+        encounter.provider = follow_up.provider or request.user
+        encounter.started_at = timezone.now()
+        encounter.save(update_fields=['status', 'provider', 'started_at', 'updated_at'])
+    follow_up.patient.status = 'IN_CONSULTATION'
+    follow_up.patient.save(update_fields=['status'])
+    log_action(request, 'UPDATE', follow_up, details=f"Started follow-up encounter for {follow_up.patient.full_name}")
+    messages.success(request, f"Follow-up encounter started for {follow_up.patient.full_name}.")
+    return redirect('core:patient_detail', pk=follow_up.patient.pk)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR')
+def end_follow_up_encounter(request, pk):
+    follow_up = get_object_or_404(FollowUp, pk=pk, patient__clinic=request.clinic)
+    if follow_up.provider_id and follow_up.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, "Only the assigned provider can end this follow-up.")
+        return redirect('DurielMedicApp:followup_list')
+
+    encounter = _get_or_create_general_follow_up_encounter(follow_up, request.user)
+    if encounter.status != 'COMPLETED':
+        encounter.status = 'COMPLETED'
+        encounter.ended_at = timezone.now()
+        encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
+    follow_up.completed = True
+    follow_up.save(update_fields=['completed'])
+    follow_up.patient.status = 'FOLLOW_UP_COMPLETE'
+    follow_up.patient.save(update_fields=['status'])
+    notify_roles(
+        follow_up.patient.clinic,
+        ['ADMIN', 'RECEPTIONIST', 'NURSE'],
+        f"Follow-up completed for {follow_up.patient.full_name}.",
+        link=reverse('DurielMedicApp:followup_list'),
+        app_name='medic',
+        object_id=follow_up.pk,
+        exclude_user=request.user,
+    )
+    log_action(request, 'UPDATE', follow_up, details=f"Ended follow-up encounter for {follow_up.patient.full_name}")
+    messages.success(request, f"Follow-up encounter ended for {follow_up.patient.full_name}.")
+    return redirect('DurielMedicApp:followup_list')
+
+
 @login_required
 @clinic_selected_required
 def complete_follow_up(request, pk):
@@ -2350,8 +2605,13 @@ def complete_follow_up(request, pk):
     patient = follow_up.patient  # Get the patient from the follow-up
     
     if not follow_up.completed:
+        encounter = _get_or_create_general_follow_up_encounter(follow_up, request.user)
+        if encounter.status != 'COMPLETED':
+            encounter.status = 'COMPLETED'
+            encounter.ended_at = timezone.now()
+            encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
         follow_up.completed = True
-        follow_up.save()
+        follow_up.save(update_fields=['completed'])
         
         # ✅ Add manual logging
         log_action(

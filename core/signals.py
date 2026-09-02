@@ -210,6 +210,9 @@ def clear_vitals_queue_count_cache(sender, instance, **kwargs):
     if sender.__name__ != 'Vitals':
         return
     clinic = getattr(instance, 'clinic', None)
+    encounter = getattr(instance, 'encounter', None)
+    if not clinic and encounter:
+        clinic = getattr(encounter, 'clinic', None)
     appointment = getattr(instance, 'appointment_object', None) or getattr(instance, 'appointment', None)
     if not clinic and appointment:
         clinic = getattr(appointment, 'clinic', None)
@@ -218,3 +221,6 @@ def clear_vitals_queue_count_cache(sender, instance, **kwargs):
     from django.core.cache import cache
     for role in ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR', 'OPTOMETRIST', 'DENTIST']:
         cache.delete(f"vitals:queue-count:{clinic.pk}:{role}")
+    from django.contrib.auth import get_user_model
+    for user in get_user_model().objects.filter(clinic=clinic, role__in=['DOCTOR', 'OPTOMETRIST', 'DENTIST'], is_active=True).distinct():
+        cache.delete(f"vitals:queue-count:{clinic.pk}:{user.role}:{user.pk}")

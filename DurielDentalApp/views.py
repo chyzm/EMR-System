@@ -19,7 +19,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
 from core.decorators import clinic_selected_required, role_required
 from core.utils import ensure_appointment_consultation_charge, ensure_billing_line_item, get_or_create_encounter_for_appointment
-from core.models import Billing, Patient
+from core.models import Billing, Patient, PatientEncounter
 from core.reporting import (
     build_clinic_report_context,
     queue_report_export,
@@ -301,12 +301,19 @@ def today_appointment_count(request):
     clinic_id = _clinic_id(request)
     count = 0
     if clinic_id:
-        count = DentalAppointment.objects.filter(
+        appointment_count = DentalAppointment.objects.filter(
             clinic_id=clinic_id,
             date=timezone.localdate(),
             status__in=['SCHEDULED', 'CHECKED_IN'],
             provider=request.user,
         ).count()
+        followup_count = DentalFollowUp.objects.filter(
+            clinic_id=clinic_id,
+            scheduled_date=timezone.localdate(),
+            completed=False,
+            provider=request.user,
+        ).count()
+        count = appointment_count + followup_count
     return JsonResponse({'count': count})
 
 
@@ -444,17 +451,25 @@ def record_procedure(request, patient_id):
 def schedule_follow_up(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id, clinic_id=_clinic_id(request))
     if request.method == 'POST':
-        form = DentalFollowUpClinicalForm(request.POST, patient=patient)
+        form = DentalFollowUpClinicalForm(request.POST, patient=patient, clinic=request.clinic)
         if form.is_valid():
             followup = form.save(commit=False)
             followup.patient = patient
             followup.clinic = patient.clinic
             followup.created_by = request.user
             followup.save()
+            notify_user_db(
+                followup.provider,
+                f"New dental follow-up for {followup.patient.full_name} on {followup.scheduled_date}",
+                link=reverse_lazy('DurielDentalApp:followup_list'),
+                clinic=followup.clinic,
+                app_name='dental',
+                object_id=followup.pk,
+            )
             messages.success(request, 'Dental follow-up scheduled.')
             return redirect('DurielDentalApp:patient_chart', patient_id=patient.patient_id)
     else:
-        form = DentalFollowUpClinicalForm(patient=patient)
+        form = DentalFollowUpClinicalForm(patient=patient, clinic=request.clinic)
     return render(request, 'dental/forms/form_page.html', {'form': form, 'title': 'Schedule Dental Follow-up', 'patient': patient})
 
 
@@ -465,7 +480,104 @@ class DentalFollowUpListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return DentalFollowUp.objects.filter(clinic_id=_clinic_id(self.request)).select_related('patient').order_by('scheduled_date', 'scheduled_time')
+        return DentalFollowUp.objects.filter(clinic_id=_clinic_id(self.request)).select_related('patient', 'provider').order_by('scheduled_date', 'scheduled_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        followup_ids = [followup.pk for followup in context['followups']]
+        encounters = {
+            encounter.appointment_object_id: encounter
+            for encounter in PatientEncounter.objects.filter(
+                clinic_id=_clinic_id(self.request),
+                appointment_content_type=ContentType.objects.get_for_model(DentalFollowUp),
+                appointment_object_id__in=followup_ids,
+            )
+        }
+        for followup in context['followups']:
+            followup.encounter_status = getattr(encounters.get(followup.pk), 'status', None)
+            followup.can_run_encounter = (
+                self.request.user.role in ['ADMIN', 'DENTIST']
+                and not followup.completed
+                and (not followup.provider_id or followup.provider_id == self.request.user.id or self.request.user.role == 'ADMIN')
+            )
+        return context
+
+
+def _get_or_create_dental_follow_up_encounter(followup, user):
+    content_type = ContentType.objects.get_for_model(DentalFollowUp)
+    encounter, created = PatientEncounter.objects.get_or_create(
+        appointment_content_type=content_type,
+        appointment_object_id=followup.pk,
+        defaults={
+            'patient': followup.patient,
+            'clinic': followup.clinic,
+            'provider': followup.provider,
+            'encounter_type': 'FOLLOW_UP',
+            'status': 'OPEN',
+            'created_by': user,
+        },
+    )
+    return encounter
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DENTIST')
+def start_follow_up_encounter(request, pk):
+    followup = get_object_or_404(DentalFollowUp, pk=pk, clinic_id=_clinic_id(request))
+    if followup.completed:
+        messages.info(request, 'This follow-up is already completed.')
+        return redirect('DurielDentalApp:followup_list')
+    if followup.provider_id and followup.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, 'Only the assigned provider can start this follow-up.')
+        return redirect('DurielDentalApp:followup_list')
+
+    encounter = _get_or_create_dental_follow_up_encounter(followup, request.user)
+    if encounter.status != 'IN_PROGRESS':
+        encounter.status = 'IN_PROGRESS'
+        encounter.provider = followup.provider or request.user
+        encounter.started_at = timezone.now()
+        encounter.save(update_fields=['status', 'provider', 'started_at', 'updated_at'])
+    followup.patient.status = 'IN_CONSULTATION'
+    followup.patient.save(update_fields=['status'])
+    log_action(request, 'UPDATE', followup, details=f"Started dental follow-up encounter for {followup.patient.full_name}")
+    messages.success(request, f"Follow-up encounter started for {followup.patient.full_name}.")
+    return redirect('DurielDentalApp:patient_chart', patient_id=followup.patient.patient_id)
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DENTIST')
+def end_follow_up_encounter(request, pk):
+    followup = get_object_or_404(DentalFollowUp, pk=pk, clinic_id=_clinic_id(request))
+    if followup.provider_id and followup.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, 'Only the assigned provider can end this follow-up.')
+        return redirect('DurielDentalApp:followup_list')
+
+    encounter = _get_or_create_dental_follow_up_encounter(followup, request.user)
+    if encounter.status != 'COMPLETED':
+        encounter.status = 'COMPLETED'
+        encounter.ended_at = timezone.now()
+        encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
+    followup.completed = True
+    followup.completed_at = encounter.ended_at or timezone.now()
+    followup.save(update_fields=['completed', 'completed_at'])
+    followup.patient.status = 'FOLLOW_UP_COMPLETE'
+    followup.patient.save(update_fields=['status'])
+    notify_roles(
+        followup.clinic,
+        ['ADMIN', 'RECEPTIONIST'],
+        f"Dental follow-up completed for {followup.patient.full_name}.",
+        link=reverse_lazy('DurielDentalApp:followup_list'),
+        app_name='dental',
+        object_id=followup.pk,
+        exclude_user=request.user,
+    )
+    log_action(request, 'UPDATE', followup, details=f"Ended dental follow-up encounter for {followup.patient.full_name}")
+    messages.success(request, f"Follow-up encounter ended for {followup.patient.full_name}.")
+    return redirect('DurielDentalApp:followup_list')
 
 
 @require_POST
@@ -474,9 +586,16 @@ class DentalFollowUpListView(LoginRequiredMixin, ListView):
 @role_required('DENTIST')
 def complete_follow_up(request, pk):
     followup = get_object_or_404(DentalFollowUp, pk=pk, clinic_id=_clinic_id(request))
+    encounter = _get_or_create_dental_follow_up_encounter(followup, request.user)
+    if encounter.status != 'COMPLETED':
+        encounter.status = 'COMPLETED'
+        encounter.ended_at = timezone.now()
+        encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
     followup.completed = True
-    followup.completed_at = timezone.now()
+    followup.completed_at = encounter.ended_at or timezone.now()
     followup.save(update_fields=['completed', 'completed_at'])
+    followup.patient.status = 'FOLLOW_UP_COMPLETE'
+    followup.patient.save(update_fields=['status'])
     messages.success(request, 'Follow-up completed.')
     return redirect('DurielDentalApp:followup_list')
 
@@ -633,6 +752,8 @@ def dental_file_edit(request, file_type, pk):
     form_kwargs = {'instance': obj}
     if file_type in ['plan', 'procedure', 'followup']:
         form_kwargs['patient'] = obj.patient
+    if file_type == 'followup':
+        form_kwargs['clinic'] = request.clinic
     if request.method == 'POST':
         form = form_class(request.POST, **form_kwargs)
         if form.is_valid():

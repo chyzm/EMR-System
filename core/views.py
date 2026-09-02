@@ -763,7 +763,11 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         search_id = self.request.GET.get('patient_id', '')
 
         if search_name:
-            queryset = queryset.filter(full_name__icontains=search_name)
+            queryset = queryset.filter(
+                Q(first_name__icontains=search_name) |
+                Q(last_name__icontains=search_name) |
+                Q(patient_id__icontains=search_name)
+            )
         if search_id:
             queryset = queryset.filter(patient_id__icontains=search_id)
 

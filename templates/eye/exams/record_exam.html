@@ -25,12 +25,12 @@
     <div class="bg-white rounded-lg shadow-md p-6">
       <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Add Record and Exam</h1>
-        <a href="{% url 'DurielEyeApp:appointment_detail' appointment.pk %}" class="text-blue-600 hover:text-blue-800">
+        <a href="{% if followup %}{% url 'DurielEyeApp:begin_consultation' followup.patient.patient_id %}?followup_id={{ followup.pk }}{% else %}{% url 'DurielEyeApp:appointment_detail' appointment.pk %}{% endif %}" class="text-blue-600 hover:text-blue-800">
           <i class="fas fa-arrow-left mr-1"></i> Back to Consultation
         </a>
       </div>
       
-      <form method="post" data-sync-action="record_eye_exam" data-patient-sync-id="{{ appointment.patient.sync_id }}" data-appointment-sync-id="{{ appointment.sync_id }}">
+      <form method="post" data-sync-action="record_eye_exam" data-patient-sync-id="{% if followup %}{{ followup.patient.sync_id }}{% else %}{{ appointment.patient.sync_id }}{% endif %}" data-appointment-sync-id="{% if appointment %}{{ appointment.sync_id }}{% endif %}">
         {% csrf_token %}
         
         <!-- Patient Info -->
@@ -40,14 +40,21 @@
               <i class="fas fa-user text-xl"></i>
             </div>
             <div>
-              <p class="text-lg font-medium text-gray-900">{{ appointment.patient.full_name }}</p>
-              <p class="text-sm text-gray-500">Appointment: {{ appointment.date }} at {{ appointment.start_time|time:"g:i A" }}</p>
+              <p class="text-lg font-medium text-gray-900">{% if followup %}{{ followup.patient.full_name }}{% else %}{{ appointment.patient.full_name }}{% endif %}</p>
+              <p class="text-sm text-gray-500">
+                {% if followup %}
+                  Follow-up: {{ followup.scheduled_date }} at {{ followup.scheduled_time|time:"g:i A" }}
+                {% else %}
+                  Appointment: {{ appointment.date }} at {{ appointment.start_time|time:"g:i A" }}
+                {% endif %}
+              </p>
             </div>
           </div>
         </div>
         
         <!-- Clinical History and Findings -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {% if not followup %}
           <div class="mb-4">
             <label for="{{ form.appointment.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.appointment.label }}</label>
             {{ form.appointment }}
@@ -55,6 +62,7 @@
               <p class="mt-1 text-sm text-red-600">{{ form.appointment.errors.as_text }}</p>
             {% endif %}
           </div>
+          {% endif %}
           <div class="mb-4">
             <label for="{{ form.chief_complaint.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ form.chief_complaint.label }}</label>
             {{ form.chief_complaint }}

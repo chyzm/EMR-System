@@ -698,7 +698,7 @@ def _snapshot_queryset_for_clinic(model, clinic):
     if label == 'core.Clinic':
         return model.objects.filter(pk=clinic.pk)
     if label == 'DurielMedicApp.Vitals':
-        appointment_filters = Q(appointment__clinic=clinic)
+        appointment_filters = Q(appointment__clinic=clinic) | Q(encounter__clinic=clinic)
         for appointment_label in (
             'DurielMedicApp.Appointment',
             'DurielEyeApp.EyeAppointment',

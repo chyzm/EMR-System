@@ -40,6 +40,7 @@ urlpatterns = [
     # Vitals
     path('patients/<str:patient_id>/vitals/', views.record_vitals, name='record_vitals'),
     path('appointments/<str:clinic_type>/<int:appointment_id>/vitals/', views.record_appointment_vitals, name='record_appointment_vitals'),
+    path('follow-up/<str:clinic_type>/<int:followup_id>/vitals/', views.record_follow_up_vitals, name='record_follow_up_vitals'),
     path('vitals/queue/', views.vitals_queue, name='vitals_queue'),
     path('vitals/queue/count/', views.vitals_queue_count, name='vitals_queue_count'),
 
@@ -73,6 +74,8 @@ urlpatterns = [
     path('follow-up/', FollowUpListView.as_view(), name='followup_list'),
     path('follow-up/new/', FollowUpCreateView.as_view(), name='followup_create'),
     path('follow-up/<int:pk>/edit/', FollowUpUpdateView.as_view(), name='followup_update'),
+    path('follow-up/<int:pk>/start/', views.start_follow_up_encounter, name='start_follow_up'),
+    path('follow-up/<int:pk>/end/', views.end_follow_up_encounter, name='end_follow_up'),
     path('follow-up/complete/<int:pk>/', views.complete_follow_up, name='complete_follow_up'),
     
     

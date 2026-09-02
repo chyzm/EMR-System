@@ -607,7 +607,7 @@ def today_appointment_count(request):
         return JsonResponse({'count': 0})
 
     today = timezone.localdate()
-    count = EyeAppointment.objects.filter(
+    appointment_count = EyeAppointment.objects.filter(
         clinic_id=clinic_id,
         date=today,
         status='SCHEDULED',
@@ -615,8 +615,16 @@ def today_appointment_count(request):
     ).exclude(
         patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
     ).count()
+    followup_count = EyeFollowUp.objects.filter(
+        clinic_id=clinic_id,
+        scheduled_date=today,
+        completed=False,
+        provider=request.user,
+    ).exclude(
+        patient__status__in=['IN_CONSULTATION', 'CONSULTATION_COMPLETE']
+    ).count()
 
-    return JsonResponse({'count': count})
+    return JsonResponse({'count': appointment_count + followup_count})
 
 
 
@@ -962,6 +970,54 @@ def record_eye_exam(request, appointment_id):
     }
     context.update(eye_exam_layout_context(form))
     exams = EyeExam.objects.all().order_by('-created_at')  # show all exams
+    return render(request, 'eye/exams/record_exam.html', context)
+
+
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+def record_eye_follow_up_exam(request, followup_id):
+    clinic_id = request.session.get('clinic_id')
+    followup = get_object_or_404(EyeFollowUp, pk=followup_id, clinic_id=clinic_id)
+    encounter = _get_or_create_follow_up_encounter(followup, request.user)
+
+    if request.method == 'POST':
+        form = EyeExamForm(request.POST, clinic_id=clinic_id)
+        if form.is_valid():
+            exam = form.save(commit=False)
+            exam.patient = followup.patient
+            exam.appointment = None
+            exam.encounter = encounter
+            exam.created_by = request.user
+            exam.save()
+            form.save_m2m()
+            _sync_eye_exam_optical_services_to_billing(exam, request.user)
+            optical_request = _sync_optical_prescription_request(exam, request.user)
+            if optical_request:
+                notify_role_handoff(
+                    followup.clinic,
+                    ['ADMIN', 'OPTICIAN'],
+                    f"Optical prescription for {exam.patient.full_name}: {optical_request.requested_items}.",
+                    link=reverse('DurielEyeApp:optical_prescription_queue'),
+                    app_name='eye',
+                    object_id=optical_request.pk,
+                    actor=request.user,
+                )
+            log_action(request, 'CREATE', exam, details=f"Recorded eye follow-up exam for {exam.patient.full_name}")
+            messages.success(request, f"Eye follow-up exam for {exam.patient.full_name} recorded successfully.")
+            return redirect(f"{reverse('DurielEyeApp:begin_consultation', kwargs={'patient_id': followup.patient.patient_id})}?followup_id={followup.pk}")
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = EyeExamForm(clinic_id=clinic_id)
+        form.fields['appointment'].queryset = EyeAppointment.objects.none()
+        form.fields['appointment'].required = False
+
+    context = {
+        'form': form,
+        'followup': followup,
+        'appointment': None,
+    }
+    context.update(eye_exam_layout_context(form))
     return render(request, 'eye/exams/record_exam.html', context)
 
 
@@ -1357,21 +1413,31 @@ def export_eye_patient_record_pdf(request, patient_id):
 @role_required('DOCTOR', 'OPTOMETRIST')
 def begin_eye_consultation(request, patient_id):
     patient = get_object_or_404(Patient, patient_id=patient_id, clinic=request.clinic)
+    followup = None
+    encounter = None
+    followup_id = request.GET.get('followup_id')
 
     if patient.status != 'IN_CONSULTATION':
         patient.status = 'IN_CONSULTATION'
         patient.save(update_fields=['status'])
     
-    # Get latest appointment and any vitals recorded for that appointment.
-    appointment = EyeAppointment.objects.filter(
-        patient=patient,
-        clinic=request.clinic,
-    ).order_by('-date', '-start_time').first()
+    if followup_id:
+        followup = get_object_or_404(EyeFollowUp, pk=followup_id, patient=patient, clinic=request.clinic)
+        encounter = _get_or_create_follow_up_encounter(followup, request.user)
+        appointment = None
+    else:
+        appointment = EyeAppointment.objects.filter(
+            patient=patient,
+            clinic=request.clinic,
+        ).order_by('-date', '-start_time').first()
+        encounter = get_or_create_encounter_for_appointment(appointment, request.user) if appointment else None
+
     vitals = None
-    if appointment:
-        appointment_type = ContentType.objects.get_for_model(EyeAppointment)
+    if encounter:
+        vitals = Vitals.objects.filter(encounter=encounter).order_by('-id').first()
+    elif appointment:
         vitals = Vitals.objects.filter(
-            appointment_content_type=appointment_type,
+            appointment_content_type=ContentType.objects.get_for_model(EyeAppointment),
             appointment_object_id=appointment.pk,
         ).order_by('-id').first()
 
@@ -1402,6 +1468,8 @@ def begin_eye_consultation(request, patient_id):
     context = {
         'patient': patient,
         'appointment': appointment,
+        'followup': followup,
+        'encounter': encounter,
         'vitals': vitals,
     }
     return render(request, 'eye/consultation/begin_consultation.html', context)
@@ -1445,6 +1513,23 @@ def complete_eye_consultation(request, patient_id):
     return redirect('core:patient_detail', pk=patient.pk)
 
 
+def _get_or_create_follow_up_encounter(followup, user):
+    content_type = ContentType.objects.get_for_model(EyeFollowUp)
+    encounter, created = PatientEncounter.objects.get_or_create(
+        appointment_content_type=content_type,
+        appointment_object_id=followup.pk,
+        defaults={
+            'patient': followup.patient,
+            'clinic': followup.clinic,
+            'provider': followup.provider,
+            'encounter_type': 'FOLLOW_UP',
+            'status': 'OPEN',
+            'created_by': user,
+        },
+    )
+    return encounter
+
+
 # --------------------
 # Follow-ups
 # --------------------
@@ -1459,6 +1544,26 @@ class EyeFollowUpListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         return EyeFollowUp.objects.filter(clinic_id=self.request.session.get('clinic_id')).order_by('scheduled_date', 'scheduled_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        followup_ids = [followup.pk for followup in context['followups']]
+        encounters = {
+            encounter.appointment_object_id: encounter
+            for encounter in PatientEncounter.objects.filter(
+                clinic_id=self.request.session.get('clinic_id'),
+                appointment_content_type=ContentType.objects.get_for_model(EyeFollowUp),
+                appointment_object_id__in=followup_ids,
+            )
+        }
+        for followup in context['followups']:
+            followup.encounter_status = getattr(encounters.get(followup.pk), 'status', None)
+            followup.can_run_encounter = (
+                self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST']
+                and not followup.completed
+                and (not followup.provider_id or followup.provider_id == self.request.user.id or self.request.user.role == 'ADMIN')
+            )
+        return context
 
 
 class EyeFollowUpCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -1483,10 +1588,18 @@ class EyeFollowUpCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
             return redirect('core:select_clinic')
 
         form.instance.clinic_id = clinic_id
-        form.instance.provider = self.request.user
+        form.instance.created_by = self.request.user
 
         # Save the instance
         followup = form.save()
+        notify_user_db(
+            followup.provider,
+            f"New eye follow-up for {followup.patient.full_name} on {followup.scheduled_date}",
+            link=reverse('DurielEyeApp:followup_list'),
+            clinic=followup.clinic,
+            app_name='eye',
+            object_id=followup.pk,
+        )
         log_action(self.request, 'CREATE', followup, f"Created follow-up for {followup.patient.full_name}")
         messages.success(self.request, "Follow-up created successfully!")
         return redirect(self.success_url)
@@ -1497,6 +1610,7 @@ class EyeFollowUpUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
     model = EyeFollowUp
     form_class = EyeFollowUpForm
     template_name = 'eye/follow_up/schedule_follow_up.html'
+    success_url = reverse_lazy('DurielEyeApp:followup_list')
 
     def test_func(self):
         return self.request.user.role in ['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE']
@@ -1508,6 +1622,20 @@ class EyeFollowUpUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         kwargs = super().get_form_kwargs()
         kwargs['clinic_id'] = self.request.session.get('clinic_id')
         return kwargs
+
+    def form_valid(self, form):
+        followup = form.save()
+        notify_user_db(
+            followup.provider,
+            f"Updated eye follow-up for {followup.patient.full_name} on {followup.scheduled_date}",
+            link=reverse('DurielEyeApp:followup_list'),
+            clinic=followup.clinic,
+            app_name='eye',
+            object_id=followup.pk,
+        )
+        log_action(self.request, 'UPDATE', followup, f"Updated follow-up for {followup.patient.full_name}")
+        messages.success(self.request, "Follow-up updated successfully!")
+        return redirect(self.success_url)
     
 
 @login_required
@@ -1524,6 +1652,14 @@ def schedule_eye_follow_up(request, patient_id):
             follow_up.clinic = patient.clinic
             follow_up.created_by = request.user
             follow_up.save()
+            notify_user_db(
+                follow_up.provider,
+                f"New eye follow-up for {follow_up.patient.full_name} on {follow_up.scheduled_date}",
+                link=reverse('DurielEyeApp:followup_list'),
+                clinic=follow_up.clinic,
+                app_name='eye',
+                object_id=follow_up.pk,
+            )
             messages.success(request, f"Follow-up scheduled for {patient.full_name}.")
             return redirect('core:patient_detail', pk=patient.patient_id)
     else:
@@ -1538,14 +1674,87 @@ def schedule_eye_follow_up(request, patient_id):
 @require_POST
 @login_required
 @clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+def start_eye_follow_up_encounter(request, pk):
+    followup = get_object_or_404(EyeFollowUp, pk=pk, clinic=request.clinic)
+    if followup.completed:
+        messages.info(request, "This follow-up is already completed.")
+        return redirect('DurielEyeApp:followup_list')
+    if followup.provider_id and followup.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, "Only the assigned provider can start this follow-up.")
+        return redirect('DurielEyeApp:followup_list')
+
+    encounter = _get_or_create_follow_up_encounter(followup, request.user)
+    if encounter.status != 'IN_PROGRESS':
+        encounter.status = 'IN_PROGRESS'
+        encounter.provider = followup.provider or request.user
+        encounter.started_at = timezone.now()
+        encounter.save(update_fields=['status', 'provider', 'started_at', 'updated_at'])
+
+    if followup.patient.status != 'IN_CONSULTATION':
+        followup.patient.status = 'IN_CONSULTATION'
+        followup.patient.save(update_fields=['status'])
+
+    log_action(request, 'UPDATE', followup, details=f"Started follow-up encounter for {followup.patient.full_name}")
+    messages.success(request, f"Follow-up encounter started for {followup.patient.full_name}.")
+    return redirect(f"{reverse('DurielEyeApp:begin_consultation', kwargs={'patient_id': followup.patient.pk})}?followup_id={followup.pk}")
+
+
+@require_POST
+@login_required
+@clinic_selected_required
+@role_required('DOCTOR', 'OPTOMETRIST')
+def end_eye_follow_up_encounter(request, pk):
+    followup = get_object_or_404(EyeFollowUp, pk=pk, clinic=request.clinic)
+    if followup.provider_id and followup.provider_id != request.user.id and request.user.role != 'ADMIN':
+        messages.error(request, "Only the assigned provider can end this follow-up.")
+        return redirect('DurielEyeApp:followup_list')
+
+    encounter = _get_or_create_follow_up_encounter(followup, request.user)
+    if encounter.status != 'COMPLETED':
+        encounter.status = 'COMPLETED'
+        encounter.ended_at = timezone.now()
+        encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
+
+    followup.completed = True
+    followup.completed_at = encounter.ended_at or timezone.now()
+    followup.save(update_fields=['completed', 'completed_at'])
+
+    followup.patient.status = 'FOLLOW_UP_COMPLETE'
+    followup.patient.save(update_fields=['status'])
+
+    notify_roles(
+        followup.clinic,
+        ['ADMIN', 'RECEPTIONIST'],
+        f"Eye follow-up completed for {followup.patient.full_name}.",
+        link=reverse('DurielEyeApp:followup_list'),
+        app_name='eye',
+        object_id=followup.pk,
+        exclude_user=request.user,
+    )
+    log_action(request, 'UPDATE', followup, details=f"Ended follow-up encounter for {followup.patient.full_name}")
+    messages.success(request, f"Follow-up encounter ended for {followup.patient.full_name}.")
+    return redirect('DurielEyeApp:followup_list')
+
+
+@require_POST
+@login_required
+@clinic_selected_required
 @role_required('DOCTOR', 'OPTOMETRIST', 'NURSE')
 def complete_eye_follow_up(request, pk):
     followup = get_object_or_404(EyeFollowUp, pk=pk, clinic=request.clinic)
 
     if not followup.completed:
+        encounter = _get_or_create_follow_up_encounter(followup, request.user)
+        if encounter.status != 'COMPLETED':
+            encounter.status = 'COMPLETED'
+            encounter.ended_at = timezone.now()
+            encounter.save(update_fields=['status', 'ended_at', 'updated_at'])
         followup.completed = True
-        followup.completed_at = timezone.now()
-        followup.save()
+        followup.completed_at = encounter.ended_at or timezone.now()
+        followup.save(update_fields=['completed', 'completed_at'])
+        followup.patient.status = 'FOLLOW_UP_COMPLETE'
+        followup.patient.save(update_fields=['status'])
         # ✅ Add logging
         log_action(
             request,

@@ -116,13 +116,38 @@ class EyeFollowUpForm(forms.ModelForm):
 
     class Meta:
         model = EyeFollowUp
-        fields = ['patient', 'reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
+        fields = ['patient', 'provider', 'reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
 
     def __init__(self, *args, **kwargs):
         clinic_id = kwargs.pop('clinic_id', None)
+        self.clinic_id = clinic_id
         super().__init__(*args, **kwargs)
         if clinic_id:
             self.fields['patient'].queryset = Patient.objects.filter(clinic_id=clinic_id, clinic__clinic_type='EYE')
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic__id=clinic_id,
+                is_active=True,
+                role__in=['ADMIN', 'DOCTOR', 'OPTOMETRIST', 'RECEPTIONIST', 'NURSE'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
+        else:
+            self.fields['patient'].queryset = Patient.objects.none()
+            self.fields['provider'].queryset = CustomUser.objects.none()
+
+        self.fields['provider'].required = True
+        self.fields['provider'].empty_label = "--------"
+        self.fields['provider'].label_from_instance = lambda obj: f"{obj.title or ''} {obj.get_full_name() or obj.username}"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        patient = cleaned_data.get('patient')
+        provider = cleaned_data.get('provider')
+
+        if self.clinic_id and patient and patient.clinic_id != int(self.clinic_id):
+            raise ValidationError("Selected patient does not belong to the active clinic.")
+        if self.clinic_id and provider and not provider.clinic.filter(id=self.clinic_id).exists():
+            raise ValidationError("Selected provider does not belong to the active clinic.")
+
+        return cleaned_data
 
 
 class EyeExamForm(forms.ModelForm):

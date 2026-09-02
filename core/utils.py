@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from .models import ActionLog, Notification, PatientEncounter
 
 def log_action(request, action, obj=None, details=""):
@@ -87,6 +88,7 @@ def notify_roles(clinic, roles, message, link=None, app_name='', object_id=None,
             object_id=str(object_id) if object_id is not None else None,
             app_name=app_name or '',
         )
+        cache.delete(f"notifications:unread:{clinic.pk}:{user.pk}")
         created += 1
     return created
 
@@ -94,7 +96,7 @@ def notify_roles(clinic, roles, message, link=None, app_name='', object_id=None,
 def notify_user_db(user, message, link=None, clinic=None, app_name='', object_id=None):
     if not user or not getattr(user, 'is_active', False):
         return None
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         user=user,
         clinic=clinic,
         message=message,
@@ -102,6 +104,9 @@ def notify_user_db(user, message, link=None, clinic=None, app_name='', object_id
         object_id=str(object_id) if object_id is not None else None,
         app_name=app_name or '',
     )
+    if clinic:
+        cache.delete(f"notifications:unread:{clinic.pk}:{user.pk}")
+    return notification
 
 
 def notify_role_handoff(

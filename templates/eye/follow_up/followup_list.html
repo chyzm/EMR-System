@@ -20,6 +20,7 @@
         <thead class="bg-gray-50">
           <tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled Date</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -41,6 +42,9 @@
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ followup.provider.get_full_name|default:followup.provider.username|default:"-" }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ followup.scheduled_date }} at {{ followup.scheduled_time|time:"g:i A" }}
             </td>
             <td class="px-6 py-4 text-sm text-gray-500">{{ followup.reason|truncatechars:50 }}</td>
@@ -55,7 +59,24 @@
 	              {% if can_manage_eye_followups %}
 	                <a href="{% url 'DurielEyeApp:followup_update' followup.pk %}" class="text-yellow-600 hover:text-yellow-900 mr-3"><i class="fas fa-edit"></i></a>
 	              {% endif %}
-	              {% if not followup.completed and can_complete_eye_followups %}
+	              {% if followup.can_run_encounter %}
+	                {% if followup.encounter_status == 'IN_PROGRESS' %}
+	                  <form method="post" action="{% url 'DurielEyeApp:end_eye_follow_up' followup.pk %}" class="inline">
+	                    {% csrf_token %}
+	                    <button type="submit" class="text-red-600 hover:text-red-900 mr-3" title="End follow-up encounter">
+	                      <i class="fas fa-stop-circle"></i>
+	                    </button>
+	                  </form>
+	                {% else %}
+	                  <form method="post" action="{% url 'DurielEyeApp:start_eye_follow_up' followup.pk %}" class="inline">
+	                    {% csrf_token %}
+	                    <button type="submit" class="text-blue-600 hover:text-blue-900 mr-3" title="Start follow-up encounter">
+	                      <i class="fas fa-play-circle"></i>
+	                    </button>
+	                  </form>
+	                {% endif %}
+	              {% endif %}
+	              {% if not followup.completed and can_complete_eye_followups and not followup.can_run_encounter %}
 	              <form method="post" action="{% url 'DurielEyeApp:complete_eye_follow_up' followup.pk %}" class="inline">
 	                {% csrf_token %}
 	                <button type="submit" class="text-green-600 hover:text-green-900 mr-3"><i class="fas fa-check"></i></button>
@@ -65,7 +86,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="px-6 py-4 text-center text-gray-500">No follow-ups scheduled</td>
+            <td colspan="6" class="px-6 py-4 text-center text-gray-500">No follow-ups scheduled</td>
           </tr>
           {% endfor %}
         </tbody>

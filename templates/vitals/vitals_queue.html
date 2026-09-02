@@ -8,7 +8,7 @@
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
       <h1 class="text-2xl font-semibold text-gray-900">Vitals Queue</h1>
-      <p class="text-sm text-gray-500">Appointments awaiting vitals for {{ request.clinic.name }}</p>
+      <p class="text-sm text-gray-500">Appointments and due follow-ups awaiting vitals for {{ request.clinic.name }}</p>
     </div>
   </div>
 
@@ -28,20 +28,99 @@
           {% for item in vitals_items %}
           <tr x-data="{ vitalsOpen: false }">
             <td class="px-4 py-3">
-              <div class="font-medium text-gray-900">{{ item.appointment.patient.full_name }}</div>
-              <div class="text-xs text-gray-500">{{ item.appointment.patient.patient_id }}</div>
+              <div class="font-medium text-gray-900">{{ item.source.patient.full_name }}</div>
+              <div class="text-xs text-gray-500">{{ item.source.patient.patient_id }}</div>
             </td>
-            <td class="px-4 py-3 text-sm text-gray-700">{{ item.appointment.date }} {{ item.appointment.start_time|time:"h:i A" }}</td>
-            <td class="px-4 py-3 text-sm text-gray-700">{{ item.appointment.provider.get_full_name|default:item.appointment.provider.username }}</td>
-            <td class="px-4 py-3 text-sm text-gray-700">{{ item.appointment.reason|default:"-"|truncatechars:70 }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700">
+              {% if item.source_type == 'followup' %}
+                {{ item.source.scheduled_date }} {{ item.source.scheduled_time|time:"h:i A" }}
+                <span class="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Follow-up</span>
+              {% else %}
+                {{ item.source.date }} {{ item.source.start_time|time:"h:i A" }}
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-700">{{ item.source.provider.get_full_name|default:item.source.provider.username }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700">{{ item.source.reason|default:item.source.chief_complaint|default:"-"|truncatechars:70 }}</td>
             <td class="px-4 py-3 text-right whitespace-nowrap">
               <a href="{{ item.detail_url }}" class="text-sm text-blue-600 hover:text-blue-800 mr-3">View</a>
-              {% include 'appointments/partials/vitals_modal_action.html' with appointment=item.appointment clinic_type=item.clinic_type %}
+              {% if item.source_type == 'followup' and can_access_vitals %}
+                <button type="button"
+                        @click="vitalsOpen = true"
+                        class="inline-block px-4 py-2 text-sm text-blue-700 hover:bg-blue-100 rounded text-center">
+                  <i class="fas fa-heart-pulse mr-2"></i>Show Vitals
+                </button>
+                <div x-cloak
+                     x-show="vitalsOpen"
+                     x-transition
+                     class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black bg-opacity-50 px-3 py-6 sm:px-4">
+                  <div @click.away="vitalsOpen = false"
+                       class="w-full max-w-2xl rounded-lg bg-white p-4 text-left shadow-xl sm:p-6">
+                    <div class="mb-4 flex items-start justify-between">
+                      <div>
+                        <h2 class="text-lg font-semibold text-gray-900">Vitals</h2>
+                        <p class="text-sm text-gray-500">{{ item.source.patient.full_name }} - Follow-up {{ item.source.scheduled_date|date:"M j, Y" }}</p>
+                      </div>
+                      <button type="button" @click="vitalsOpen = false" class="text-gray-400 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                    <form method="post" action="{% url 'DurielMedicApp:record_follow_up_vitals' clinic_type=item.clinic_type followup_id=item.source.pk %}" class="space-y-4">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <input type="hidden" name="category" value="FOLLOWUP">
+                      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Blood Pressure</label>
+                          <input name="blood_pressure" required maxlength="10" placeholder="120/80" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Pulse</label>
+                          <input name="pulse" type="number" required min="0" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Temperature</label>
+                          <input name="temperature" type="number" step="0.1" required class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Weight</label>
+                          <input name="weight" type="number" step="0.1" required class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Respiratory Rate</label>
+                          <input name="respiratory_rate" type="number" min="0" placeholder="breaths/min" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Oxygen Saturation (%)</label>
+                          <input name="oxygen_saturation" type="number" min="0" max="100" placeholder="98" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">Height</label>
+                          <input name="height" type="number" step="0.1" placeholder="cm" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0">
+                          <label class="block text-sm font-medium text-gray-700">BMI</label>
+                          <input name="bmi" type="number" step="0.1" placeholder="Auto/manual" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                        </div>
+                        <div class="min-w-0 sm:col-span-2">
+                          <label class="block text-sm font-medium text-gray-700">Notes</label>
+                          <textarea name="notes" rows="3" class="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                        </div>
+                      </div>
+                      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <button type="button" @click="vitalsOpen = false" class="w-full rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:w-auto">Cancel</button>
+                        <button type="submit" class="w-full rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 sm:w-auto">Save Vitals</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              {% else %}
+                {% include 'appointments/partials/vitals_modal_action.html' with appointment=item.appointment clinic_type=item.clinic_type %}
+              {% endif %}
             </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="px-4 py-10 text-center text-gray-500">No appointments are waiting for vitals.</td>
+            <td colspan="5" class="px-4 py-10 text-center text-gray-500">No appointments or due follow-ups are waiting for vitals.</td>
           </tr>
           {% endfor %}
         </tbody>

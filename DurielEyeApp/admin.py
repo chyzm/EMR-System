@@ -37,10 +37,10 @@ class EyeMedicalRecordAdmin(admin.ModelAdmin):
 
 @admin.register(EyeFollowUp)
 class EyeFollowUpAdmin(admin.ModelAdmin):
-    list_display = ('patient', 'clinic', 'scheduled_date', 'scheduled_time', 'completed', 'created_by')
+    list_display = ('patient', 'provider', 'clinic', 'scheduled_date', 'scheduled_time', 'completed', 'created_by')
     list_filter = ('clinic', 'completed', 'scheduled_date')
-    search_fields = ('patient__patient_id', 'patient__first_name', 'patient__last_name', 'reason', 'notes')
-    list_select_related = ('patient', 'clinic', 'created_by')
+    search_fields = ('patient__patient_id', 'patient__first_name', 'patient__last_name', 'provider__username', 'reason', 'notes')
+    list_select_related = ('patient', 'provider', 'clinic', 'created_by')
     date_hierarchy = 'scheduled_date'
     readonly_fields = ('sync_id', 'created_at')
 

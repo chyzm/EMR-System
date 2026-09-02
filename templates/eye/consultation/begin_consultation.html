@@ -15,7 +15,7 @@
               <i class="fas fa-arrow-left mr-1"></i>Back to Patient
             </a>
             <span class="px-3 py-1 text-sm rounded-full bg-white text-blue-600">
-              {% if appointment %}Appointment: {{ appointment.date }}{% else %}Walk-in{% endif %}
+              {% if followup %}Follow-up: {{ followup.scheduled_date }}{% elif appointment %}Appointment: {{ appointment.date }}{% else %}Walk-in{% endif %}
             </span>
           </div>
         </div>
@@ -94,16 +94,26 @@
           </div>
           {% endif %}
         </div>
-        {% elif appointment %}
+        {% elif appointment or followup %}
         <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <i class="fas fa-triangle-exclamation mr-2"></i>No vitals have been recorded for this appointment.
+          <i class="fas fa-triangle-exclamation mr-2"></i>No vitals have been recorded for this {% if followup %}follow-up{% else %}appointment{% endif %}.
         </div>
         {% endif %}
 
         <!-- Consultation Options -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           <!-- Add Record and Exam -->
-          {% if appointment %}
+          {% if followup %}
+          <a href="{% url 'DurielEyeApp:record_eye_follow_up_exam' followup.pk %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
+            <div class="flex items-center justify-center mb-4">
+              <div class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <i class="fas fa-eye text-xl"></i>
+              </div>
+            </div>
+            <h3 class="text-lg font-medium text-center text-gray-900 mb-2">Add Record and Exam</h3>
+            <p class="text-sm text-center text-gray-500">Perform comprehensive eye follow-up examination</p>
+          </a>
+          {% elif appointment %}
           <a href="{% url 'DurielEyeApp:record_eye_exam' appointment.pk %}" class="bg-white border border-blue-200 rounded-lg p-6 hover:bg-blue-50 transition-colors cursor-pointer">
             <div class="flex items-center justify-center mb-4">
               <div class="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
@@ -136,7 +146,7 @@
           </a>
           
 	          <!-- Complete Consultation -->
-	          <form method="post" action="{% url 'DurielEyeApp:complete_consultation' patient.patient_id %}" class="bg-white border border-green-200 rounded-lg p-6 hover:bg-green-50 transition-colors cursor-pointer">
+	          <form method="post" action="{% if followup %}{% url 'DurielEyeApp:end_eye_follow_up' followup.pk %}{% else %}{% url 'DurielEyeApp:complete_consultation' patient.patient_id %}{% endif %}" class="bg-white border border-green-200 rounded-lg p-6 hover:bg-green-50 transition-colors cursor-pointer">
 	            {% csrf_token %}
 	            <div class="flex items-center justify-center mb-4">
 	              <div class="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">

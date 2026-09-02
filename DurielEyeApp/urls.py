@@ -34,6 +34,7 @@ urlpatterns = [
 
     # Eye Exams
     path('appointments/<int:appointment_id>/record-exam/',views.record_eye_exam,name='record_eye_exam'),
+    path('follow-up/<int:followup_id>/record-exam/', views.record_eye_follow_up_exam, name='record_eye_follow_up_exam'),
     path('exams/<int:exam_id>/', views.view_eye_exam, name='view_eye_exam'),
     path('exams/<int:exam_id>/edit/',views.edit_eye_exam, name='edit_eye_exam'),
     path('exams/<int:exam_id>/delete/', views.delete_eye_exam, name='delete_eye_exam'),
@@ -53,6 +54,8 @@ urlpatterns = [
     path('follow-up/', EyeFollowUpListView.as_view(), name='followup_list'),
     path('follow-up/new/', EyeFollowUpCreateView.as_view(), name='followup_create'),
     path('follow-up/<int:pk>/edit/', EyeFollowUpUpdateView.as_view(), name='followup_update'),
+    path('follow-up/<int:pk>/start/', views.start_eye_follow_up_encounter, name='start_eye_follow_up'),
+    path('follow-up/<int:pk>/end/', views.end_eye_follow_up_encounter, name='end_eye_follow_up'),
     path('follow-up/complete/<int:pk>/', views.complete_eye_follow_up, name='complete_eye_follow_up'),
 
 

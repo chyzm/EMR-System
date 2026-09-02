@@ -232,6 +232,13 @@ class EyeFollowUp(models.Model):
         related_name='eye_follow_ups',
         limit_choices_to={'clinic_type': 'EYE'}
     )
+    provider = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='eye_follow_ups'
+    )
     reason = models.TextField()
     scheduled_date = models.DateField()
     scheduled_time = models.TimeField()

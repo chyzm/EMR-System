@@ -161,20 +161,36 @@ class DentalProcedureForm(forms.ModelForm):
 class DentalFollowUpForm(forms.ModelForm):
     class Meta:
         model = DentalFollowUp
-        fields = ['reason', 'scheduled_date', 'scheduled_time', 'notes']
+        fields = ['provider', 'reason', 'scheduled_date', 'scheduled_time', 'notes']
         widgets = {
+            'provider': forms.Select(attrs={'class': BASE_INPUT}),
             'reason': forms.Textarea(attrs={'rows': 3, 'class': BASE_INPUT}),
             'scheduled_date': forms.DateInput(attrs={'type': 'date', 'class': BASE_INPUT}),
             'scheduled_time': forms.TimeInput(attrs={'type': 'time', 'class': BASE_INPUT}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': BASE_INPUT}),
         }
 
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        super().__init__(*args, **kwargs)
+        if clinic:
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role__in=['ADMIN', 'DENTIST'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
+        else:
+            self.fields['provider'].queryset = CustomUser.objects.none()
+        self.fields['provider'].required = True
+        self.fields['provider'].empty_label = '--------'
+
 
 class DentalFollowUpClinicalForm(forms.ModelForm):
     class Meta:
         model = DentalFollowUp
-        fields = ['treatment_plan', 'reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
+        fields = ['provider', 'treatment_plan', 'reason', 'scheduled_date', 'scheduled_time', 'notes', 'completed']
         widgets = {
+            'provider': forms.Select(attrs={'class': BASE_INPUT}),
             'treatment_plan': forms.Select(attrs={'class': BASE_INPUT}),
             'reason': forms.Textarea(attrs={'rows': 3, 'class': BASE_INPUT}),
             'scheduled_date': forms.DateInput(attrs={'type': 'date', 'class': BASE_INPUT}),
@@ -184,7 +200,19 @@ class DentalFollowUpClinicalForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         patient = kwargs.pop('patient', None)
+        clinic = kwargs.pop('clinic', None)
         super().__init__(*args, **kwargs)
+        clinic = clinic or getattr(patient, 'clinic', None)
+        if clinic:
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role__in=['ADMIN', 'DENTIST'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
+        else:
+            self.fields['provider'].queryset = CustomUser.objects.none()
+        self.fields['provider'].required = True
+        self.fields['provider'].empty_label = '--------'
         if patient:
             self.fields['treatment_plan'].queryset = DentalTreatmentPlan.objects.filter(patient=patient)
 

@@ -68,13 +68,36 @@ class VitalsForm(forms.ModelForm):
 class FollowUpForm(forms.ModelForm):
     class Meta:
         model = FollowUp
-        fields = ['reason', 'scheduled_date', 'scheduled_time', 'notes']
+        fields = ['patient', 'provider', 'reason', 'scheduled_date', 'scheduled_time', 'notes']
         widgets = {
+            'patient': forms.Select(attrs={'class': 'form-control'}),
+            'provider': forms.Select(attrs={'class': 'form-control'}),
             'scheduled_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'scheduled_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
             'reason': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        clinic = kwargs.pop('clinic', None)
+        patient = kwargs.pop('patient', None)
+        super().__init__(*args, **kwargs)
+        if clinic:
+            self.fields['patient'].queryset = Patient.objects.filter(clinic=clinic).order_by('first_name', 'last_name')
+            self.fields['provider'].queryset = CustomUser.objects.filter(
+                clinic=clinic,
+                is_active=True,
+                role__in=['ADMIN', 'DOCTOR', 'NURSE'],
+            ).distinct().order_by('first_name', 'last_name', 'username')
+        else:
+            self.fields['patient'].queryset = Patient.objects.none()
+            self.fields['provider'].queryset = CustomUser.objects.none()
+        if patient:
+            self.fields['patient'].required = False
+            self.fields['patient'].widget = forms.HiddenInput()
+            self.initial['patient'] = patient.pk
+        self.fields['provider'].required = True
+        self.fields['provider'].empty_label = '--------'
 
 class AdmissionForm(forms.ModelForm):
     class Meta:

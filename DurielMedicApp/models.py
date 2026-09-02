@@ -116,7 +116,7 @@ class Vitals(models.Model):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment')},
+        limit_choices_to={'model__in': ('appointment', 'eyeappointment', 'dentalappointment', 'followup', 'eyefollowup', 'dentalfollowup')},
     )
     appointment_object_id = models.PositiveIntegerField(null=True, blank=True)
     appointment_object = GenericForeignKey('appointment_content_type', 'appointment_object_id')
@@ -321,6 +321,7 @@ class AdmissionHandover(models.Model):
 class FollowUp(models.Model):
     sync_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='follow_ups')
+    provider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='follow_ups')
     reason = models.TextField()
     scheduled_date = models.DateField()
     scheduled_time = models.TimeField()

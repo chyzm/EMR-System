@@ -1564,7 +1564,7 @@ class FollowUpCreateView(LoginRequiredMixin, CreateView):
 
 class FollowUpUpdateView(LoginRequiredMixin, UpdateView):
     model = FollowUp
-    template_name = 'followup_form.html'
+    template_name = 'follow_up/schedule_follow_up.html'
     form_class = FollowUpForm
     success_url = reverse_lazy('DurielMedicApp:followup_list')
 

@@ -25,11 +25,18 @@
             <h2 class="text-2xl font-semibold mb-2">
                 {% if from_consultation %}Schedule Follow-up after Consultation{% else %}Schedule Follow-up{% endif %}
             </h2>
+            {% if patient %}
             <p class="text-gray-600">For patient: {{ patient.full_name }}</p>
+            {% endif %}
         </div>
         <div>
+            {% if patient %}
             <a href="{% url 'core:patient_detail' pk=patient.patient_id %}" 
 	               class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</a>
+            {% else %}
+            <a href="{% url 'DurielMedicApp:followup_list' %}" 
+	               class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</a>
+            {% endif %}
         </div>
     </div>
 
@@ -38,7 +45,7 @@
             <h3 class="text-xl font-semibold">Follow-up Details</h3>
         </div>
         <div class="p-6">
-            <form method="post" class="followup-form" data-sync-action="schedule_follow_up" data-patient-id="{{ patient.patient_id }}" data-patient-sync-id="{{ patient.sync_id }}">
+            <form method="post" class="followup-form" data-sync-action="schedule_follow_up" data-patient-id="{% if patient %}{{ patient.patient_id }}{% endif %}" data-patient-sync-id="{% if patient %}{{ patient.sync_id }}{% endif %}">
                 {% csrf_token %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {% for field in form %}
@@ -55,7 +62,7 @@
                 </div>
                 <div class="mt-6 flex justify-between">
                     <div>
-                        {% if from_consultation %}
+                        {% if from_consultation and patient %}
                         <a href="{% url 'DurielMedicApp:admit_patient' patient_id=patient.patient_id %}" 
                            class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded">
                             Admit Patient Instead

@@ -7,9 +7,9 @@
 <div class="container mx-auto px-4 py-6">
   <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Follow Up Appointments</h1>
-    {% comment %} <a href="{% url 'DurielMedicApp:schedule_follow_up' patient_id=patient.patient_id %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+    <a href="{% url 'DurielMedicApp:followup_create' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
       <i class="fas fa-plus mr-2"></i> New Follow Up
-    </a> {% endcomment %}
+    </a>
   </div>
 
   <div class="bg-white shadow rounded-lg overflow-hidden">

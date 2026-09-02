@@ -583,6 +583,7 @@ def _pending_vitals_items(clinic, user=None):
                 'source_type': 'appointment',
                 'clinic_type': clinic_type,
                 'detail_url': reverse(detail_name, kwargs={'pk': appointment.pk}),
+                'reason_text': getattr(appointment, 'reason', '') or getattr(appointment, 'chief_complaint', '') or '-',
             })
 
     def extend_for_followups(model, clinic_type, detail_name):
@@ -608,6 +609,7 @@ def _pending_vitals_items(clinic, user=None):
                 'source_type': 'followup',
                 'clinic_type': clinic_type,
                 'detail_url': reverse(detail_name),
+                'reason_text': followup.reason or '-',
             })
 
     if clinic.clinic_type == 'EYE':

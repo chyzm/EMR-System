@@ -40,7 +40,7 @@
               {% endif %}
             </td>
             <td class="px-4 py-3 text-sm text-gray-700">{{ item.source.provider.get_full_name|default:item.source.provider.username }}</td>
-            <td class="px-4 py-3 text-sm text-gray-700">{{ item.source.reason|default:item.source.chief_complaint|default:"-"|truncatechars:70 }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700">{{ item.reason_text|truncatechars:70 }}</td>
             <td class="px-4 py-3 text-right whitespace-nowrap">
               <a href="{{ item.detail_url }}" class="text-sm text-blue-600 hover:text-blue-800 mr-3">View</a>
               {% if item.source_type == 'followup' and can_access_vitals %}

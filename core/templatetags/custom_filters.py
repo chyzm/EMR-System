@@ -53,3 +53,13 @@ def get_item(dictionary, key):
     if dictionary is None:
         return None
     return dictionary.get(key)
+
+
+@register.filter
+def user_display_name(user, fallback="-"):
+    """Return a safe display name for optional user objects."""
+    if not user:
+        return fallback
+
+    full_name = user.get_full_name() if hasattr(user, "get_full_name") else ""
+    return full_name or getattr(user, "username", None) or fallback

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load custom_filters %}
 
 {% block title %}Eye Follow-ups{% endblock %}
 
@@ -42,7 +43,7 @@
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ followup.provider.get_full_name|default:followup.provider.username|default:"-" }}
+              {{ followup.provider|user_display_name }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ followup.scheduled_date }} at {{ followup.scheduled_time|time:"g:i A" }}

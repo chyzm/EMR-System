@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block content %}
 <div class="container mx-auto p-6" data-patient-sync-id="{{ patient.sync_id }}">
     <div class="flex justify-between items-start mb-6">
@@ -312,7 +313,7 @@
         <p class="text-sm text-gray-800">{{ instruction.instruction|linebreaksbr }}</p>
         <span class="text-xs font-medium {% if instruction.status == 'OPEN' %}text-blue-700{% else %}text-green-700{% endif %}">{{ instruction.get_status_display }}</span>
       </div>
-      <p class="mt-2 text-xs text-gray-500">{{ instruction.created_at|date:"M j, Y H:i" }} · {{ instruction.created_by.get_full_name|default:instruction.created_by.username }}</p>
+      <p class="mt-2 text-xs text-gray-500">{{ instruction.created_at|date:"M j, Y H:i" }} · {{ instruction.created_by|user_display_name }}</p>
     </div>
     {% empty %}
     <div class="p-4 text-sm text-gray-500">No nurse instructions recorded.</div>

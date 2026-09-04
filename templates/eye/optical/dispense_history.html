@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load custom_filters %}
 {% block title %}Optical Dispense History{% endblock %}
 {% block content %}
 <div class="container mx-auto px-4 py-6">
@@ -34,7 +35,7 @@
                         <td class="px-6 py-4 text-sm text-gray-700">{{ d.product.display_name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">{{ d.quantity }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">₦{{ d.total_price }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.dispensed_by.get_full_name|default:d.dispensed_by.username|default:"—" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ d.dispensed_by|user_display_name }}</td>
                     </tr>
                     {% empty %}
                     <tr>

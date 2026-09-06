@@ -12,9 +12,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 import sys
+import logging
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
+
 load_dotenv()
 
 try:
@@ -127,26 +129,39 @@ CHANNEL_LAYERS = {
 }
 
 
+IGNORED_BOT_PATHS = (
+    "/curl/",
+    "/wp-admin",
+    "/wp-login.php",
+    "/wp-includes/",
+    "/xmlrpc.php",
+    "/wlwmanifest.xml",
+    "/wordpress/",
+    "/phpmyadmin",
+    "/.env",
+    "/.git/",
+    "/favicon.ico",
+    "/robots.txt",
+)
+
+
 def sentry_before_send(event, hint):
-    """
-    Filter known bot/scanner noise before sending events to Sentry.
-    """
     request = event.get("request", {})
     url = request.get("url", "")
 
-    ignored_paths = (
-        "/curl/",
-        "/wp-admin",
-        "/wp-login.php",
-        "/phpmyadmin",
-        "/.env",
-        "/.git/",
-    )
-
-    if any(path in url for path in ignored_paths):
+    if any(path in url for path in IGNORED_BOT_PATHS):
         return None
 
     return event
+
+
+def sentry_before_send_log(log, hint):
+    message = str(log.get("body", ""))
+
+    if any(path in message for path in IGNORED_BOT_PATHS):
+        return None
+
+    return log
 
 
 SENTRY_DSN = os.getenv("SENTRY_DSN")
@@ -158,8 +173,9 @@ if SENTRY_DSN and sentry_sdk:
         traces_sample_rate=0.1,
         enable_logs=True,
         environment="production",
+        before_send=sentry_before_send,
+        before_send_log=sentry_before_send_log,
     )
-
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -243,50 +259,70 @@ CRISPY_TEMPLATE_PACK = "tailwind"
 
 
 
+
+
+class IgnoreBotNoiseFilter(logging.Filter):
+    """
+    Ignore known bot/scanner noise from local Django logs.
+    """
+
+    def filter(self, record):
+        message = record.getMessage()
+
+        if any(path in message for path in IGNORED_BOT_PATHS):
+            return False
+
+        return True
+
+
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
+    "version": 1,
+    "disable_existing_loggers": False,
 
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {name} {message}',
-            'style': '{',
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {name} {message}",
+            "style": "{",
         },
     },
 
-    'handlers': {
-        # Keep your existing file logging
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': LOGS_DIR / 'django.log',
-            'formatter': 'verbose',
-        },
-
-        # Also show logs in terminal / PythonAnywhere
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+    "filters": {
+        "ignore_bot_noise": {
+            "()": IgnoreBotNoiseFilter,
         },
     },
 
-    'loggers': {
-        # Django's own logs
-        'django': {
-            'handlers': ['file', 'console'],
-            'level': 'WARNING',
-            'propagate': True,
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": LOGS_DIR / "django.log",
+            "formatter": "verbose",
+            "filters": ["ignore_bot_noise"],
         },
 
-        # Your DurielMedic operational logs
-        'durielmedic': {
-            'handlers': ['file', 'console'],
-            'level': 'INFO',
-            'propagate': True,
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+            "filters": ["ignore_bot_noise"],
+        },
+    },
+
+    "loggers": {
+        "django": {
+            "handlers": ["file", "console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+
+        "durielmedic": {
+            "handlers": ["file", "console"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
 }

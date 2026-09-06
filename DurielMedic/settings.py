@@ -243,29 +243,6 @@ CRISPY_TEMPLATE_PACK = "tailwind"
 
 
 
-
-# LOGS_DIR = BASE_DIR / "logs"
-# LOGS_DIR.mkdir(exist_ok=True)  # ✅ auto-create logs folder if missing
-
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'file': {
-#             'level': 'WARNING',
-#             'class': 'logging.FileHandler',
-#             'filename': LOGS_DIR / 'django.log',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['file'],
-#             'level': 'WARNING',
-#             'propagate': True,
-#         },
-#     },
-# }
-
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
@@ -424,8 +401,3 @@ AI_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # Paystack settings for payments
 PAYSTACK_PUBLIC_KEY = os.getenv('PAYSTACK_PUBLIC_KEY')
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
-
-# Stripe settings for payments
-# STRIPE_PUBLIC_KEY = 'your_stripe_public_key'
-# STRIPE_SECRET_KEY = 'your_stripe_secret_key'
-# STRIPE_WEBHOOK_SECRET = 'your_stripe_webhook_secret'

@@ -1,4 +1,3 @@
-from core.models import Clinic  # adjust import
 from core.permissions import (
     BILLING_ROLES,
     REPORTING_ROLES,
@@ -119,14 +118,9 @@ def permission_context(request):
 
 def clinic_context(request):
     clinic_logo_url = None
-    clinic_id = request.session.get("clinic_id")
-    if clinic_id:
-        try:
-            clinic = Clinic.objects.get(id=clinic_id)
-            if clinic.logo:
-                clinic_logo_url = clinic.logo.url
-        except Clinic.DoesNotExist:
-            pass
+    clinic = getattr(request, "clinic", None)
+    if clinic and clinic.logo:
+        clinic_logo_url = clinic.logo.url
 
     return {
         "clinic_logo_url": clinic_logo_url,

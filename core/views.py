@@ -36,7 +36,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from django.db.models import Q, Count, Value, DecimalField
+from django.db.models import OuterRef, Q, Count, Subquery, Value, DecimalField
 from .models import ActionLog
 from .utils import (
     log_action,
@@ -588,14 +588,14 @@ def select_clinic(request):
 def manage_user_roles(request):
     # 🔹 Superusers can see all users and clinics
     if request.user.is_superuser:
-        users = CustomUser.objects.all()
+        users = CustomUser.objects.prefetch_related('clinic')
         clinics = Clinic.objects.all()
     else:
         # 🔹 ADMIN users can only see users from their own clinics
         users = CustomUser.objects.filter(
             clinic__in=request.user.clinic.all(),
             is_superuser=False  # ADMINs can't see superusers
-        )
+        ).prefetch_related('clinic').distinct()
         clinics = request.user.clinic.all()
 
     # Pass request to form for correct queryset
@@ -3185,7 +3185,29 @@ def admin_dashboard(request):
     clinic_search = request.GET.get('clinic_search', '')
     clinic_page = request.GET.get('clinic_page', 1)
     
-    clinics = Clinic.objects.all().order_by('name')  # Added ordering by name
+    appointment_counts = Appointment.objects.filter(
+        clinic=OuterRef('pk')
+    ).values('clinic').annotate(total=Count('pk')).values('total')
+    patient_counts = Patient.objects.filter(
+        clinic=OuterRef('pk')
+    ).values('clinic').annotate(total=Count('pk')).values('total')
+    staff_counts = CustomUser.objects.filter(
+        clinic=OuterRef('pk')
+    ).values('clinic').annotate(total=Count('pk')).values('total')
+    bill_totals = Billing.objects.filter(
+        clinic=OuterRef('pk')
+    ).values('clinic').annotate(total=Sum('amount')).values('total')
+    prescription_counts = Prescription.objects.filter(
+        clinic=OuterRef('pk')
+    ).values('clinic').annotate(total=Count('pk')).values('total')
+
+    clinics = Clinic.objects.annotate(
+        patients_total=Coalesce(Subquery(patient_counts), Value(0)),
+        appointments_total=Coalesce(Subquery(appointment_counts), Value(0)),
+        staff_total=Coalesce(Subquery(staff_counts), Value(0)),
+        bills_total=Coalesce(Subquery(bill_totals), Value(0), output_field=DecimalField()),
+        prescriptions_total=Coalesce(Subquery(prescription_counts), Value(0)),
+    ).order_by('name')
     if clinic_search:
         clinics = clinics.filter(
             Q(name__icontains=clinic_search) | 
@@ -3201,24 +3223,24 @@ def admin_dashboard(request):
     except EmptyPage:
         clinic_page_obj = clinic_paginator.page(clinic_paginator.num_pages)
     
-    stats = []
-    for clinic in clinic_page_obj:
-        clinic_stats = {
+    stats = [
+        {
             'clinic': clinic,
-            'patients': Patient.objects.filter(clinic=clinic).count(),
-            'appointments': Appointment.objects.filter(clinic=clinic).count(),
-            'staff': CustomUser.objects.filter(clinic=clinic).count(),
-            'bills': Billing.objects.filter(clinic=clinic).aggregate(total=Sum('amount'))['total'] or 0,
-            'prescriptions': Prescription.objects.filter(patient__clinic=clinic).count(),
+            'patients': clinic.patients_total,
+            'appointments': clinic.appointments_total,
+            'staff': clinic.staff_total,
+            'bills': clinic.bills_total,
+            'prescriptions': clinic.prescriptions_total,
         }
-        stats.append(clinic_stats)
+        for clinic in clinic_page_obj
+    ]
     
     # User Management with search and pagination
     user_search = request.GET.get('user_search', '')
     user_clinic = request.GET.get('user_clinic', '')
     user_page = request.GET.get('user_page', 1)
     
-    users = CustomUser.objects.all().order_by('last_name', 'first_name')  # Added ordering by last_name then first_name
+    users = CustomUser.objects.prefetch_related('clinic').order_by('last_name', 'first_name')
     if user_search:
         users = users.filter(
             Q(username__icontains=user_search) |

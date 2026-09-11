@@ -208,6 +208,7 @@ SYNC_ACTIVATION_TOKEN = os.getenv('SYNC_ACTIVATION_TOKEN', '')
 SYNC_UPDATE_MANIFEST_URL = os.getenv('SYNC_UPDATE_MANIFEST_URL', '')
 SYNC_INTERVAL_SECONDS = int(os.getenv('SYNC_INTERVAL_SECONDS', '30'))
 SYNC_BATCH_SIZE = int(os.getenv('SYNC_BATCH_SIZE', '25'))
+SYNC_PULL_PAGES_PER_PASS = int(os.getenv('SYNC_PULL_PAGES_PER_PASS', '5'))
 SYNC_REQUEST_TIMEOUT_SECONDS = int(os.getenv('SYNC_REQUEST_TIMEOUT_SECONDS', '20'))
 SYNC_MAX_RETRY_ATTEMPTS = int(os.getenv('SYNC_MAX_RETRY_ATTEMPTS', '10'))
 SYNC_MAX_PAYLOAD_BYTES = int(os.getenv('SYNC_MAX_PAYLOAD_BYTES', str(9 * 1024 * 1024)))
@@ -233,6 +234,32 @@ else:  # PythonAnywhere/MySQLP
             'PORT': os.getenv('DB_PORT'),
         }
     }
+
+
+IS_LOCAL_SQLITE = (
+    DATABASES["default"].get("ENGINE") == "django.db.backends.sqlite3"
+    and env_bool("DURIELMEDIC_DESKTOP", False)
+)
+
+if IS_LOCAL_SQLITE:
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"]["timeout"] = int(os.getenv("SQLITE_TIMEOUT_SECONDS", "30"))
+
+    from django.db.backends.signals import connection_created
+
+    def configure_local_sqlite_connection(sender, connection, **kwargs):
+        if connection.vendor != "sqlite":
+            return
+
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute(
+                "PRAGMA busy_timeout=%s;"
+                % int(os.getenv("SQLITE_BUSY_TIMEOUT_MS", "30000"))
+            )
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+
+    connection_created.connect(configure_local_sqlite_connection)
 
 
 
@@ -275,8 +302,8 @@ class IgnoreBotNoiseFilter(logging.Filter):
         return True
 
 
-LOGS_DIR = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
+LOGS_DIR = Path(os.getenv("DURIELMEDIC_RUNTIME_DIR", BASE_DIR)) / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 LOGGING = {
     "version": 1,
@@ -298,8 +325,20 @@ LOGGING = {
     "handlers": {
         "file": {
             "level": "INFO",
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "filename": LOGS_DIR / "django.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "verbose",
+            "filters": ["ignore_bot_noise"],
+        },
+
+        "error_file": {
+            "level": "ERROR",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOGS_DIR / "error.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 10,
             "formatter": "verbose",
             "filters": ["ignore_bot_noise"],
         },
@@ -314,13 +353,25 @@ LOGGING = {
 
     "loggers": {
         "django": {
-            "handlers": ["file", "console"],
+            "handlers": ["file", "error_file", "console"],
             "level": "WARNING",
             "propagate": False,
         },
 
+        "django.request": {
+            "handlers": ["error_file", "console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+
         "durielmedic": {
-            "handlers": ["file", "console"],
+            "handlers": ["file", "error_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+
+        "core": {
+            "handlers": ["file", "error_file", "console"],
             "level": "INFO",
             "propagate": False,
         },
@@ -345,8 +396,9 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # Session expires after 15 minutes of inactivity
 SESSION_COOKIE_AGE = 900  # seconds (900 = 15 minutes)
 
-# Reset the timer on each request (so active users aren’t logged out)
-SESSION_SAVE_EVERY_REQUEST = True
+# Save sessions only when they change. This avoids unnecessary SQLite writes on
+# every authenticated page load in the local clinic server.
+SESSION_SAVE_EVERY_REQUEST = env_bool("SESSION_SAVE_EVERY_REQUEST", False)
 
 # AUTO_LOGOUT_DELAY = 900  # seconds = 15 mins
 

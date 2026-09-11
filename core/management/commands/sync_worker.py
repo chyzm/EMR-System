@@ -2,6 +2,7 @@ import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import OperationalError
 
 from core.server_sync import (
     internet_available,
@@ -11,6 +12,10 @@ from core.server_sync import (
     sync_worker_lock,
     sync_worker_owner_lock,
 )
+
+
+def is_sqlite_locked_error(exc):
+    return 'database is locked' in str(exc).lower()
 
 
 class Command(BaseCommand):
@@ -46,12 +51,20 @@ class Command(BaseCommand):
                             pull_results = []
                             # Drain several bootstrap/change pages per pass. This keeps a
                             # new clinic from waiting one full interval for every 25 rows.
-                            for _ in range(20):
+                            for _ in range(getattr(settings, 'SYNC_PULL_PAGES_PER_PASS', 5)):
                                 pulled = pull_remote_changes()
                                 pull_results.append(pulled)
                                 if not pulled.get('has_more'):
                                     break
+                                time.sleep(0.25)
                             self.stdout.write(f"pushed={pushed} pulled={pull_results}")
+                        except OperationalError as exc:
+                            if not is_sqlite_locked_error(exc):
+                                raise
+                            self.stderr.write(
+                                self.style.WARNING('sync pass skipped because SQLite is busy')
+                            )
+                            time.sleep(2)
                         except Exception as exc:
                             # A transient network or malformed remote row must not kill
                             # the background worker. The next pass retries safely.

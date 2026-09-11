@@ -628,24 +628,40 @@ def import_remote_users(users, clinic):
         username = user_payload.get('username')
         if not username:
             continue
-        user, _ = User.objects.update_or_create(
-            username=username,
-            defaults={
-                'email': user_payload.get('email') or '',
-                'first_name': user_payload.get('first_name') or '',
-                'last_name': user_payload.get('last_name') or '',
-                'title': user_payload.get('title') or None,
-                'role': user_payload.get('role'),
-                # 'role': user_payload.get('role') or 'DOCTOR',
-                'verified': user_payload.get('verified', False),
-                'is_verified': user_payload.get('is_verified', False),
-                'is_staff': user_payload.get('is_staff', False),
-                'is_superuser': False,
-                'is_active': True,
-                'password': user_payload.get('password') or make_password(None),
-            },
-        )
-        user.clinic.add(clinic)
+
+        defaults = {
+            'email': user_payload.get('email') or '',
+            'first_name': user_payload.get('first_name') or '',
+            'last_name': user_payload.get('last_name') or '',
+            'title': user_payload.get('title') or None,
+            'role': user_payload.get('role'),
+            # 'role': user_payload.get('role') or 'DOCTOR',
+            'verified': user_payload.get('verified', False),
+            'is_verified': user_payload.get('is_verified', False),
+            'is_staff': user_payload.get('is_staff', False),
+            'is_superuser': False,
+            'is_active': True,
+        }
+        create_defaults = {
+            **defaults,
+            'password': user_payload.get('password') or make_password(None),
+        }
+        if user_payload.get('password'):
+            defaults['password'] = user_payload['password']
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            user = User.objects.create(username=username, **create_defaults)
+        else:
+            changed_fields = []
+            for field_name, value in defaults.items():
+                if getattr(user, field_name) != value:
+                    setattr(user, field_name, value)
+                    changed_fields.append(field_name)
+            if changed_fields:
+                user.save(update_fields=changed_fields)
+
+        if clinic and not user.clinic.filter(pk=clinic.pk).exists():
+            user.clinic.add(clinic)
         if not user.primary_clinic_id:
             user.primary_clinic = clinic
             user.save(update_fields=['primary_clinic'])

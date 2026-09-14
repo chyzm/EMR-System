@@ -26,6 +26,7 @@ from core.utils import log_action
 from core.server_sync import (
     apply_change,
     is_syncable_model,
+    import_remote_users,
     pull_remote_changes,
     push_pending_outbox,
     serialize_instance,
@@ -219,6 +220,44 @@ class SyncQueueTests(TestCase):
             emergency_contact_name='Grace Hopper',
             created_by=self.user,
         )
+
+    def test_import_remote_users_does_not_overwrite_existing_password(self):
+        original_password_hash = self.user.password
+        remote_password_hash = make_password('remote-secret')
+
+        import_remote_users([
+            {
+                'username': self.user.username,
+                'email': 'updated-sync@example.com',
+                'first_name': 'Updated',
+                'last_name': 'User',
+                'title': 'Dr',
+                'role': 'DOCTOR',
+                'verified': True,
+                'is_verified': True,
+                'is_staff': False,
+                'password': remote_password_hash,
+            }
+        ], self.clinic)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, original_password_hash)
+        self.assertEqual(self.user.email, 'updated-sync@example.com')
+
+    def test_import_remote_users_sets_password_for_new_user(self):
+        remote_password_hash = make_password('remote-secret')
+
+        import_remote_users([
+            {
+                'username': 'new-sync-user',
+                'email': 'new-sync-user@example.com',
+                'role': 'DOCTOR',
+                'password': remote_password_hash,
+            }
+        ], self.clinic)
+
+        imported_user = get_user_model().objects.get(username='new-sync-user')
+        self.assertEqual(imported_user.password, remote_password_hash)
 
     def test_sync_queue_creates_admission(self):
         self.client.force_login(self.user)

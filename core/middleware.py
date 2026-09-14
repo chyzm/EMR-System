@@ -1,7 +1,38 @@
 from django.contrib import messages
+from django.conf import settings
 from django.shortcuts import redirect
+import logging
 
 from core.decorators import clinic_subscription_is_expired, get_active_clinic
+
+
+logger = logging.getLogger(__name__)
+
+
+class AuthSessionDiagnosticsMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        session_auth_user_id = request.session.get('_auth_user_id')
+        had_session_key = bool(getattr(request.session, 'session_key', None))
+
+        response = self.get_response(request)
+
+        user = getattr(request, 'user', None)
+        if session_auth_user_id and user is not None and not user.is_authenticated:
+            logger.warning(
+                "Authenticated session became anonymous",
+                extra={
+                    "session_key_present": had_session_key,
+                    "session_auth_user_id": session_auth_user_id,
+                    "path": request.path,
+                    "method": request.method,
+                    "has_session_cookie": settings.SESSION_COOKIE_NAME in request.COOKIES,
+                },
+            )
+
+        return response
 
 
 SUBSCRIPTION_EXEMPT_PATH_PREFIXES = (

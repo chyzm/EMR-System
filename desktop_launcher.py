@@ -227,6 +227,7 @@ def ensure_env(project_root: Path) -> None:
 def runtime_env(project_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["DURIELMEDIC_DESKTOP"] = "1"
+    env["DURIELMEDIC_LOCAL_HTTP"] = "1"
     env["DURIELMEDIC_RUNTIME_DIR"] = str(project_root)
     env["DURIELMEDIC_PORT"] = str(bind_port())
     env["DURIELMEDIC_SQLITE_PATH"] = str(project_root / "db.sqlite3")

@@ -48,6 +48,7 @@ if (-not (Test-Path ".env")) {
     @"
 SECRET_KEY=$secret
 DEBUG=True
+DURIELMEDIC_LOCAL_HTTP=True
 ALLOWED_HOSTS=*
 LOCAL_SERVER_PORT=$Port
 "@ | Set-Content -Path ".env" -Encoding UTF8

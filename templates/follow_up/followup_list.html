@@ -93,8 +93,26 @@
     
     {% if is_paginated %}
     <div class="px-6 py-4 border-t border-gray-200">
-      <div class="flex items-center justify-between">
-        <!-- Pagination would go here -->
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-gray-600">
+          Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} follow-ups
+        </p>
+        <div class="flex items-center gap-2">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Previous</a>
+          {% else %}
+            <span class="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">Previous</span>
+          {% endif %}
+
+          <span class="px-2 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}" class="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Last</a>
+          {% else %}
+            <span class="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">Next</span>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% endif %}

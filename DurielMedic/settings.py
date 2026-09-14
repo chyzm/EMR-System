@@ -50,6 +50,10 @@ if not SECRET_KEY:
 # DEBUG = True
 DEBUG = env_bool('DEBUG', False)
 RUNNING_DEV_SERVER = "runserver" in sys.argv
+LOCAL_HTTP_SERVER = env_bool(
+    'DURIELMEDIC_LOCAL_HTTP',
+    env_bool('DURIELMEDIC_DESKTOP', False) or RUNNING_DEV_SERVER,
+)
 
 
 
@@ -86,6 +90,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'core.middleware.AuthSessionDiagnosticsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -180,23 +185,23 @@ if SENTRY_DSN and sentry_sdk:
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'duriel_med',
-#         'USER': 'postgres',
-#         'PASSWORD': 'Legacy@90',
-#         'HOST': '10.255.255.254',
-#         'PORT': 5432,
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'duriel_med',
+        'USER': 'postgres',
+        'PASSWORD': 'Legacy@90',
+        'HOST': '10.255.255.254',
+        'PORT': 5432,
+    }
+}
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 
 # Server-to-server clinic sync.
@@ -382,9 +387,9 @@ LOGGING = {
 
 
 # Security settings
-SECURE_SSL_REDIRECT = not (DEBUG or RUNNING_DEV_SERVER)
-SESSION_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER)
-CSRF_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER)
+SECURE_SSL_REDIRECT = not (DEBUG or LOCAL_HTTP_SERVER)
+SESSION_COOKIE_SECURE = not (DEBUG or LOCAL_HTTP_SERVER)
+CSRF_COOKIE_SECURE = not (DEBUG or LOCAL_HTTP_SERVER)
 CSRF_COOKIE_HTTPONLY = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -393,8 +398,8 @@ X_FRAME_OPTIONS = 'DENY'
 # Additional modern security settings
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# Session expires after 15 minutes of inactivity
-SESSION_COOKIE_AGE = 900  # seconds (900 = 15 minutes)
+# Session expires after 8 hours.
+SESSION_COOKIE_AGE = 8 * 60 * 60
 
 # Save sessions only when they change. This avoids unnecessary SQLite writes on
 # every authenticated page load in the local clinic server.

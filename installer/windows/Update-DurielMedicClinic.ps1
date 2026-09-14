@@ -73,6 +73,47 @@ function Remove-SyncWorkerLocks {
 }
 
 
+function Ensure-RuntimeEnvSetting(
+    [string]$Name,
+    [string]$Value
+) {
+    $envPath = Join-Path $runtimeRoot ".env"
+
+    if (-not (Test-Path $envPath -PathType Leaf)) {
+        New-Item `
+            -ItemType Directory `
+            -Path $runtimeRoot `
+            -Force |
+            Out-Null
+
+        New-Item `
+            -ItemType File `
+            -Path $envPath `
+            -Force |
+            Out-Null
+    }
+
+    $content = Get-Content $envPath -Raw
+
+    if ($content -match "(?m)^\s*$([regex]::Escape($Name))\s*=") {
+        Write-Host "Runtime .env already contains $Name."
+        return
+    }
+
+    if ($content.Length -gt 0 -and -not $content.EndsWith("`n")) {
+        Add-Content `
+            -Path $envPath `
+            -Value ""
+    }
+
+    Add-Content `
+        -Path $envPath `
+        -Value "$Name=$Value"
+
+    Write-Host "Added $Name to runtime .env."
+}
+
+
 function Stop-DurielMedicProcesses {
     Write-Host "Stopping DurielMedic background services..."
 
@@ -501,6 +542,10 @@ try {
             }
 
         # At this point $appExe now points to the newly installed executable.
+        Ensure-RuntimeEnvSetting `
+            -Name "DURIELMEDIC_LOCAL_HTTP" `
+            -Value "True"
+
         Write-Host "Running database migrations..."
 
         Invoke-CheckedExecutable `

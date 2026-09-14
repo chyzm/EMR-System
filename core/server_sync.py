@@ -646,8 +646,6 @@ def import_remote_users(users, clinic):
             **defaults,
             'password': user_payload.get('password') or make_password(None),
         }
-        if user_payload.get('password'):
-            defaults['password'] = user_payload['password']
         user = User.objects.filter(username=username).first()
         if user is None:
             user = User.objects.create(username=username, **create_defaults)

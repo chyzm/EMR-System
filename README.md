@@ -548,6 +548,14 @@ python3 manage.py sync_worker
 
 The Scheduled Tasks keep the WSGI web process and sync worker running independently of a logged-in desktop user. The desktop launcher remains a convenient way to open the app.
 
+Clinic LAN servers that are intentionally served over HTTP must set:
+
+```text
+DURIELMEDIC_LOCAL_HTTP=True
+```
+
+This keeps Django from marking session and CSRF cookies as HTTPS-only for local clinic addresses such as `http://192.168.1.200:9000`.
+
 ## Onboarding Checklist
 
 Before onboarding a clinic:

@@ -129,12 +129,14 @@
                     </td>
                     <td class="px-6 py-4">
                         <div class="text-sm">
-                            {% for test in order.ordered_tests.all|slice:":3" %}
+                            {% with ordered_tests=order.prefetched_ordered_tests %}
+                            {% for test in ordered_tests|slice:":3" %}
                             <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1">{{ test.name }}</span>
                             {% endfor %}
-                            {% if order.ordered_tests.count > 3 %}
-                            <span class="text-gray-500">+{{ order.ordered_tests.count|add:"-3" }} more</span>
+                            {% if ordered_tests|length > 3 %}
+                            <span class="text-gray-500">+{{ ordered_tests|length|add:"-3" }} more</span>
                             {% endif %}
+                            {% endwith %}
                         </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">

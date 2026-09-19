@@ -19,7 +19,7 @@ from django.utils import timezone
 from core.models import (
     Clinic, Patient, Billing, BillingLineItem, Payment, PaymentTransaction, PendingClinicRegistration, ServicePriceList, Notification, ActionLog,
     ServerSyncChange, ServerSyncOutbox, ServerSyncState, ClinicMedication, Prescription, StockMovement, PatientEncounter,
-    ReportExportJob,
+    ReportExportJob, LabTestCategory, LabTest, LabTestOrder,
 )
 from django.contrib.auth.hashers import make_password
 from core.utils import log_action
@@ -2157,6 +2157,59 @@ class WorkflowNotificationTests(TestCase):
         self.assertContains(response, 'Vitals Queue')
         self.assertContains(response, 'x-data="{ vitalsOpen: false }"')
         self.assertContains(response, 'x-cloak')
+
+    def test_lab_queue_stats_keep_filtered_orders_distinct(self):
+        category = LabTestCategory.objects.create(
+            clinic=self.clinic,
+            name='Hematology',
+            category_type='HEMATOLOGY',
+        )
+        malaria_rapid = LabTest.objects.create(
+            clinic=self.clinic,
+            category=category,
+            name='Malaria Rapid Test',
+            code='MAL-RDT',
+            price=Decimal('1000.00'),
+        )
+        malaria_blood = LabTest.objects.create(
+            clinic=self.clinic,
+            category=category,
+            name='Malaria Blood Film',
+            code='MAL-BF',
+            price=Decimal('1500.00'),
+        )
+        fbc = LabTest.objects.create(
+            clinic=self.clinic,
+            category=category,
+            name='Full Blood Count',
+            code='FBC',
+            price=Decimal('2000.00'),
+        )
+        pending_order = LabTestOrder.objects.create(
+            clinic=self.clinic,
+            patient=self.patient,
+            ordered_by=self.doctor,
+            status='IN_QUEUE',
+            priority='STAT',
+        )
+        pending_order.ordered_tests.add(malaria_rapid, malaria_blood)
+        completed_order = LabTestOrder.objects.create(
+            clinic=self.clinic,
+            patient=self.patient,
+            ordered_by=self.doctor,
+            status='COMPLETED',
+            priority='ROUTINE',
+        )
+        completed_order.ordered_tests.add(fbc)
+
+        self.client.force_login(self.nurse)
+        self.select_clinic()
+        response = self.client.get(reverse('core:lab_queue'), {'test': 'Malaria'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['stats']['total_pending'], 1)
+        self.assertEqual(response.context['stats']['completed'], 0)
+        self.assertEqual(response.context['stats']['stat_orders'], 1)
 
     def test_doctor_instruction_queues_for_nurse_and_can_be_completed(self):
         self.client.force_login(self.doctor)

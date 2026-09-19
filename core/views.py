@@ -23,7 +23,7 @@ from django.http import JsonResponse
 from .models import Patient
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from django.db.models import Sum
+from django.db.models import Prefetch, Sum
 
 from django.contrib.auth.views import LoginView
 from .models import Clinic
@@ -6043,7 +6043,9 @@ def lab_queue(request):
             models.Value(' '),
             models.F('patient__last_name'),
         )
-    ).prefetch_related('ordered_tests').order_by(
+    ).prefetch_related(
+        Prefetch('ordered_tests', to_attr='prefetched_ordered_tests')
+    ).order_by(
         # Newest orders first
         '-ordered_at',
         # If timestamps tie, show STAT first, then URGENT, then ROUTINE
@@ -6091,14 +6093,14 @@ def lab_queue(request):
     page_obj = paginator.get_page(page_number)
 
     # Stats for dashboard
-    stats = {
-        'total_pending': orders.filter(status='IN_QUEUE').count(),
-        'sample_collected': orders.filter(status='SAMPLE_COLLECTED').count(),
-        'processing': orders.filter(status='PROCESSING').count(),
-        'completed': orders.filter(status='COMPLETED').count(),
-        'reviewed': orders.filter(status='REVIEWED').count(),
-        'stat_orders': orders.filter(priority='STAT').count(),
-    }
+    stats = orders.aggregate(
+        total_pending=Count('id', filter=Q(status='IN_QUEUE'), distinct=True),
+        sample_collected=Count('id', filter=Q(status='SAMPLE_COLLECTED'), distinct=True),
+        processing=Count('id', filter=Q(status='PROCESSING'), distinct=True),
+        completed=Count('id', filter=Q(status='COMPLETED'), distinct=True),
+        reviewed=Count('id', filter=Q(status='REVIEWED'), distinct=True),
+        stat_orders=Count('id', filter=Q(priority='STAT'), distinct=True),
+    )
 
     query_params = request.GET.copy()
     query_params.pop('page', None)

@@ -194,6 +194,8 @@ def clinic_dashboard(request):
     clinic_id = request.session.get('clinic_id')
     clinic_type = request.session.get('clinic_type') or 'GENERAL'
     today = timezone.localdate()
+    hour = timezone.localtime().hour
+    greeting = 'Good morning' if hour < 12 else 'Good afternoon' if hour < 17 else 'Good evening'
     start_week = today - timedelta(days=today.weekday())
     end_week = start_week + timedelta(days=6)
     start_year = date(today.year, 1, 1)
@@ -290,6 +292,7 @@ def clinic_dashboard(request):
     can_schedule_appointment = request.user.role in config['front_desk_roles']
     can_create_patient = request.user.role in ['ADMIN', 'RECEPTIONIST']
     context = {
+        'greeting': greeting,
         'stats': stats,
         'user_appointments': user_appointments_page,
         'recent_patients': recent_patients,
@@ -762,14 +765,15 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         search_name = self.request.GET.get('search', '')
         search_id = self.request.GET.get('patient_id', '')
 
-        if search_name:
+        search_terms = [term for term in (search_name, search_id) if term]
+        for term in search_terms:
             queryset = queryset.filter(
-                Q(first_name__icontains=search_name) |
-                Q(last_name__icontains=search_name) |
-                Q(patient_id__icontains=search_name)
+                Q(first_name__icontains=term) |
+                Q(last_name__icontains=term) |
+                Q(patient_id__icontains=term) |
+                Q(contact__icontains=term) |
+                Q(email__icontains=term)
             )
-        if search_id:
-            queryset = queryset.filter(patient_id__icontains=search_id)
 
         return queryset.order_by('-created_at')
 
@@ -777,6 +781,11 @@ class PatientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('search', '')
+        today = timezone.localdate()
+        for patient in context['patients']:
+            patient.age = today.year - patient.date_of_birth.year - (
+                (today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day)
+            )
         return context
     
     
@@ -2796,13 +2805,23 @@ def delete_bill(request, pk):
 
 
 def patient_search_api(request):
-    query = request.GET.get('q', '')
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return JsonResponse({'results': []})
+
     results = Patient.objects.filter(clinic_id=request.session.get('clinic_id')).filter(
         Q(first_name__icontains=query) |
         Q(last_name__icontains=query) |
         Q(patient_id__icontains=query)
-    )
-    data = [{'id': p.patient_id, 'name': p.full_name} for p in results]
+    ).order_by('first_name', 'last_name')[:10]
+    today = timezone.localdate()
+    data = [{
+        'id': p.patient_id,
+        'name': p.full_name,
+        'age': today.year - p.date_of_birth.year - ((today.month, today.day) < (p.date_of_birth.month, p.date_of_birth.day)),
+        'gender': p.get_gender_display(),
+        'url': reverse('core:patient_detail', args=[p.patient_id]),
+    } for p in results]
     return JsonResponse({'results': data})
 
 

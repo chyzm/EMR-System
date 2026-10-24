@@ -1,110 +1,243 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-semibold text-gray-800">Patient Records</h2>
+<style>
+    .patient-list-primary-action {
+        background-color: #2563eb;
+        color: #fff;
+    }
+
+    .patient-list-primary-action:hover {
+        background-color: #1d4ed8;
+    }
+
+    .patient-list-avatar {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: #fff;
+    }
+</style>
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 px-4 py-8 sm:px-6 lg:px-8">
+<div class="mx-auto max-w-[1400px]">
+
+    {# ---------- Header ---------- #}
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Directory</p>
+            <h2 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Patient Records</h2>
+            <p class="mt-1.5 flex items-center gap-2 text-slate-500">
+                <span class="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-sm font-semibold text-teal-700 ring-1 ring-inset ring-teal-100">{{ page_obj.paginator.count }}</span>
+                patient{{ page_obj.paginator.count|pluralize }} on record
+                {% if request.GET.search %}<span class="text-slate-400">· filtered by “{{ request.GET.search }}”</span>{% endif %}
+            </p>
+        </div>
         {% if can_create_patient %}
-            <a href="{% url 'core:add_patient' %}" 
-               class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <a href="{% url 'core:add_patient' %}" class="patient-list-primary-action inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold shadow-sm shadow-blue-900/10 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                 Add Patient
             </a>
         {% endif %}
     </div>
-    <form method="get" class="mb-6">
-        <div class="flex flex-col sm:flex-row gap-4">
-            <input type="text" name="search" value="{{ request.GET.search }}" 
-                   placeholder="Search by patient name" 
-                   class="flex-grow p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <input type="text" name="patient_id" value="{{ request.GET.patient_id }}" 
-                   placeholder="Search by patient ID" 
-                   class="flex-grow p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button type="submit" 
-                    class="px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                Search
-            </button>
-        </div>
-    </form>
 
-    <div class="overflow-x-auto bg-white shadow-md rounded-lg">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-blue-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clinic</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Status</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200" data-offline-patient-list>
-                {% for patient in patients %}
-                <tr class="hover:bg-gray-50" data-patient-sync-id="{{ patient.sync_id }}">
-                    <td class="px-6 py-4 whitespace-nowrap">{{ patient.full_name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ patient.patient_id }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">{{ patient.clinic.name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap space-x-2">
-                        <a href="{% url 'core:patient_detail' patient.patient_id %}" data-offline-patient-view="{{ patient.sync_id }}"
-                           class="text-blue-600 hover:text-blue-800 hover:underline">View</a>
+    {# ---------- Card ---------- #}
+    <div class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-                         {% if patient.pk and can_delete_patient %}  
-                        <a href="{% url 'core:delete_patient' patient.pk %}" 
-                           class="text-red-600 hover:text-red-800 hover:underline">Delete</a>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if patient.pk and can_view_billing_status %}
-                        {% with balance=patient.get_outstanding_balance has_billing=patient.has_billing_records %}
-                            {% if not has_billing %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                    Not Yet Billed
-                                </span>
-                            {% elif balance > 0 %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                    Owes ₦{{ balance|floatformat:2 }}
-                                </span>
-                            {% else %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                    Paid Up
-                                </span>
-                            {% endif %}
-                        {% endwith %}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    {% if is_paginated %}
-    <div class="mt-6 flex justify-center">
-        <nav class="inline-flex rounded-md shadow">
-            {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.patient_id %}&patient_id={{ request.GET.patient_id }}{% endif %}" 
-                   class="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-l-md">
-                    Previous
-                </a>
-            {% endif %}
-            
-            {% for num in page_obj.paginator.page_range %}
-                {% if page_obj.number == num %}
-                    <span class="px-4 py-2 border border-gray-300 bg-blue-500 text-white">{{ num }}</span>
-                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <a href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.patient_id %}&patient_id={{ request.GET.patient_id }}{% endif %}" 
-                       class="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
-                        {{ num }}
-                    </a>
+        {# Search #}
+        <form method="get" class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:p-5">
+            <div class="relative min-w-0 flex-1" data-patient-autocomplete>
+                <span class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400" aria-hidden="true">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
+                </span>
+                <input type="text" name="search" value="{{ request.GET.search|default:'' }}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="patient-search-suggestions"
+                       placeholder="Search by name, Patient ID, phone, or email…"
+                       class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-slate-800 placeholder:text-slate-400 transition focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-teal-100">
+                <button type="button" data-clear class="absolute inset-y-0 right-3 hidden items-center text-slate-400 hover:text-slate-600" aria-label="Clear search">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+                </button>
+                <div id="patient-search-suggestions" class="absolute left-0 right-0 top-full z-20 mt-2 hidden max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5" role="listbox"></div>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="h-12 flex-1 rounded-xl bg-slate-900 px-6 font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 sm:flex-none">Search</button>
+                {% if request.GET.search %}
+                    <a href="?" class="inline-flex h-12 items-center rounded-xl border border-slate-200 px-4 font-medium text-slate-600 transition hover:bg-slate-50">Reset</a>
                 {% endif %}
-            {% endfor %}
-            
-            {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.patient_id %}&patient_id={{ request.GET.patient_id }}{% endif %}" 
-                   class="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-r-md">
-                    Next
-                </a>
-            {% endif %}
-        </nav>
+            </div>
+        </form>
+
+        {# Table #}
+        <div class="overflow-x-auto">
+            <table class="min-w-full table-fixed border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/70 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <th class="w-[40%] px-5 py-3.5 md:w-[34%]">Patient</th>
+                        <th class="hidden w-[21%] px-5 py-3.5 md:table-cell">Contact</th>
+                        <th class="w-[34%] px-5 py-3.5 md:w-[17%]">Age / Sex</th>
+                        <th class="hidden w-[17%] px-5 py-3.5 lg:table-cell">Registered</th>
+                        <th class="w-[26%] px-5 py-3.5 text-right md:w-[11%]">Record</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" data-offline-patient-list>
+                    {% for patient in patients %}
+                    <tr class="group transition hover:bg-teal-50/40" data-patient-sync-id="{{ patient.sync_id }}">
+                        <td class="px-5 py-4">
+                            <div class="flex min-w-0 items-center gap-3.5">
+                                <span class="patient-list-avatar flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold shadow-sm">{{ patient.first_name|slice:":1"|upper }}{{ patient.last_name|slice:":1"|upper }}</span>
+                                <span class="min-w-0">
+                                    <span class="block truncate font-medium text-slate-900">{{ patient.full_name }}</span>
+                                    <span class="mt-0.5 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-500">{{ patient.patient_id }}</span>
+                                </span>
+                            </div>
+                        </td>
+                        <td class="hidden px-5 py-4 md:table-cell">
+                            <span class="block truncate text-slate-800">{{ patient.contact|default:"—" }}</span>
+                            <span class="block truncate text-sm text-slate-400">{{ patient.email|default:"" }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-5 py-4 text-slate-800">
+                            {{ patient.age }} yrs
+                            <span class="ml-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ patient.get_gender_display }}</span>
+                        </td>
+                        <td class="hidden whitespace-nowrap px-5 py-4 text-slate-600 lg:table-cell">{{ patient.created_at|date:"j M Y" }}</td>
+                        <td class="px-5 py-4 text-right">
+                            <a href="{% url 'core:patient_detail' patient.patient_id %}" data-offline-patient-view="{{ patient.sync_id }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition group-hover:border-blue-200 group-hover:bg-blue-100 group-hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                View
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-5 py-16 text-center">
+                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
+                            </div>
+                            <p class="mt-3 font-medium text-slate-700">No patients found</p>
+                            <p class="mt-1 text-sm text-slate-500">Try a different name, ID, phone number or email.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Footer summary #}
+        {% if is_paginated %}
+        <div class="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-5 py-4 sm:flex-row">
+            <p class="text-sm text-slate-500">Page <span class="font-semibold text-slate-700">{{ page_obj.number }}</span> of <span class="font-semibold text-slate-700">{{ page_obj.paginator.num_pages }}</span></p>
+            <nav class="inline-flex items-center gap-1" aria-label="Pagination">
+                {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search|urlencode }}{% endif %}" class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">‹ Previous</a>{% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}<span aria-current="page" class="rounded-lg bg-teal-700 px-3.5 py-2 text-sm font-semibold text-white">{{ num }}</span>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}<a href="?page={{ num }}{% if request.GET.search %}&search={{ request.GET.search|urlencode }}{% endif %}" class="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">{{ num }}</a>{% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search|urlencode }}{% endif %}" class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Next ›</a>{% endif %}
+            </nav>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
+</div>
+
+<script>
+(() => {
+    const wrapper = document.querySelector('[data-patient-autocomplete]');
+    if (!wrapper) return;
+    const input = wrapper.querySelector('input');
+    const panel = wrapper.querySelector('[role="listbox"]');
+    const clearBtn = wrapper.querySelector('[data-clear]');
+    let timer;
+    let controller;
+    let active = -1;
+
+    const options = () => Array.from(panel.querySelectorAll('[role="option"]'));
+    const setActive = (index) => {
+        const items = options();
+        items.forEach((el, i) => {
+            const on = i === index;
+            el.classList.toggle('bg-teal-50', on);
+            el.setAttribute('aria-selected', on ? 'true' : 'false');
+            if (on) el.scrollIntoView({block: 'nearest'});
+        });
+        active = index;
+    };
+    const close = () => {
+        panel.classList.add('hidden');
+        input.setAttribute('aria-expanded', 'false');
+        active = -1;
+    };
+    const toggleClear = () => {
+        const has = input.value.length > 0;
+        clearBtn.classList.toggle('hidden', !has);
+        clearBtn.classList.toggle('flex', has);
+    };
+    const render = (items) => {
+        panel.replaceChildren();
+        active = -1;
+        const heading = document.createElement('div');
+        heading.className = 'sticky top-0 border-b border-slate-100 bg-white px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-400';
+        heading.textContent = `${items.length} ${items.length === 1 ? 'match' : 'matches'}`;
+        panel.append(heading);
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'px-5 py-6 text-center text-sm text-slate-500';
+            empty.textContent = 'No matching patients';
+            panel.append(empty);
+        }
+        items.forEach((patient) => {
+            const link = document.createElement('a');
+            link.href = patient.url;
+            link.setAttribute('role', 'option');
+            link.className = 'flex items-center gap-3.5 px-5 py-3 text-slate-800 transition hover:bg-teal-50';
+            const initials = document.createElement('span');
+            initials.className = 'patient-list-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold';
+            initials.textContent = patient.name.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
+            const details = document.createElement('span');
+            details.className = 'min-w-0';
+            const name = document.createElement('span');
+            name.className = 'block truncate font-medium';
+            name.textContent = patient.name;
+            const meta = document.createElement('span');
+            meta.className = 'block truncate text-sm text-slate-500';
+            meta.textContent = `${patient.id} · ${patient.age} yrs · ${patient.gender}`;
+            details.append(name, meta);
+            link.append(initials, details);
+            panel.append(link);
+        });
+        panel.classList.remove('hidden');
+        input.setAttribute('aria-expanded', 'true');
+    };
+
+    input.addEventListener('input', () => {
+        toggleClear();
+        clearTimeout(timer);
+        if (controller) controller.abort();
+        const query = input.value.trim();
+        if (!query) { close(); return; }
+        timer = setTimeout(async () => {
+            controller = new AbortController();
+            try {
+                const response = await fetch(`{% url 'core:patient_search_api' %}?q=${encodeURIComponent(query)}`, {signal: controller.signal});
+                if (!response.ok) return close();
+                const data = await response.json();
+                if (input.value.trim() === query) render(data.results || []);
+            } catch (error) {
+                if (error.name !== 'AbortError') close();
+            }
+        }, 180);
+    });
+    input.addEventListener('keydown', (event) => {
+        const items = options();
+        if (event.key === 'Escape') { close(); return; }
+        if (!items.length || panel.classList.contains('hidden')) return;
+        if (event.key === 'ArrowDown') { event.preventDefault(); setActive((active + 1) % items.length); }
+        else if (event.key === 'ArrowUp') { event.preventDefault(); setActive((active - 1 + items.length) % items.length); }
+        else if (event.key === 'Enter' && active >= 0) { event.preventDefault(); items[active].click(); }
+    });
+    clearBtn.addEventListener('click', () => {
+        input.value = '';
+        toggleClear();
+        close();
+        input.focus();
+    });
+    document.addEventListener('click', (event) => { if (!wrapper.contains(event.target)) close(); });
+    toggleClear();
+})();
+</script>
 {% endblock %}

@@ -113,6 +113,9 @@ def create_renewal_payment(*, clinic, plan_type, email, callback_url):
 
 
 def initialize_paystack_transaction(payment, *, callback_url):
+    if getattr(settings, 'DURIELMEDIC_DESKTOP', False):
+        raise PaymentInitializationError('Online payments require internet and are unavailable on the local clinic server.')
+
     payload = {
         'email': payment.email,
         'amount': int(payment.amount * 100),
@@ -151,6 +154,8 @@ def initialize_paystack_transaction(payment, *, callback_url):
 
 
 def confirm_paystack_payment(reference):
+    if getattr(settings, 'DURIELMEDIC_DESKTOP', False):
+        raise PaymentVerificationError('Online payments require internet and are unavailable on the local clinic server.')
     if not reference:
         raise PaymentVerificationError('Payment reference not found.')
 

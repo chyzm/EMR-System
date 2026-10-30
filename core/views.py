@@ -3007,6 +3007,8 @@ def _ai_provider_config():
 @clinic_selected_required
 def ai_chat(request):
     if request.method == "POST":
+        if getattr(settings, "DURIELMEDIC_DESKTOP", False):
+            return JsonResponse({"answer": "AI chat requires internet and is unavailable on the local clinic server."}, status=503)
         try:
             if _is_rate_limited('ai-chat', (request.user.pk, _client_ip(request)), limit=10, window_seconds=60):
                 return JsonResponse({"answer": "Too many chat requests. Please wait a moment and try again."}, status=429)

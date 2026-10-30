@@ -90,12 +90,18 @@ $updateAction = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$updateScript`" -InstallDir `"$InstallDir`"" `
     -WorkingDirectory $InstallDir
 $trigger = New-ScheduledTaskTrigger -AtStartup
-$updateTrigger = New-ScheduledTaskTrigger -Daily -At 2am
+$updateStartupTrigger = New-ScheduledTaskTrigger -AtStartup
+$updatePollingTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Minutes 1) `
+    -RepetitionDuration ([TimeSpan]::MaxValue)
+$updateTriggers = @($updateStartupTrigger, $updatePollingTrigger)
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
 
 Register-ScheduledTask -TaskName "DurielMedic Clinic Server" -Action $webAction -Trigger $trigger -Principal $principal -Force | Out-Null
 Register-ScheduledTask -TaskName "DurielMedic Sync Worker" -Action $syncAction -Trigger $trigger -Principal $principal -Force | Out-Null
-Register-ScheduledTask -TaskName "DurielMedic Clinic Updater" -Action $updateAction -Trigger $updateTrigger -Principal $principal -Force | Out-Null
+Register-ScheduledTask -TaskName "DurielMedic Clinic Updater" -Action $updateAction -Trigger $updateTriggers -Principal $principal -Force | Out-Null
 
 New-NetFirewallRule `
     -DisplayName "DurielMedic Clinic Server $Port" `
@@ -108,6 +114,7 @@ New-NetFirewallRule `
 
 Start-ScheduledTask -TaskName "DurielMedic Clinic Server"
 Start-ScheduledTask -TaskName "DurielMedic Sync Worker"
+Start-ScheduledTask -TaskName "DurielMedic Clinic Updater"
 
 Write-Host "DurielMedic Clinic Server installed."
 Write-Host "Open this on clinic devices: http://<clinic-server-ip>:$Port"

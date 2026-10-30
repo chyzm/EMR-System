@@ -1,12 +1,22 @@
-const STATIC_CACHE = 'durielmedic-static-v9';
-const PAGE_CACHE_PREFIX = 'durielmedic-pages-v9-';
+const STATIC_CACHE = 'durielmedic-static-v10';
+const PAGE_CACHE_PREFIX = 'durielmedic-pages-v10-';
 const CONTEXT_CACHE = 'durielmedic-worker-context-v1';
 const CONTEXT_URL = '/__durielmedic_worker_context__';
 const CORE_ASSETS = [
   '/static/manifest.json',
   '/static/images/icon.svg',
   '/static/offline-app.js',
-  '/static/offline-patient-workflow.js'
+  '/static/offline-patient-workflow.js',
+  '/static/vendor/tailwind.min.css',
+  '/static/vendor/fontawesome/all.min.css',
+  '/static/vendor/fontawesome/webfonts/fa-solid-900.woff2',
+  '/static/vendor/fontawesome/webfonts/fa-regular-400.woff2',
+  '/static/vendor/fontawesome/webfonts/fa-brands-400.woff2',
+  '/static/vendor/alpine.min.js',
+  '/static/vendor/jquery/jquery.min.js',
+  '/static/vendor/chartjs/chart.umd.min.js',
+  '/static/vendor/select2/select2.min.css',
+  '/static/vendor/select2/select2.min.js'
 ];
 
 self.addEventListener('install', (event) => {

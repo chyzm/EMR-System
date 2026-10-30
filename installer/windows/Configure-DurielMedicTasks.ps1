@@ -75,7 +75,13 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 $startupTrigger = New-ScheduledTaskTrigger -AtStartup
 $syncTrigger = New-ScheduledTaskTrigger -AtStartup
 $syncTrigger.Delay = "PT30S"
-$updateTrigger = New-ScheduledTaskTrigger -Daily -At 2am
+$updateStartupTrigger = New-ScheduledTaskTrigger -AtStartup
+$updatePollingTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Minutes 1) `
+    -RepetitionDuration ([TimeSpan]::MaxValue)
+$updateTriggers = @($updateStartupTrigger, $updatePollingTrigger)
 
 $longRunningSettings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
@@ -105,7 +111,7 @@ $updateAction = New-ScheduledTaskAction `
 
 Register-ScheduledTask -TaskName $serverTaskName -Action $serverAction -Trigger $startupTrigger -Principal $principal -Settings $longRunningSettings -Force | Out-Null
 Register-ScheduledTask -TaskName $syncTaskName -Action $syncAction -Trigger $syncTrigger -Principal $principal -Settings $longRunningSettings -Force | Out-Null
-Register-ScheduledTask -TaskName $updaterTaskName -Action $updateAction -Trigger $updateTrigger -Principal $principal -Settings $updaterSettings -Force | Out-Null
+Register-ScheduledTask -TaskName $updaterTaskName -Action $updateAction -Trigger $updateTriggers -Principal $principal -Settings $updaterSettings -Force | Out-Null
 
 foreach ($taskName in $taskNames) {
     if (-not (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) {
@@ -117,6 +123,7 @@ if ($StartTasks) {
     Start-ScheduledTask -TaskName $serverTaskName
     Start-Sleep -Seconds 2
     Start-ScheduledTask -TaskName $syncTaskName
+    Start-ScheduledTask -TaskName $updaterTaskName
 }
 
 Write-Host "DurielMedic server, sync, and updater tasks configured for automatic startup."

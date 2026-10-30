@@ -1,11 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Superuser Dashboard</title>
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
+<link href="{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css{% endif %}" rel="stylesheet">
 <style>
   body { margin: 0; background: #0b1220; color: #f8fafc; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   .su-shell { background: #0b1220; min-height: 100vh; }
@@ -177,7 +178,7 @@
 <script>
   if (!document.querySelector('link[href*="font-awesome"]')) {
     const link = document.createElement('link');
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+    link.href = '{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css{% endif %}';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }

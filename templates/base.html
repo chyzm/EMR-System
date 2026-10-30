@@ -10,14 +10,24 @@
   <link rel="manifest" href="{% static 'manifest.json' %}">
   <link rel="icon" href="{% static 'images/icon.svg' %}">
   <title>{% block title %}DurielMedic+ EMR System{% endblock %}</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css{% endif %}" rel="stylesheet">
+  {% if use_local_frontend_assets %}
+    <script src="{% static 'vendor/alpine.min.js' %}" defer></script>
+  {% else %}
+  {% if use_local_frontend_assets %}
+    <script src="{% static 'vendor/alpine.min.js' %}" defer></script>
+  {% else %}
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  {% endif %}
+  {% endif %}
 
   <style>
     [x-cloak] { display: none !important; }
 
+    {% if not use_local_frontend_assets %}
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    {% endif %}
     
     * {
         font-family: 'Inter', sans-serif;
@@ -1049,7 +1059,7 @@
     // Add Font Awesome if not already loaded
     if (!document.querySelector('link[href*="font-awesome"]')) {
         const link = document.createElement('link');
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
+        link.href = '{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css{% endif %}';
         link.rel = 'stylesheet';
         document.head.appendChild(link);
     }

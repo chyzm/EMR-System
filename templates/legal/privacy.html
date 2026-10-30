@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy | DurielMedic+</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
 </head>
 <body class="bg-gray-50 text-gray-800">
   <main class="max-w-4xl mx-auto px-4 py-12">

@@ -23,10 +23,12 @@
   <meta property="twitter:description" content="Modern EMR system for hospitals, eye clinics, and dental practices.">
   <meta property="twitter:image" content="https://durielmedic.pythonanywhere.com/static/images/twitter-image.jpg">
 
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css{% endif %}" rel="stylesheet">
   <style>
+    {% if not use_local_frontend_assets %}
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    {% endif %}
     
     * {
         font-family: 'Inter', sans-serif;
@@ -232,7 +234,7 @@
         <div class="flex justify-center floating">
           <div class="relative">
             <div class="absolute -inset-4 bg-blue-400 rounded-lg blur opacity-30"></div>
-            <img src="https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80" alt="Healthcare Dashboard" class="relative rounded-lg shadow-2xl w-full max-w-md">
+            <img src="{% if use_local_frontend_assets %}{% static 'images/medical_record.png' %}{% else %}https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80{% endif %}" alt="Healthcare Dashboard" class="relative rounded-lg shadow-2xl w-full max-w-md">
           </div>
         </div>
       </div>
@@ -400,7 +402,7 @@
         <!-- Hospital -->
         <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
           <div class="h-48 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Hospital Management" class="w-full h-full object-cover">
+            <img src="{% if use_local_frontend_assets %}{% static 'images/medical_record.png' %}{% else %}https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Hospital Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
             <h3 class="text-xl font-semibold mb-3">Hospitals</h3>
@@ -425,7 +427,7 @@
         <!-- Eye Clinic -->
         <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
           <div class="h-48 overflow-hidden">
-           <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Eye Clinic Management" class="w-full h-full object-cover">
+           <img src="{% if use_local_frontend_assets %}{% static 'images/medical_record.png' %}{% else %}https://images.unsplash.com/photo-1574258495973-f010dfbb5371?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Eye Clinic Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
             <h3 class="text-xl font-semibold mb-3">Eye Clinics</h3>
@@ -450,7 +452,7 @@
         <!-- Dental Clinic -->
         <div class="clinic-type-card bg-white rounded-lg shadow-md overflow-hidden">
           <div class="h-48 overflow-hidden">
-            <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Dental Clinic Management" class="w-full h-full object-cover">
+            <img src="{% if use_local_frontend_assets %}{% static 'images/appointment.png' %}{% else %}https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Dental Clinic Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
             <h3 class="text-xl font-semibold mb-3">Dental Clinics</h3>

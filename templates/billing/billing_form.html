@@ -4,7 +4,7 @@
 {% block title %}{{ title|default:"Billing Form" }}{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="{% if use_local_frontend_assets %}{% static 'vendor/select2/select2.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css{% endif %}" rel="stylesheet" />
 <style>
     .select2-container--default .select2-selection--multiple {
         border: 1px solid #d1d5db;
@@ -367,8 +367,16 @@
 {% endblock %}
 
 {% block extra_js %}
+{% if use_local_frontend_assets %}
+<script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+{% else %}
+{% if use_local_frontend_assets %}
+<script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+{% else %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{% endif %}
+{% endif %}
+<script src="{% if use_local_frontend_assets %}{% static 'vendor/select2/select2.min.js' %}{% else %}https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js{% endif %}"></script>
 <script>
 $(document).ready(function() {
     // Initialize Select2

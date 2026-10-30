@@ -7,6 +7,8 @@ from core.permissions import (
     has_role,
     is_admin_user,
 )
+from django.conf import settings
+
 from core.server_sync import role as server_sync_role
 
 
@@ -125,5 +127,6 @@ def clinic_context(request):
     return {
         "clinic_logo_url": clinic_logo_url,
         "server_sync_role": server_sync_role(),
+        "use_local_frontend_assets": getattr(settings, "USE_LOCAL_FRONTEND_ASSETS", False),
         **permission_context(request),
     }

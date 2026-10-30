@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Clinic Reports{% endblock %}
 
@@ -281,7 +282,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{% if use_local_frontend_assets %}{% static 'vendor/chartjs/chart.umd.min.js' %}{% else %}https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js{% endif %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof Chart === 'undefined') return;

@@ -50,9 +50,14 @@ if not SECRET_KEY:
 # DEBUG = True
 DEBUG = env_bool('DEBUG', False)
 RUNNING_DEV_SERVER = "runserver" in sys.argv
+DURIELMEDIC_DESKTOP = env_bool('DURIELMEDIC_DESKTOP', False)
 LOCAL_HTTP_SERVER = env_bool(
     'DURIELMEDIC_LOCAL_HTTP',
-    env_bool('DURIELMEDIC_DESKTOP', False) or RUNNING_DEV_SERVER,
+    DURIELMEDIC_DESKTOP,
+)
+USE_LOCAL_FRONTEND_ASSETS = env_bool(
+    'DURIELMEDIC_USE_LOCAL_FRONTEND_ASSETS',
+    DURIELMEDIC_DESKTOP or LOCAL_HTTP_SERVER,
 )
 
 
@@ -124,14 +129,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'DurielMedic.wsgi.application'
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+if DURIELMEDIC_DESKTOP or LOCAL_HTTP_SERVER:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],
+            },
+        },
+    }
 
 
 IGNORED_BOT_PATHS = (
@@ -171,7 +183,7 @@ def sentry_before_send_log(log, hint):
 
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 
-if SENTRY_DSN and sentry_sdk:
+if SENTRY_DSN and sentry_sdk and not DURIELMEDIC_DESKTOP:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         send_default_pii=False,
@@ -196,12 +208,12 @@ if SENTRY_DSN and sentry_sdk:
 #     }
 # }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 
 # Server-to-server clinic sync.
@@ -223,22 +235,22 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(1
 
 
 
-if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
-    DATABASES = {
-        # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-         "default": dj_database_url.config(conn_max_age=600)
-    }
-else:  # PythonAnywhere/MySQLP
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DB_ENGINE'),
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-        }
-    }
+# if os.getenv("DEBUG") == "True":  # Local/PostgreSQL
+#     DATABASES = {
+#         # "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+#          "default": dj_database_url.config(conn_max_age=600)
+#     }
+# else:  # PythonAnywhere/MySQLP
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DB_ENGINE'),
+#             'NAME': os.getenv('DB_NAME'),
+#             'USER': os.getenv('DB_USER'),
+#             'PASSWORD': os.getenv('DB_PASSWORD'),
+#             'HOST': os.getenv('DB_HOST'),
+#             'PORT': os.getenv('DB_PORT'),
+#         }
+#     }
 
 
 IS_LOCAL_SQLITE = (
@@ -387,9 +399,12 @@ LOGGING = {
 
 
 # Security settings
-SECURE_SSL_REDIRECT = not (DEBUG or LOCAL_HTTP_SERVER)
-SESSION_COOKIE_SECURE = not (DEBUG or LOCAL_HTTP_SERVER)
-CSRF_COOKIE_SECURE = not (DEBUG or LOCAL_HTTP_SERVER)
+SECURE_SSL_REDIRECT = env_bool(
+    "SECURE_SSL_REDIRECT",
+    not (DEBUG or RUNNING_DEV_SERVER or LOCAL_HTTP_SERVER),
+)
+SESSION_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER or LOCAL_HTTP_SERVER)
+CSRF_COOKIE_SECURE = not (DEBUG or RUNNING_DEV_SERVER or LOCAL_HTTP_SERVER)
 CSRF_COOKIE_HTTPONLY = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -468,7 +483,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email settings (for password reset and notifications)
 
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if not DURIELMEDIC_DESKTOP
+    else "django.core.mail.backends.console.EmailBackend"
+)
 EMAIL_HOST = "smtp.go54mail.com"
 EMAIL_PORT = 587
 EMAIL_USE_SSL = False

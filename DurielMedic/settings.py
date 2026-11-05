@@ -70,6 +70,7 @@ ALLOWED_HOSTS = [
     'durielmedic.com.ng',
     'localhost',
     '127.0.0.1',
+    'durielmedic-staging.durielbiz.com.ng',
     *[host.strip() for host in os.getenv('ALLOWED_HOSTS', '').split(',') if host.strip()],
 ]
 

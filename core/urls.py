@@ -9,7 +9,7 @@ from .views import admin_dashboard, activate_user, set_staff, set_superuser, ver
 from .views import activity_log, clear_activity_log, bulk_delete_logs
 from .views import mark_notification_read, clear_notifications
 from .sync import offline_bootstrap, server_sync_activate, server_sync_health, server_sync_pull, server_sync_push, service_worker, sync_queue
-
+from core.views import robots_txt
 
 
 app_name = 'core'
@@ -23,6 +23,11 @@ urlpatterns = [
     path('contact/', views.contact_form, name='contact_form'),
     path('terms/', views.terms_view, name='terms'),
     path('privacy/', views.privacy_view, name='privacy'),
+
+    # Public specialty landing pages
+    path('hospital-management-software/', views.hospital_software_view, name='hospital_software'),
+    path('eye-clinic-software/', views.eye_clinic_software_view, name='eye_clinic_software'),
+    path('dental-clinic-software/', views.dental_clinic_software_view, name='dental_clinic_software'),
     
     # Authentication
     # path('', lambda request: redirect('home'), name='home_redirect'),
@@ -214,4 +219,8 @@ urlpatterns = [
 
     # Patient Lab History
     path('patients/<str:patient_id>/lab/history/', views.patient_lab_history, name='patient_lab_history'),
+
+
+    # Robots
+    path("robots.txt", robots_txt, name="robots_txt"),
 ]

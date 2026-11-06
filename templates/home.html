@@ -4,32 +4,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DurielMedic+ | Comprehensive EMR System for Healthcare Providers</title>
-  <meta name="description" content="DurielMedic+ is a modern EMR system designed for hospitals, eye clinics, and dental practices. Streamline patient management, appointments, billing, and more.">
-  <meta name="keywords" content="EMR, electronic medical records, clinic management, hospital software, eye clinic software, dental clinic software, healthcare IT">
-  <meta name="author" content="Duriel Tech Solutions">
-  
-  <!-- Open Graph / Facebook -->
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://durielmedic.pythonanywhere.com/">
-  <meta property="og:title" content="DurielMedic+ | Comprehensive EMR System">
-  <meta property="og:description" content="Modern EMR system for hospitals, eye clinics, and dental practices.">
-  <meta property="og:image" content="https://durielmedic.pythonanywhere.com/static/images/og-image.jpg">
+  <title>DurielMedic+ | Hospital & Clinic Management Software</title>
 
-  <!-- Twitter -->
-  <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="https://durielmedic.pythonanywhere.com/">
-  <meta property="twitter:title" content="DurielMedic+ | Comprehensive EMR System">
-  <meta property="twitter:description" content="Modern EMR system for hospitals, eye clinics, and dental practices.">
-  <meta property="twitter:image" content="https://durielmedic.pythonanywhere.com/static/images/twitter-image.jpg">
+  <meta name="description" content="Manage your hospital, eye clinic or dental practice with DurielMedic+ EMR. Simplify patient records, appointments, consultations, prescriptions and billing.">
+
+  <meta name="author" content="Duriel Tech Solutions">
+  <meta name="robots" content="index, follow">
+
+  <link rel="canonical" href="https://durielmedic.com.ng/">
+
+  <!-- Open Graph / Facebook / LinkedIn -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DurielMedic+">
+  <meta property="og:url" content="https://durielmedic.com.ng/">
+  <meta property="og:title" content="DurielMedic+ | Hospital & Clinic Management Software">
+  <meta property="og:description" content="Simplify healthcare operations with DurielMedic+ EMR for hospitals, eye clinics and dental practices. Manage patient records, appointments, consultations and billing.">
+  <meta property="og:image" content="https://durielmedic.com.ng/static/images/og-image.jpg">
+
+  <!-- X / Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DurielMedic+ | Hospital & Clinic Management Software">
+  <meta name="twitter:description" content="A comprehensive EMR solution for hospitals, eye clinics and dental practices.">
+  <meta name="twitter:image" content="https://durielmedic.com.ng/static/images/og-image.jpg">
 
   <link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
   <link href="{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css{% endif %}" rel="stylesheet">
+  {% if not use_local_frontend_assets %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  {% endif %}
   <style>
-    {% if not use_local_frontend_assets %}
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    {% endif %}
-    
     * {
         font-family: 'Inter', sans-serif;
     }
@@ -127,8 +130,7 @@
   /* Form focus styles */
   input:focus, textarea:focus, select:focus {
     outline: none;
-    ring: 2px;
-    ring-color: #3b82f6;
+    box-shadow: 0 0 0 2px #3b82f6;
   }
 
   /* Mobile menu styles */
@@ -140,6 +142,54 @@
   
   .mobile-menu.open {
     max-height: 500px;
+  }
+
+  /* Clickable specialty cards: the heading link stretches over the whole card */
+  .clinic-type-card {
+    position: relative;
+    border: 1px solid transparent;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+
+  .clinic-type-card:hover,
+  .clinic-type-card:focus-within {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px -12px rgba(30, 58, 138, 0.35);
+    border-color: #1e3a8a;
+  }
+
+  .clinic-type-card img {
+    transition: transform 0.5s ease;
+  }
+
+  .clinic-type-card:hover img,
+  .clinic-type-card:focus-within img {
+    transform: scale(1.06);
+  }
+
+  .clinic-type-card .stretched-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .clinic-type-card .stretched-link:focus {
+    outline: none;
+  }
+
+  .clinic-type-card:hover h3,
+  .clinic-type-card:focus-within h3 {
+    color: #1e3a8a;
+  }
+
+  .clinic-type-card .card-cta i {
+    transition: transform 0.3s ease;
+  }
+
+  .clinic-type-card:hover .card-cta i,
+  .clinic-type-card:focus-within .card-cta i {
+    transform: translateX(6px);
   }
 
 
@@ -224,7 +274,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         <div class="fade-in">
-          <h1 class="text-4xl md:text-5xl font-bold mb-6">Revolutionizing Healthcare Management</h1>
+          <h1 class="text-4xl md:text-5xl font-bold mb-6">Hospital and Clinic Management Software for Modern Healthcare</h1>
           <p class="text-xl mb-8">DurielMedic+ by SUAVEDEF is a comprehensive EMR system designed to streamline operations for hospitals, eye clinics, and dental practices.</p>
           <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
             <a href="#contact" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold text-center hover:bg-blue-50 transition-colors">Get Started</a>
@@ -241,35 +291,40 @@
     </div>
   </section>
 
-  <!-- Stats Section -->
-  <section class="bg-white py-16">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
-        <div class="text-center">
-          <div class="text-4xl font-bold text-blue-900 mb-2">100+</div>
-          <div class="text-gray-600">Healthcare Providers</div>
-        </div>
-        <div class="text-center">
-          <div class="text-4xl font-bold text-blue-900 mb-2">15k+</div>
-          <div class="text-gray-600">Patients Managed</div>
-        </div>
-        <div class="text-center">
-          <div class="text-4xl font-bold text-blue-900 mb-2">98%</div>
-          <div class="text-gray-600">Customer Satisfaction</div>
-        </div>
-        <div class="text-center">
-          <div class="text-4xl font-bold text-blue-900 mb-2">24/7</div>
-          <div class="text-gray-600">Support Available</div>
-        </div>
+ <!-- Stats Section -->
+<section class="bg-white py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h2 class="sr-only">Why choose DurielMedic+?</h2>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-900 mb-2">3</div>
+        <div class="text-gray-600">Clinic Specialties</div>
+      </div>
+
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-900 mb-2">1</div>
+        <div class="text-gray-600">Unified Platform</div>
+      </div>
+
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-900 mb-2">Offline</div>
+        <div class="text-gray-600">On-Premise Option</div>
+      </div>
+
+      <div class="text-center">
+        <div class="text-4xl font-bold text-blue-900 mb-2">14 Days</div>
+        <div class="text-gray-600">Free Trial</div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
   <!-- Features Section -->
   <section id="features" class="py-16 bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16">
-        <h2 class="text-3xl font-bold text-gray-900 mb-4">Powerful Features for Modern Healthcare</h2>
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">EMR Features for Hospitals and Clinics</h2>
         <p class="text-xl text-gray-600 max-w-3xl mx-auto">DurielMedic+ offers a comprehensive suite of tools to manage all aspects of your healthcare practice.</p>
       </div>
 
@@ -343,7 +398,7 @@
                             <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Clinical documentation</li>
                             <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Lab results integration</li>
                             <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Prescription management</li>
-                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> HIPAA compliant</li>
+                            <li class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-2"></i> Offline-ready with automatic sync</li>
                         </ul>
                     </div>
                 </div>
@@ -394,7 +449,7 @@
   <section id="clinics" class="py-20 bg-gray-50">
     <div class="container mx-auto px-6">
       <div class="text-center mb-16 center-title">
-        <h2 class="text-3xl font-bold mb-4 section-title">Specialized For Your Clinic</h2>
+        <h2 class="text-3xl font-bold mb-4 section-title">Healthcare Management Software for Different Specialties</h2>
         <p class="text-gray-600 max-w-3xl mx-auto">DurielMedic+ offers specialized modules for different healthcare specialties.</p>
       </div>
       
@@ -405,7 +460,7 @@
             <img src="{% if use_local_frontend_assets %}{% static 'images/medical_record.png' %}{% else %}https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Hospital Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
-            <h3 class="text-xl font-semibold mb-3">Hospitals</h3>
+            <h3 class="text-xl font-semibold mb-3"><a href="{% url 'core:hospital_software' %}" class="stretched-link">Hospital Management Software</a></h3>
             <p class="text-gray-600 mb-4">Comprehensive management system for hospitals with multiple departments, inpatient/outpatient tracking, and complex billing needs.</p>
             <ul class="text-gray-600 space-y-2">
               <li class="flex items-start">
@@ -421,6 +476,7 @@
                 <span>Advanced billing </span>
               </li>
             </ul>
+            <p class="card-cta mt-5 font-semibold text-blue-900">Explore hospital software <i class="fas fa-arrow-right ml-1"></i></p>
           </div>
         </div>
         
@@ -430,7 +486,7 @@
            <img src="{% if use_local_frontend_assets %}{% static 'images/medical_record.png' %}{% else %}https://images.unsplash.com/photo-1574258495973-f010dfbb5371?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Eye Clinic Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
-            <h3 class="text-xl font-semibold mb-3">Eye Clinics</h3>
+            <h3 class="text-xl font-semibold mb-3"><a href="{% url 'core:eye_clinic_software' %}" class="stretched-link">Eye Clinic Management Software</a></h3>
             <p class="text-gray-600 mb-4">Specialized features for optometrists and ophthalmologists with vision-specific examination templates and prescription management.</p>
             <ul class="text-gray-600 space-y-2">
               <li class="flex items-start">
@@ -446,6 +502,7 @@
                 <span>Visual acuity tracking</span>
               </li>
             </ul>
+            <p class="card-cta mt-5 font-semibold text-blue-900">Explore eye clinic software <i class="fas fa-arrow-right ml-1"></i></p>
           </div>
         </div>
         
@@ -455,7 +512,7 @@
             <img src="{% if use_local_frontend_assets %}{% static 'images/appointment.png' %}{% else %}https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80{% endif %}" alt="Dental Clinic Management" class="w-full h-full object-cover">
           </div>
           <div class="p-6">
-            <h3 class="text-xl font-semibold mb-3">Dental Clinics</h3>
+            <h3 class="text-xl font-semibold mb-3"><a href="{% url 'core:dental_clinic_software' %}" class="stretched-link">Dental Practice Management Software</a></h3>
             <p class="text-gray-600 mb-4">Dental practice management with tooth charting, procedure coding, and dental-specific billing features.</p>
             <ul class="text-gray-600 space-y-2">
               <li class="flex items-start">
@@ -471,6 +528,7 @@
                 <span>Treatment plan management</span>
               </li>
             </ul>
+            <p class="card-cta mt-5 font-semibold text-blue-900">Explore dental software <i class="fas fa-arrow-right ml-1"></i></p>
           </div>
         </div>
       </div>
@@ -557,7 +615,7 @@
       <section id="pricing" class="py-16 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16">
-          <h2 class="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
+          <h2 class="text-3xl font-bold text-gray-900 mb-4">DurielMedic+ EMR Pricing Plans</h2>
           <p class="text-xl text-gray-600 max-w-3xl mx-auto">Choose the plan that works best for your healthcare practice with no hidden fees.</p>
         </div>
 
@@ -732,7 +790,9 @@
           <h4 class="font-semibold mb-4">Quick Links</h4>
           <ul class="space-y-2">
             <li><a href="#features" class="text-blue-200 hover:text-white">Features</a></li>
-            <li><a href="#solutions" class="text-blue-200 hover:text-white">Solutions</a></li>
+            <li><a href="{% url 'core:hospital_software' %}" class="text-blue-200 hover:text-white">Hospital Management Software</a></li>
+            <li><a href="{% url 'core:eye_clinic_software' %}" class="text-blue-200 hover:text-white">Eye Clinic Software</a></li>
+            <li><a href="{% url 'core:dental_clinic_software' %}" class="text-blue-200 hover:text-white">Dental Clinic Software</a></li>
             <li><a href="#pricing" class="text-blue-200 hover:text-white">Pricing</a></li>
             <li><a href="#contact" class="text-blue-200 hover:text-white">Contact</a></li>
           </ul>
@@ -773,55 +833,6 @@
       });
     });
   </script>
-
-  <!-- Add this script at the bottom of your Home.html file, before the closing </body> tag -->
-{% comment %} <script>
-
-  
-  // Function to show notification
-  function showNotification() {
-    const notification = document.getElementById('notification');
-    if (notification) {
-      notification.classList.remove('translate-y-[-100px]');
-      notification.classList.add('translate-y-0');
-      
-      // Auto hide after 5 seconds
-      setTimeout(() => {
-        closeNotification();
-      }, 5000);
-    }
-  }
-  
-  // Function to close notification
-  function closeNotification() {
-    const notification = document.getElementById('notification');
-    if (notification) {
-      notification.classList.remove('translate-y-0');
-      notification.classList.add('translate-y-[-100px]');
-      
-      // Remove the notification from DOM after animation completes
-      setTimeout(() => {
-        notification.remove();
-      }, 500);
-    }
-  }
-  
-  // Show notification on page load if there are messages
-  document.addEventListener('DOMContentLoaded', function() {
-    {% if messages %}
-      showNotification();
-    {% endif %}
-    
-    // Close notification when clicking the close button
-    document.addEventListener('click', function(event) {
-      if (event.target.closest('[data-dismiss="notification"]')) {
-        closeNotification();
-      }
-    });
-  });
-
-
-</script> {% endcomment %}
 
 <script>
   // Mobile menu toggle functionality
@@ -885,10 +896,10 @@
       }
     }
     
-    // Show notification on page load if there are messages
-    {% if messages %}
+    // Show notification on page load if the server rendered any messages
+    if (document.querySelector('#notification [data-dismiss="notification"]')) {
       showNotification();
-    {% endif %}
+    }
     
     // Close notification when clicking the close button
     document.addEventListener('click', function(event) {

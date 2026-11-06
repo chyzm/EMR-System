@@ -97,6 +97,167 @@ def privacy_view(request):
     return render(request, "legal/privacy.html")
 
 
+# Public specialty landing pages (SEO). Content describes features that exist
+# in the corresponding app modules; keep it in sync when modules change.
+SPECIALTY_PAGES = {
+    "hospital": {
+        "url_name": "core:hospital_software",
+        "title": "Hospital Management Software in Nigeria | DurielMedic+",
+        "meta_description": (
+            "DurielMedic+ hospital management software handles patient records, "
+            "admissions, vitals, lab orders, pharmacy, nursing and billing in one EMR. "
+            "Works offline and syncs automatically."
+        ),
+        "eyebrow": "For hospitals and general clinics",
+        "h1": "Hospital Management Software",
+        "intro": (
+            "Run outpatient care, admissions, laboratory, pharmacy and billing from "
+            "one electronic medical record. Every department works from the same "
+            "patient file, so doctors, nurses, lab staff and cashiers stay in step."
+        ),
+        "icon": "fa-hospital",
+        "features": [
+            ("fa-user-injured", "Patient registration and records",
+             "Register patients once and keep demographics, medical history, consultations and documents in a single file."),
+            ("fa-heartbeat", "Vitals queue",
+             "Nurses see patients waiting for vitals and record them before the doctor's consultation."),
+            ("fa-bed-pulse", "Admissions and discharge",
+             "Admit patients, record medication administration and nursing handovers, then discharge with a complete record."),
+            ("fa-flask", "Laboratory orders and results",
+             "Doctors order tests, lab staff collect samples and enter results, and doctors review them in the patient file."),
+            ("fa-prescription", "Pharmacy and inventory",
+             "Dispense prescriptions against live stock, with low-stock and expiring-soon reports."),
+            ("fa-money-bill-wave", "Billing and receipts",
+             "Bill services from your price list, record payments and issue printed or emailed receipts."),
+            ("fa-clipboard-list", "Nurse instructions",
+             "Doctors send instructions to nurses, who see them in a queue and mark them complete."),
+            ("fa-person-walking", "Physiotherapy referrals",
+             "Refer patients to physiotherapy and track each referral through the physio queue."),
+            ("fa-chart-line", "Reports",
+             "Generate financial, appointment and patient reports for management review."),
+        ],
+        "use_cases": [
+            ("Outpatient visit",
+             "Reception books the appointment, the nurse records vitals, the doctor consults and orders labs or drugs, and billing closes the visit."),
+            ("Inpatient stay",
+             "Admit the patient, record each medication round and shift handover, and discharge with the full admission history."),
+            ("Lab-driven diagnosis",
+             "Tests ordered in consultation appear in the lab queue, and results return to the same patient file."),
+        ],
+        "cta_heading": "Bring your whole hospital onto one EMR",
+    },
+    "eye": {
+        "url_name": "core:eye_clinic_software",
+        "title": "Eye Clinic Management Software | DurielMedic+",
+        "meta_description": (
+            "Eye clinic management software for optometrists and ophthalmologists: "
+            "visual acuity, IOP, refraction, optical prescriptions, optical lab "
+            "dispensing, follow-ups and billing."
+        ),
+        "eyebrow": "For optometrists and ophthalmologists",
+        "h1": "Eye Clinic Management Software",
+        "intro": (
+            "Record structured eye examinations, send spectacle and contact lens "
+            "prescriptions to your optical lab, and follow patients up over time, "
+            "all from a system built around eye care."
+        ),
+        "icon": "fa-eye",
+        "features": [
+            ("fa-eye", "Structured eye examinations",
+             "Record visual acuity (unaided and corrected), pinhole, near vision, IOP with tonometry method, and anterior and posterior segment findings."),
+            ("fa-glasses", "Refraction and final prescription",
+             "Capture subjective and objective refraction for each eye and the final spectacle or contact lens prescription."),
+            ("fa-store", "Optical lab and dispensing",
+             "Manage frames, spectacle lenses, contact lenses and accessories, work through the optical prescription queue, and keep a dispensing history."),
+            ("fa-calendar-check", "Appointments with availability check",
+             "Book appointments against provider availability and mark them completed or cancelled."),
+            ("fa-clock-rotate-left", "Follow-up exams",
+             "Schedule follow-ups and record a new exam at each visit to track changes over time."),
+            ("fa-file-pdf", "Eye medical records and PDF export",
+             "Keep eye-specific medical records and export a patient's record as a PDF."),
+            ("fa-money-bill-wave", "Billing and pharmacy",
+             "Bill consultations and optical items, and dispense medications from the same system."),
+            ("fa-chart-line", "Eye clinic reports",
+             "Generate reports on appointments, patients and revenue."),
+        ],
+        "use_cases": [
+            ("Routine eye test",
+             "The optometrist records acuity and refraction, issues a spectacle prescription, and the optical lab dispenses frames and lenses."),
+            ("Glaucoma monitoring",
+             "Record IOP and cup-to-disc findings at each follow-up to compare results across visits."),
+            ("Contact lens fitting",
+             "Capture the lens plan and prescription, then track the order through the optical prescription queue."),
+        ],
+        "cta_heading": "Give your eye clinic software built for eye care",
+    },
+    "dental": {
+        "url_name": "core:dental_clinic_software",
+        "title": "Dental Practice Management Software | DurielMedic+",
+        "meta_description": (
+            "Dental practice management software with digital tooth charting, dental "
+            "exams, treatment plans, procedure records, chair-side appointment status, "
+            "follow-ups and billing."
+        ),
+        "eyebrow": "For dentists and dental clinics",
+        "h1": "Dental Practice Management Software",
+        "intro": (
+            "Chart teeth, plan treatment, record procedures and keep your chair "
+            "schedule moving, with every dental record attached to the patient file."
+        ),
+        "icon": "fa-tooth",
+        "features": [
+            ("fa-tooth", "Digital tooth charting",
+             "Record findings tooth by tooth on each patient's dental chart."),
+            ("fa-stethoscope", "Dental examinations",
+             "Record exams linked to the appointment and the patient's chart."),
+            ("fa-list-check", "Treatment plans with consent notes",
+             "Create treatment plans and record the patient's consent alongside them."),
+            ("fa-syringe", "Procedure records",
+             "Record procedures performed and review them in a clinic-wide procedure list."),
+            ("fa-chair", "Chair-side appointment status",
+             "Move appointments through Scheduled, Checked In, In Chair and Completed, and record cancellations and no-shows."),
+            ("fa-clock-rotate-left", "Follow-ups",
+             "Schedule follow-up visits and start and end each follow-up encounter."),
+            ("fa-file-pdf", "Dental files and PDFs",
+             "Open, edit and export exams, plans and procedure records as PDFs."),
+            ("fa-money-bill-wave", "Billing and reports",
+             "Bill treatments from your price list and generate dental clinic reports."),
+        ],
+        "use_cases": [
+            ("New patient check-up",
+             "Check the patient in, chart each tooth, record the exam and create a treatment plan with consent."),
+            ("Multi-visit treatment",
+             "Record each procedure against the plan and book follow-ups until treatment is complete."),
+            ("Busy clinic day",
+             "Front desk and dentists see who is checked in and who is in the chair, so the schedule keeps moving."),
+        ],
+        "cta_heading": "Run your dental practice from one system",
+    },
+}
+
+
+def _render_specialty_page(request, key):
+    page = SPECIALTY_PAGES[key]
+    others = [
+        {"h1": other["h1"], "url_name": other["url_name"], "icon": other["icon"]}
+        for other_key, other in SPECIALTY_PAGES.items()
+        if other_key != key
+    ]
+    return render(request, "marketing/specialty_page.html", {"page": page, "other_pages": others})
+
+
+def hospital_software_view(request):
+    return _render_specialty_page(request, "hospital")
+
+
+def eye_clinic_software_view(request):
+    return _render_specialty_page(request, "eye")
+
+
+def dental_clinic_software_view(request):
+    return _render_specialty_page(request, "dental")
+
+
 
 
 
@@ -6429,3 +6590,15 @@ def patient_lab_history(request, patient_id):
         'orders': page_obj,
         'page_obj': page_obj
     })
+
+
+# SEO optimization
+def robots_txt(request):
+    robots_file = settings.BASE_DIR / "DurielMedic" / "robots.txt"
+
+    content = robots_file.read_text(encoding="utf-8")
+
+    return HttpResponse(
+        content,
+        content_type="text/plain"
+    )

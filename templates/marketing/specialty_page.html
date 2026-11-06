@@ -1,0 +1,224 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }}</title>
+  <meta name="description" content="{{ page.meta_description }}">
+  <meta name="author" content="Duriel Tech Solutions">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://durielmedic.com.ng{{ request.path }}">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DurielMedic+">
+  <meta property="og:url" content="https://durielmedic.com.ng{{ request.path }}">
+  <meta property="og:title" content="{{ page.title }}">
+  <meta property="og:description" content="{{ page.meta_description }}">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ page.title }}">
+  <meta name="twitter:description" content="{{ page.meta_description }}">
+
+  <link rel="icon" href="{% static 'images/icon.svg' %}">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/tailwind.min.css' %}{% else %}https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css{% endif %}" rel="stylesheet">
+  <link href="{% if use_local_frontend_assets %}{% static 'vendor/fontawesome/all.min.css' %}{% else %}https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css{% endif %}" rel="stylesheet">
+  {% if not use_local_frontend_assets %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  {% endif %}
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .hero-gradient { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+    .feature-icon { background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); }
+    .cta-gradient { background: linear-gradient(90deg, #4f46e5, #7c3aed); }
+    .mobile-menu { transition: all 0.3s ease-in-out; max-height: 0; overflow: hidden; }
+    .mobile-menu.open { max-height: 500px; }
+  </style>
+</head>
+<body class="text-gray-800 bg-white">
+
+  <!-- Navigation -->
+  <nav class="bg-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="{% url 'core:home' %}" class="text-blue-900 font-bold text-xl">DURIELMEDIC+</a>
+          <div class="hidden md:ml-6 md:flex md:space-x-8">
+            <a href="{% url 'core:hospital_software' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Hospitals</a>
+            <a href="{% url 'core:eye_clinic_software' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Eye Clinics</a>
+            <a href="{% url 'core:dental_clinic_software' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Dental Clinics</a>
+            <a href="{% url 'core:home' %}#pricing" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Pricing</a>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <div class="hidden md:flex md:items-center">
+            <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 px-3 py-2 text-sm font-medium">Login</a>
+            <a href="{% url 'core:home' %}#contact" class="ml-4 px-4 py-2 rounded-md text-white bg-blue-900 hover:bg-blue-800 text-sm font-medium transition-colors">Request Demo</a>
+          </div>
+          <div class="md:hidden flex items-center">
+            <button id="mobile-menu-button" type="button" aria-label="Open menu" class="text-gray-600 hover:text-blue-900 focus:outline-none">
+              <i class="fas fa-bars text-xl"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="mobile-menu" class="mobile-menu md:hidden">
+        <div class="px-2 pt-2 pb-3 space-y-1">
+          <a href="{% url 'core:hospital_software' %}" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Hospitals</a>
+          <a href="{% url 'core:eye_clinic_software' %}" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Eye Clinics</a>
+          <a href="{% url 'core:dental_clinic_software' %}" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Dental Clinics</a>
+          <a href="{% url 'core:home' %}#pricing" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Pricing</a>
+          <a href="{% url 'login' %}" class="text-gray-600 hover:text-blue-900 block px-3 py-2 rounded-md text-base font-medium">Login</a>
+          <a href="{% url 'core:home' %}#contact" class="bg-blue-900 text-white block px-3 py-2 rounded-md text-base font-medium hover:bg-blue-800">Request Demo</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero-gradient text-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <nav aria-label="Breadcrumb" class="text-sm text-blue-100 mb-6">
+          <a href="{% url 'core:home' %}" class="hover:text-white">Home</a>
+          <span class="mx-2">/</span>
+          <span aria-current="page">{{ page.h1 }}</span>
+        </nav>
+        <div class="max-w-3xl">
+          <p class="uppercase tracking-wide text-sm font-semibold text-blue-100 mb-3">
+            <i class="fas {{ page.icon }} mr-2"></i>{{ page.eyebrow }}
+          </p>
+          <h1 class="text-4xl md:text-5xl font-bold mb-6">{{ page.h1 }}</h1>
+          <p class="text-xl mb-8 text-blue-50">{{ page.intro }}</p>
+          <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <a href="{% url 'core:register_facility' 'TRIAL' %}" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold text-center hover:bg-blue-50 transition-colors">Start 14-Day Free Trial</a>
+            <a href="{% url 'core:home' %}#contact" class="px-6 py-3 rounded-lg border-2 border-white text-white font-semibold text-center hover:bg-white hover:text-blue-900 transition-colors">Request a Demo</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="py-16 bg-gray-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-gray-900 mb-4">{{ page.h1 }} Features</h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">What your team can do with DurielMedic+ every day.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {% for icon, heading, description in page.features %}
+          <div class="bg-white rounded-xl p-6 shadow">
+            <div class="feature-icon w-12 h-12 rounded-lg flex items-center justify-center text-white mb-4">
+              <i class="fas {{ icon }} text-xl"></i>
+            </div>
+            <h3 class="text-xl font-semibold mb-2">{{ heading }}</h3>
+            <p class="text-gray-600">{{ description }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- Use cases -->
+    <section class="py-16 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-gray-900 mb-4">How Clinics Use It</h2>
+          <p class="text-xl text-gray-600 max-w-3xl mx-auto">Common workflows, from first visit to follow-up.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {% for heading, description in page.use_cases %}
+          <div class="border border-gray-200 rounded-xl p-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-2">{{ heading }}</h3>
+            <p class="text-gray-600">{{ description }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- Shared platform benefits -->
+    <section class="py-16 bg-gray-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Included With Every DurielMedic+ Plan</h2>
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+          <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i><span>Works offline and syncs automatically when the internet returns</span></li>
+          <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i><span>Role-based access for doctors, nurses, pharmacists, cashiers and admins</span></li>
+          <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i><span>Activity log of who changed what</span></li>
+          <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i><span>Patient, billing and appointment data in one place</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Other specialties (internal links) -->
+    <section class="py-16 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">Software for Other Specialties</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          {% for other in other_pages %}
+          <a href="{% url other.url_name %}" class="flex items-center justify-between border border-gray-200 rounded-xl p-5 hover:border-blue-900 hover:shadow transition">
+            <span class="flex items-center font-semibold text-gray-900"><i class="fas {{ other.icon }} text-blue-900 mr-3"></i>{{ other.h1 }}</span>
+            <i class="fas fa-arrow-right text-blue-900"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="py-16 cta-gradient text-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-3xl font-bold mb-6">{{ page.cta_heading }}</h2>
+        <p class="text-xl mb-8 max-w-3xl mx-auto">Try every feature free for 14 days. No card required.</p>
+        <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+          <a href="{% url 'core:register_facility' 'TRIAL' %}" class="px-6 py-3 rounded-lg bg-white text-blue-900 font-semibold hover:bg-blue-50 transition-colors">Start Free Trial</a>
+          <a href="{% url 'core:home' %}#pricing" class="px-6 py-3 rounded-lg border-2 border-white text-white font-semibold hover:bg-white hover:text-blue-900 transition-colors">See Pricing Plans</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-blue-900 text-white py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div>
+          <p class="text-xl font-bold mb-4">DURIELMEDIC+</p>
+          <p class="text-blue-200">EMR software for hospitals, eye clinics and dental practices.</p>
+        </div>
+        <div>
+          <p class="font-semibold mb-4">Solutions</p>
+          <ul class="space-y-2">
+            <li><a href="{% url 'core:hospital_software' %}" class="text-blue-200 hover:text-white">Hospital Management Software</a></li>
+            <li><a href="{% url 'core:eye_clinic_software' %}" class="text-blue-200 hover:text-white">Eye Clinic Management Software</a></li>
+            <li><a href="{% url 'core:dental_clinic_software' %}" class="text-blue-200 hover:text-white">Dental Practice Management Software</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="font-semibold mb-4">Company</p>
+          <ul class="space-y-2">
+            <li><a href="{% url 'core:home' %}#contact" class="text-blue-200 hover:text-white">Contact</a></li>
+            <li><a href="{% url 'core:terms' %}" class="text-blue-200 hover:text-white">Terms</a></li>
+            <li><a href="{% url 'core:privacy' %}" class="text-blue-200 hover:text-white">Privacy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-blue-800 mt-8 pt-8 text-center text-blue-200">
+        <p>&copy; 2026 DurielMedic. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const button = document.getElementById('mobile-menu-button');
+      const menu = document.getElementById('mobile-menu');
+      if (button && menu) {
+        button.addEventListener('click', function () {
+          menu.classList.toggle('open');
+        });
+      }
+    });
+  </script>
+</body>
+</html>

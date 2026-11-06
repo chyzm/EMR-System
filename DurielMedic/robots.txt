@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+Disallow: /secure-admin/
+Disallow: /accounts/
+Disallow: /login/
+Disallow: /logout/
+Disallow: /patients/
+Disallow: /dashboard/
+Disallow: /clinic-dashboard/
+Disallow: /billing/
+Disallow: /prescriptions/
+Disallow: /api/
+Disallow: /eye/
+Disallow: /dental/
+Disallow: /DurielMedicApp/
+Disallow: /staff/
+Disallow: /settings/
+
+Sitemap: https://durielmedic.com.ng/sitemap.xml

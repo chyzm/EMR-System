@@ -5599,7 +5599,7 @@ def contact_form(request):
                 admin_subject,
                 admin_plain_message,
                 settings.DEFAULT_FROM_EMAIL,
-                ['suavedef@gmail.com'],  # Your admin email
+                ['info@durielmedic.com.ng'],  # Admin inbox for website inquiries
                 html_message=admin_html_message,
                 fail_silently=False,
             )
@@ -5780,7 +5780,7 @@ def paystack_callback(request):
                     "Trial Started - DurielMedic+",
                     f"Clinic '{clinic.name}' started a trial. Expires on {clinic.subscription_end_date}.",
                     settings.DEFAULT_FROM_EMAIL,
-                    ['suavedef@gmail.com'],
+                    ['info@durielmedic.com.ng'],
                     fail_silently=True
                 )
                 if clinic.email:
@@ -5822,7 +5822,7 @@ def paystack_callback(request):
                 "Subscription Renewed",
                 f"{clinic.name} has renewed {payment.plan_type}. Expires on {clinic.subscription_end_date}.",
                 settings.DEFAULT_FROM_EMAIL,
-                [clinic.email, 'suavedef@gmail.com'],
+                [clinic.email, 'info@durielmedic.com.ng'],
                 fail_silently=True
             )
         else:
@@ -5830,7 +5830,7 @@ def paystack_callback(request):
                 "New Clinic Activated",
                 f"Clinic '{clinic.name}' activated. Plan: {payment.plan_type}. Expires on {clinic.subscription_end_date}.",
                 settings.DEFAULT_FROM_EMAIL,
-                ['suavedef@gmail.com'],
+                ['info@durielmedic.com.ng'],
                 fail_silently=True
             )
             if clinic.email:

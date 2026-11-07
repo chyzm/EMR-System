@@ -42,7 +42,7 @@ class Command(BaseCommand):
         try:
             if clinic.email:
                 send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [clinic.email], fail_silently=True)
-            send_mail(f"ADMIN: {subject}", message, settings.DEFAULT_FROM_EMAIL, ['suavedef@gmail.com'], fail_silently=True)
+            send_mail(f"ADMIN: {subject}", message, settings.DEFAULT_FROM_EMAIL, ['info@durielmedic.com.ng'], fail_silently=True)
         except Exception:
             pass
         clinic.last_reminder_sent = marker
@@ -50,6 +50,6 @@ class Command(BaseCommand):
 
     def _notify_admin(self, message):
         try:
-            send_mail("Subscription Update", message, settings.DEFAULT_FROM_EMAIL, ['suavedef@gmail.com'], fail_silently=True)
+            send_mail("Subscription Update", message, settings.DEFAULT_FROM_EMAIL, ['info@durielmedic.com.ng'], fail_silently=True)
         except Exception:
             pass

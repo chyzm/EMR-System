@@ -1,0 +1,14 @@
+{% autoescape off %}New website inquiry
+
+Name:          {{ name }}
+Email:         {{ email }}
+Phone:         {{ phone|default:"Not provided" }}
+Practice type: {{ practice }}
+
+Message:
+{{ message }}
+
+Reply to this email to respond to {{ name }} directly.
+
+Sent from the contact form on {{ website_url }}
+{% endautoescape %}

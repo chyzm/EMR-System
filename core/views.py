@@ -5552,7 +5552,7 @@ def clear_notifications(request):
 
 import logging
 
-from django.core.mail import send_mail, BadHeaderError, EmailMultiAlternatives
+from django.core.mail import send_mail, BadHeaderError, EmailMessage
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.conf import settings
@@ -5593,17 +5593,17 @@ def contact_form(request):
         }
         
         # 1. Inquiry to our inbox. This is the part that must succeed.
+        # Plain text only: go54's outbound filter rejects the HTML version
+        # (550 5.7.1 "Reject for policy reason") when sent from production.
         try:
             admin_subject = f"New Website Inquiry: {name} - {practice_display}"
-            admin_html_message = render_to_string('emails/admin_contact_notification.html', context)
-            admin_email = EmailMultiAlternatives(
+            admin_email = EmailMessage(
                 admin_subject,
-                strip_tags(admin_html_message),
+                render_to_string('emails/admin_contact_notification.txt', context),
                 settings.DEFAULT_FROM_EMAIL,
                 [CONTACT_INBOX],
                 reply_to=[email] if email else None,
             )
-            admin_email.attach_alternative(admin_html_message, 'text/html')
             admin_email.send(fail_silently=False)
         except BadHeaderError:
             messages.error(request, 'Invalid header found.')

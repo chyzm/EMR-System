@@ -5550,7 +5550,9 @@ def clear_notifications(request):
 #  Contact Forms
 #--------------------------------------------------------------------------------------
 
-from django.core.mail import send_mail, BadHeaderError
+import logging
+
+from django.core.mail import send_mail, BadHeaderError, EmailMultiAlternatives
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.conf import settings
@@ -5558,7 +5560,8 @@ from django.contrib import messages
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
-
+contact_logger = logging.getLogger('core.contact')
+CONTACT_INBOX = 'info@durielmedic.com.ng'
 
 
 def contact_form(request):
@@ -5589,46 +5592,48 @@ def contact_form(request):
             'company_name': 'Duriel Tech Solutions'
         }
         
+        # 1. Inquiry to our inbox. This is the part that must succeed.
         try:
-            # 1. Send email to admin (HTML version)
             admin_subject = f"New Website Inquiry: {name} - {practice_display}"
             admin_html_message = render_to_string('emails/admin_contact_notification.html', context)
-            admin_plain_message = strip_tags(admin_html_message)
-            
-            send_mail(
+            admin_email = EmailMultiAlternatives(
                 admin_subject,
-                admin_plain_message,
+                strip_tags(admin_html_message),
                 settings.DEFAULT_FROM_EMAIL,
-                ['info@durielmedic.com.ng'],  # Admin inbox for website inquiries
-                html_message=admin_html_message,
-                fail_silently=False,
+                [CONTACT_INBOX],
+                reply_to=[email] if email else None,
             )
-            
-            # 2. Send confirmation email to user (HTML version)
-            user_subject = "Thank You for Contacting DurielMedic+"
+            admin_email.attach_alternative(admin_html_message, 'text/html')
+            admin_email.send(fail_silently=False)
+        except BadHeaderError:
+            messages.error(request, 'Invalid header found.')
+            return redirect('core:home')
+        except Exception:
+            contact_logger.exception(
+                "Contact form: failed to send inquiry to %s (visitor=%s)", CONTACT_INBOX, email
+            )
+            messages.error(request, 'There was an error sending your message. Please try again later.')
+            return redirect('core:home')
+
+        # 2. Confirmation to the visitor. Best effort: the inquiry has already reached us,
+        # so a rejected or mistyped visitor address must not show an error.
+        try:
             user_html_message = render_to_string('emails/user_confirmation.html', context)
-            user_plain_message = strip_tags(user_html_message)
-            
             send_mail(
-                user_subject,
-                user_plain_message,
+                "Thank You for Contacting DurielMedic+",
+                strip_tags(user_html_message),
                 settings.DEFAULT_FROM_EMAIL,
                 [email],
                 html_message=user_html_message,
                 fail_silently=False,
             )
-            
-            messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
-            return redirect('core:home')
+        except Exception:
+            contact_logger.warning(
+                "Contact form: inquiry delivered but confirmation to %s failed", email, exc_info=True
+            )
 
-        except BadHeaderError:
-            messages.error(request, 'Invalid header found.')
-            return redirect('core:home')
-        except Exception as e:
-            messages.error(request, 'There was an error sending your message. Please try again later.')
-            # Log the error for debugging
-            print(f"Email error: {str(e)}")
-            return redirect('core:home')
+        messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
+        return redirect('core:home')
 
     return redirect('core:home')
 

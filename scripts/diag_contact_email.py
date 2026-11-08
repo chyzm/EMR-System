@@ -2,16 +2,18 @@
 One-off diagnostic for "SMTPDataError 550 5.7.1 Reject for policy reason".
 
 Run on the production server (PythonAnywhere Bash console):
-    cd ~/emr && python3.10 scripts/diag_contact_email.py
+    cd ~/EMR-System && python3.10 scripts/diag_contact_email.py
 
-Sends up to 4 labelled "[DIAG]" emails to info@durielmedic.com.ng using the
-production EMAIL_* settings, and reports which ones the SMTP server accepts.
-Delete this file when done.
+Sends a few labelled "[DIAG]" plain-text emails to info@durielmedic.com.ng using
+the production EMAIL_* settings. Each test adds ONE piece of the real inquiry to a
+message that is known to pass, so the rejected test shows what the filter dislikes.
+Set DIAG_DRY=1 to print the tests without sending. Delete this file when done.
 """
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE)
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "DurielMedic.settings")
 
 import django
@@ -19,36 +21,57 @@ import django
 django.setup()
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives, get_connection
+from django.core.mail import EmailMessage, get_connection
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
 
 TO = ["info@durielmedic.com.ng"]
 FROM = settings.DEFAULT_FROM_EMAIL
+DRY = os.getenv("DIAG_DRY") == "1"
 
-print("HOST %s:%s TLS=%s SSL=%s USER=%s FROM=%s" % (
+print("HOST %s:%s TLS=%s SSL=%s USER=%s" % (
     settings.EMAIL_HOST, settings.EMAIL_PORT, settings.EMAIL_USE_TLS,
-    settings.EMAIL_USE_SSL, settings.EMAIL_HOST_USER, FROM))
+    settings.EMAIL_USE_SSL, settings.EMAIL_HOST_USER))
 
+# Is the deployed view the plain-text version?
+with open(os.path.join(BASE, "core", "views.py"), encoding="utf-8") as fh:
+    views_src = fh.read()
+print("views.py uses plain-text inquiry template:", "admin_contact_notification.txt" in views_src)
+print("plain-text template exists:",
+      os.path.exists(os.path.join(BASE, "templates", "emails", "admin_contact_notification.txt")))
+
+print("views.py links to durielmedic.com.ng:", "'website_url': 'https://durielmedic.com.ng/'" in views_src)
+
+VISITOR = "somtochiokaro@gmail.com"
+PA_URL = "https://durielmedic.pythonanywhere.com/"
+SITE_URL = "https://durielmedic.com.ng/"
+CONTROL = "Diagnostic test. Please ignore."
 ctx = {
-    "name": "Diag Test", "email": "somto.diag@gmail.com", "phone": "08000000000",
-    "practice": "Hospital", "message": "Diagnostic test of the website contact form. Please ignore.",
-    "website_url": "https://durielmedic.pythonanywhere.com/", "company_name": "Duriel Tech Solutions",
+    "name": "Test Visitor", "email": VISITOR, "phone": "08031234567",
+    "practice": "Hospital", "message": "I would like a demo of DurielMedic+ for my clinic.",
+    "website_url": SITE_URL, "company_name": "Duriel Tech Solutions",
 }
-html = render_to_string("emails/admin_contact_notification.html", ctx)
+real_subject = "New Website Inquiry: Test Visitor - Hospital"
+real_body = render_to_string("emails/admin_contact_notification.txt", ctx)
+real_body_pa = render_to_string("emails/admin_contact_notification.txt", {**ctx, "website_url": PA_URL})
 
+# (label, subject, body, reply_to)
 cases = [
-    ("1 plain text, no reply-to", "Diagnostic test 1. Please ignore.", None, None),
-    ("2 contact HTML, no reply-to", strip_tags(html), html, None),
-    ("3 contact HTML, reply-to visitor", strip_tags(html), html, [ctx["email"]]),
-    ("4 plain text, reply-to visitor", "Diagnostic test 4. Please ignore.", None, [ctx["email"]]),
+    ("A control", "[DIAG] A control", CONTROL, None),
+    ("B + pythonanywhere URL", "[DIAG] B pa url", CONTROL + "\n\n" + PA_URL, None),
+    ("C + durielmedic.com.ng URL", "[DIAG] C site url", CONTROL + "\n\n" + SITE_URL, None),
+    ("D + visitor email in body", "[DIAG] D email", CONTROL + "\n\nEmail: " + VISITOR, None),
+    ("E + phone number", "[DIAG] E phone", CONTROL + "\n\nPhone: 08031234567", None),
+    ("F real subject", "[DIAG] " + real_subject, CONTROL, None),
+    ("G full inquiry, durielmedic.com.ng link (what the view now sends)", "[DIAG] " + real_subject, real_body, [VISITOR]),
+    ("H full inquiry, pythonanywhere link (old)", "[DIAG] " + real_subject, real_body_pa, [VISITOR]),
 ]
 
-for label, body, alt, reply_to in cases:
+for label, subject, body, reply_to in cases:
+    if DRY:
+        print("WOULD SEND:", label, "| subject=%r | %d chars" % (subject, len(body)))
+        continue
     conn = get_connection(timeout=30)  # production EMAIL_* settings, fresh per message
-    msg = EmailMultiAlternatives(f"[DIAG] {label}", body, FROM, TO, reply_to=reply_to, connection=conn)
-    if alt:
-        msg.attach_alternative(alt, "text/html")
+    msg = EmailMessage(subject, body, FROM, TO, reply_to=reply_to, connection=conn)
     try:
         msg.send(fail_silently=False)
         print("ACCEPTED:", label)

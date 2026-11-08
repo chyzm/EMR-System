@@ -5588,7 +5588,7 @@ def contact_form(request):
             'phone': phone,
             'practice': practice_display,
             'message': message,
-            'website_url': 'https://durielmedic.pythonanywhere.com/',
+            'website_url': 'https://durielmedic.com.ng/',
             'company_name': 'Duriel Tech Solutions'
         }
         

@@ -86,7 +86,9 @@ BILLING_INACTIVE_APPOINTMENT_STATUSES = ('COMPLETED', 'CANCELLED', 'NO_SHOW')
 
 
 def home_view(request):
-    return render(request, "home.html")
+    # Set by contact_form after the inquiry is sent; popped so it fires only once.
+    contact_lead_submitted = request.session.pop('contact_lead_submitted', False)
+    return render(request, "home.html", {'contact_lead_submitted': contact_lead_submitted})
 
 
 def terms_view(request):
@@ -5632,6 +5634,8 @@ def contact_form(request):
                 "Contact form: inquiry delivered but confirmation to %s failed", email, exc_info=True
             )
 
+        # One-time flag so the homepage renders the GTM generate_lead event once.
+        request.session['contact_lead_submitted'] = True
         messages.success(request, 'Your message has been sent successfully! We will contact you soon.')
         return redirect('core:home')
 

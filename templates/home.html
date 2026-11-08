@@ -213,6 +213,17 @@
   gtag('js', new Date());
 </script>
 
+{% if contact_lead_submitted %}
+<script>
+window.dataLayer = window.dataLayer || [];
+
+window.dataLayer.push({
+    event: "generate_lead",
+    form_name: "contact_inquiry"
+});
+</script>
+{% endif %}
+
 <body class="text-gray-800">
 
   
